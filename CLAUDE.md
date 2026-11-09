@@ -87,7 +87,7 @@ npx tsc --noEmit
 php artisan test
 ```
 
-`npm run build` は開発サーバーと `.next` を取り合うので、workspaceの `/workspace` で `docker compose stop frontend` してから、`/workspace/frontend` で実行する（手順書第17章）。確認に失敗した場合も `/workspace` で `docker compose start frontend` して戻す。止められないときはビルドを未実行として報告する。
+`npm run build` は開発サーバーと `.next` を取り合うので、workspaceの `/workspace` で `docker compose stop frontend` してから、`/workspace/frontend` で実行する（手順書第10-4章）。確認に失敗した場合も `/workspace` で `docker compose start frontend` して戻す。止められないときはビルドを未実行として報告する。
 
 ## 完了の報告
 
@@ -146,7 +146,7 @@ fix: 他人のリストが403になる不具合を修正（D-43）
 - 実際に行った確認と結果（未実行のものは「未実行」と書く）
 ```
 
-- PRを自分でマージしない。チェックと develop への取り込みは GitHub Actions（`.github/workflows/ci.yml`）に任せる。自動マージの条件と導入段階は手順書第17-1・17-2章。
+- PRを自分でマージしない。チェックと develop への取り込みは GitHub Actions（`.github/workflows/ci.yml`）に任せる。自動マージの条件と導入段階は手順書第10-4-1・10-4-2章。
 - main 向けのPRは作らない。develop から main への公開は人が判断する。
 - CIが失敗したら、原因を調べて同じ作業ブランチへ修正を push する。再実行だけで済ませない。
 
