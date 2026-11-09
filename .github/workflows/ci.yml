@@ -131,7 +131,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        # Actionsがマージするとリポジトリ設定のブランチ自動削除が効かないため、--delete-branchで消す
+        # マージ後のGitHub上の作業ブランチ削除も、--delete-branchで要求する
         run: >-
           gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash
           --match-head-commit "$PR_HEAD_SHA" --delete-branch

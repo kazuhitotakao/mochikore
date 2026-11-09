@@ -80,6 +80,7 @@ frontend（Next.js 16）と backend（Laravel 13 + MySQL 8.4）を1つのリポ�
 # frontend（/workspace/frontend）
 npx eslint .
 npx prettier --check .
+npx next typegen
 npx tsc --noEmit
 
 # backend（/workspace/backend）
@@ -87,6 +88,7 @@ npx tsc --noEmit
 php artisan test
 ```
 
+`npx next typegen` は `LayoutProps` などの型を生成する。開発サーバーを止めた後や新しい環境でも型確認が通るよう、`tsc` の前に実行する（手順書第10-4章）。
 `npm run build` は開発サーバーと `.next` を取り合うので、workspaceの `/workspace` で `docker compose stop frontend` してから、`/workspace/frontend` で実行する（手順書第10-4章）。確認に失敗した場合も `/workspace` で `docker compose start frontend` して戻す。止められないときはビルドを未実行として報告する。
 
 ## 完了の報告
