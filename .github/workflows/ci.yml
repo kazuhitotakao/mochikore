@@ -44,8 +44,9 @@ jobs:
       - name: Prettier
         run: npx prettier --check .
 
+      # LayoutPropsなどの型は.next/typesに生成される。CIには開発サーバーの生成物がないため、先に生成する
       - name: Type check
-        run: npx tsc --noEmit
+        run: npx next typegen && npx tsc --noEmit
 
       - name: Build
         run: npm run build
