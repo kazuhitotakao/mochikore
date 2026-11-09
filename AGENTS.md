@@ -69,8 +69,10 @@ frontend（Next.js 16）と backend（Laravel 13 + MySQL 8.4）を1つのリポ�
 ## 実行する場所
 
 - この作業用コンテナ（workspace）には PHP と Node がある。npm・artisan・composer・Pint・Laravelのテストはここで実行できる。
-- `docker compose` が必要な操作（frontendの停止・再起動など）はMacのターミナルで行う。必要なら人に頼む。
-- コンテナ内では `docker compose exec` を付けない。開発サーバーはComposeが起動済みなので `npm run dev` や `php artisan serve` を重ねて起動しない。
+- `docker compose` は workspace 内の `/workspace` で実行する。手順書第3・4・9章の Docker CLI・Composeプラグイン・Dockerソケット共有を反映し、Rebuild Container後に `docker compose version`・`docker info`・`docker compose config --quiet` が通ることが前提。設定が未反映なら、Compose操作は未実行として報告する。
+- ルート `.env` の `MOCHIKORE_HOST_WORKSPACE` はMac側のプロジェクトの絶対パスにする。マウント元にコンテナ内の `/workspace` を使わない。
+- `up`・`stop` は `frontend backend db phpmyadmin` を対象にし、接続中の workspace 自身を作り直したり止めたりしない。workspaceの再構築はVS Codeの Rebuild Containerで行う。
+- npm・artisan・composer・Pint・Laravelのテストは各フォルダで直接実行し、`docker compose exec frontend/backend` を付けない。MySQLの管理コマンドは `/workspace` から `docker compose exec db` で実行する。開発サーバーはComposeが起動済みなので `npm run dev` や `php artisan serve` を重ねて起動しない。
 
 ## 確認コマンド
 
@@ -85,7 +87,7 @@ npx tsc --noEmit
 php artisan test
 ```
 
-`npm run build` は開発サーバーと `.next` を取り合うので、Macで `docker compose stop frontend` してから実行する（手順書第17章）。止められないときは未実行として報告する。
+`npm run build` は開発サーバーと `.next` を取り合うので、workspaceの `/workspace` で `docker compose stop frontend` してから、`/workspace/frontend` で実行する（手順書第10-4章）。確認に失敗した場合も `/workspace` で `docker compose start frontend` して戻す。止められないときはビルドを未実行として報告する。
 
 ## 完了の報告
 
@@ -144,7 +146,7 @@ fix: 他人のリストが403になる不具合を修正（D-43）
 - 実際に行った確認と結果（未実行のものは「未実行」と書く）
 ```
 
-- PRを自分でマージしない。チェックと develop への取り込みは GitHub Actions（`.github/workflows/ci.yml`）に任せる。自動マージの条件と導入段階は手順書第17-1・17-2章。
+- PRを自分でマージしない。チェックと develop への取り込みは GitHub Actions（`.github/workflows/ci.yml`）に任せる。自動マージの条件と導入段階は手順書第10-4-1・10-4-2章。
 - main 向けのPRは作らない。develop から main への公開は人が判断する。
 - CIが失敗したら、原因を調べて同じ作業ブランチへ修正を push する。再実行だけで済ませない。
 
