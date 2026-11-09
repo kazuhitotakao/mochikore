@@ -3,15 +3,11 @@
   "dockerComposeFile": "../compose.yaml",
   "service": "workspace",
   "workspaceFolder": "/workspace",
-  "runServices": ["workspace", "frontend", "backend", "db", "phpmyadmin"],
+  "runServices": ["workspace", "db", "phpmyadmin"],
   "shutdownAction": "none",
-  "postStartCommand": "if gh auth status --hostname github.com >/dev/null 2>&1; then gh auth setup-git; fi",
   "overrideCommand": false,
   "remoteUser": "root",
-  "containerEnv": {
-    "LANG": "C.UTF-8",
-    "LC_ALL": "C.UTF-8"
-  },
+  "postStartCommand": "if gh auth status --hostname github.com >/dev/null 2>&1; then gh auth setup-git; fi",
   "customizations": {
     "vscode": {
       // 髙尾工房と同じ拡張機能をコンテナにも入れる
