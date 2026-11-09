@@ -1,0 +1,83 @@
+name: mochikore
+
+services:
+  # VS Codeで入る作業用コンテナ（PHP + Node + gh/Claude/Codex）
+  workspace:
+    build:
+      context: .
+      dockerfile: docker/workspace/Dockerfile
+    working_dir: /workspace
+    environment:
+      CLAUDE_CONFIG_DIR: /root/.claude
+    volumes:
+      - .:/workspace
+      - frontend_node_modules:/workspace/frontend/node_modules
+      - gh_config:/root/.config/gh
+      - codex_config:/root/.codex
+      - claude_config:/root/.claude
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sleep infinity
+
+  # Next.jsの開発サーバー
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    working_dir: /workspace/frontend
+    volumes:
+      - .:/workspace
+      - frontend_node_modules:/workspace/frontend/node_modules
+    ports:
+      - "127.0.0.1:3003:3000"
+    command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0"
+
+  # Laravelの開発サーバー
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    working_dir: /workspace/backend
+    volumes:
+      - .:/workspace
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MOCHIKORE_DB_NAME}
+      MYSQL_USER: ${MOCHIKORE_DB_USER}
+      MYSQL_PASSWORD: ${MOCHIKORE_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MOCHIKORE_DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  frontend_node_modules:
+  mysql_data:
+  gh_config:
+  codex_config:
+  claude_config:

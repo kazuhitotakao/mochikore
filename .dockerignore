@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+frontend/node_modules
+frontend/.next
+frontend/.env*
+backend/vendor
+backend/.env*
+backend/storage/logs

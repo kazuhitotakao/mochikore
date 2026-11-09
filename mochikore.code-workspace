@@ -1,0 +1,18 @@
+{
+  // VS Codeの左の一覧で frontend と backend を並べて表示するためのファイル
+  // 開き方：Dev Containerに入ったあと「ファイル → ファイルでワークスペースを開く」でこのファイルを選ぶ
+  "folders": [
+    // 先頭はルート。Claude Code・Codexはここを作業場所にし、CLAUDE.md・AGENTS.mdを読む
+    { "name": "mochikore", "path": "." },
+    { "name": "frontend", "path": "frontend" },
+    { "name": "backend", "path": "backend" }
+  ],
+  "settings": {
+    // ルートの一覧では frontend・backend を隠す（下の専用の欄に出るため）
+    // 各フォルダの直下にある名前だけが対象なので、frontend・backend の欄は隠れない
+    "files.exclude": {
+      "frontend": true,
+      "backend": true
+    }
+  }
+}

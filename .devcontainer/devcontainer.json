@@ -1,0 +1,94 @@
+{
+  "name": "Mochikore",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "workspace",
+  "workspaceFolder": "/workspace",
+  "runServices": ["workspace", "frontend", "backend", "db", "phpmyadmin"],
+  "shutdownAction": "none",
+  "postStartCommand": "if gh auth status --hostname github.com >/dev/null 2>&1; then gh auth setup-git; fi",
+  "overrideCommand": false,
+  "remoteUser": "root",
+  "containerEnv": {
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8"
+  },
+  "customizations": {
+    "vscode": {
+      // 髙尾工房と同じ拡張機能をコンテナにも入れる
+      "extensions": [
+        // 言語パック / AI
+        "ms-ceintl.vscode-language-pack-ja",
+        "anthropic.claude-code",
+        "openai.chatgpt",
+
+        // フロントエンド (React / Next.js / Vue / JS)
+        "bradlc.vscode-tailwindcss",
+        "vue.volar",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "xabikos.javascriptsnippets",
+        "dsznajder.es7-react-js-snippets",
+        "styled-components.vscode-styled-components",
+        "formulahendry.auto-rename-tag",
+        "htmlhint.vscode-htmlhint",
+        "ritwickdey.liveserver",
+
+        // PHP / Laravel
+        "bmewburn.vscode-intelephense-client",
+        "junstyle.php-cs-fixer",
+        "onecentlin.laravel-extension-pack",
+        "onecentlin.laravel-blade",
+        "onecentlin.laravel5-snippets",
+        "shufo.vscode-blade-formatter",
+        "ihunte.laravel-blade-wrapper",
+        "amiralizadeh9480.laravel-extra-intellisense",
+        "codingyu.laravel-goto-view",
+        "naoray.laravel-goto-components",
+        "pgl.laravel-jump-controller",
+        "glitchbl.laravel-create-view",
+        "ryannaddy.laravel-artisan",
+
+        // Git
+        "eamodio.gitlens",
+        "seatonjiang.gitmoji-vscode",
+
+        // Docker / DB
+        "docker.docker",
+        "ms-azuretools.vscode-docker",
+        "ms-azuretools.vscode-containers",
+        "damms005.devdb",
+
+        // エディタ支援
+        "editorconfig.editorconfig",
+        "mikestead.dotenv",
+        "christian-kohler.path-intellisense",
+        "ionutvmi.path-autocomplete",
+        "streetsidesoftware.code-spell-checker",
+        "shardulm94.trailing-spaces",
+        "mosapride.zenkaku",
+        "oderwat.indent-rainbow",
+        "leodevbro.blockman",
+        "alefragnani.bookmarks",
+        "pdconsec.vscode-print",
+
+        // ドキュメント / 図
+        "jebbs.plantuml",
+        "hediet.vscode-drawio",
+        "tomoki1207.pdf",
+
+        // 外観
+        "akamud.vscode-theme-onedark",
+        "vscode-icons-team.vscode-icons",
+        "johnpapa.vscode-peacock"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "Bash",
+        "terminal.integrated.profiles.linux": {
+          "Bash": {
+            "path": "/bin/bash"
+          }
+        }
+      }
+    }
+  }
+}
