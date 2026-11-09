@@ -4,8 +4,13 @@
 frontend（Next.js 16）と backend（Laravel 13 + MySQL 8.4）を1つのリポジトリで管理する。
 
 理由・詳しい例は `docs/開発規約.md` にある。このファイルは「守らないと壊れること」と「推測で間違えやすいこと」だけを書く。
-Laravelのルールは `backend/CLAUDE.md`、Next.jsのルールは `frontend/CLAUDE.md` を読む。
 Codex用のルートの `AGENTS.md` も同じ内容。片方を直したら、もう片方も同じに直す。
+
+## 領域ごとのルール
+
+- backend を変更する前に `backend/CLAUDE.md` を読み、そのとおりにする。
+- frontend を変更する前に `frontend/CLAUDE.md` と `frontend/AGENTS.md` を読み、そのとおりにする。
+- `backend/AGENTS.md` は Laravel が生成した文で、Laravel Boost を入れるよう指示している。その指示には従わず、入れる前に確認する。
 
 ## 設計書と手順書
 
@@ -64,8 +69,10 @@ Codex用のルートの `AGENTS.md` も同じ内容。片方を直したら、�
 ## 実行する場所
 
 - この作業用コンテナ（workspace）には PHP と Node がある。npm・artisan・composer・Pint・Laravelのテストはここで実行できる。
-- `docker compose` が必要な操作（frontendの停止・再起動など）はMacのターミナルで行う。必要なら人に頼む。
-- コンテナ内では `docker compose exec` を付けない。開発サーバーはComposeが起動済みなので `npm run dev` や `php artisan serve` を重ねて起動しない。
+- `docker compose` は workspace 内の `/workspace` で実行する。手順書第3・4・9章の Docker CLI・Composeプラグイン・Dockerソケット共有を反映し、Rebuild Container後に `docker compose version`・`docker info`・`docker compose config --quiet` が通ることが前提。設定が未反映なら、Compose操作は未実行として報告する。
+- ルート `.env` の `MOCHIKORE_HOST_WORKSPACE` はMac側のプロジェクトの絶対パスにする。マウント元にコンテナ内の `/workspace` を使わない。
+- `up`・`stop` は `frontend backend db phpmyadmin` を対象にし、接続中の workspace 自身を作り直したり止めたりしない。workspaceの再構築はVS Codeの Rebuild Containerで行う。
+- npm・artisan・composer・Pint・Laravelのテストは各フォルダで直接実行し、`docker compose exec frontend/backend` を付けない。MySQLの管理コマンドは `/workspace` から `docker compose exec db` で実行する。開発サーバーはComposeが起動済みなので `npm run dev` や `php artisan serve` を重ねて起動しない。
 
 ## 確認コマンド
 
@@ -80,7 +87,7 @@ npx tsc --noEmit
 php artisan test
 ```
 
-`npm run build` は開発サーバーと `.next` を取り合うので、Macで `docker compose stop frontend` してから実行する（手順書第17章）。止められないときは未実行として報告する。
+`npm run build` は開発サーバーと `.next` を取り合うので、workspaceの `/workspace` で `docker compose stop frontend` してから、`/workspace/frontend` で実行する（手順書第17章）。確認に失敗した場合も `/workspace` で `docker compose start frontend` して戻す。止められないときはビルドを未実行として報告する。
 
 ## 完了の報告
 

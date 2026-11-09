@@ -61,6 +61,9 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 ## Migration
 
+- `users` に `name` はない（D-32）。登録・Factory・Seeder・Resource で名前を扱わない。
+- アプリの時刻は `Asia/Tokyo`。MySQL は UTC のままなので、日時は Laravel の `now()` で入れる。`useCurrent()`・`CURRENT_TIMESTAMP`・SQL の `NOW()` を使わない（時刻が9時間ずれる）。
+- API の日時は UTC（末尾 `Z`）で返す（D-55）。Laravel の標準の JSON 変換に任せ、日本時間の文字列に直さない。
 - 適用済みのファイルを書き換えず、新しいファイルを足す。
 - ファイルは `php artisan make:migration` で作る。
 - 削除時の動き（CASCADE・SET NULL・RESTRICT）は `04_テーブル定義` のとおりにする。
