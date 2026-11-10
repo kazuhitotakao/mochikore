@@ -1,16 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { useAuthErrorRedirect } from "./useAuthErrorRedirect";
 
 // API-24：同じアドレスへの再送は60秒あける
 const RESEND_INTERVAL_SECONDS = 60;
 
 // SC-04-5「確認メールを送り直す」
 export function ResendVerificationButton() {
-  const router = useRouter();
+  const redirectOnAuthError = useAuthErrorRedirect();
   const [sending, setSending] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -31,10 +31,7 @@ export function ResendVerificationButton() {
       // SC-04-5：送信したら1分間は押せない
       setWaitSeconds(RESEND_INTERVAL_SECONDS);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        router.replace(`/login?next=${encodeURIComponent("/verify-email")}`);
-        return;
-      }
+      if (redirectOnAuthError(error)) return;
       if (error instanceof ApiError && error.code === "too_many_requests") {
         setWaitSeconds(error.retryAfter ?? RESEND_INTERVAL_SECONDS);
       } else {
