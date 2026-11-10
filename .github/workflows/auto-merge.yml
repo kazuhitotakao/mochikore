@@ -1,0 +1,42 @@
+name: Mochikore auto-merge
+
+# 自動マージの予約だけを行う。テストは ci.yml で1回だけ動かし、ラベル付けでは動かさない。
+# 実際のマージは、developの保護設定で必須にした Frontend checks・Backend checks の成功を
+# GitHubが待ってから行う。チェックが失敗したらマージされない
+on:
+  pull_request:
+    branches: [develop]
+    # opened：作成時に automerge ラベルを付けた場合、labeled：後から付けた場合、
+    # synchronize：予約後にpushした場合に、新しい先頭コミットで予約し直す
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  enable-auto-merge:
+    name: Enable auto-merge (opt-in)
+    if: >-
+      ${{ vars.ENABLE_AUTO_MERGE == 'true' &&
+          github.event.pull_request.base.ref == 'develop' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login == github.repository_owner &&
+          github.event.pull_request.draft == false &&
+          contains(github.event.pull_request.labels.*.name, 'automerge') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable squash auto-merge for the current head and delete the branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # 予約した時点の先頭コミットだけをマージの対象にする。
+        # マージ後のGitHub上の作業ブランチ削除も、--delete-branchで要求する
+        run: >-
+          gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash
+          --match-head-commit "$PR_HEAD_SHA" --delete-branch

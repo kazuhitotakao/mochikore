@@ -3,7 +3,8 @@ name: Mochikore CI
 on:
   pull_request:
     branches: [develop, main]
-    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    # ラベルの付け外しではテストを動かさない。自動マージの予約は auto-merge.yml で行う
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [develop, main]
 
@@ -110,31 +111,3 @@ jobs:
 
       - name: Tests
         run: php artisan test
-
-  enable-auto-merge:
-    name: Enable auto-merge (opt-in)
-    needs: [frontend, backend]
-    if: >-
-      ${{ vars.ENABLE_AUTO_MERGE == 'true' &&
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.base.ref == 'develop' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          github.event.pull_request.user.login == github.repository_owner &&
-          github.event.pull_request.draft == false &&
-          contains(github.event.pull_request.labels.*.name, 'automerge') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Enable squash auto-merge for the checked head and delete the branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        # マージ後のGitHub上の作業ブランチ削除も、--delete-branchで要求する
-        run: >-
-          gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash
-          --match-head-commit "$PR_HEAD_SHA" --delete-branch
