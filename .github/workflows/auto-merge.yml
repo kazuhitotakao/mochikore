@@ -36,8 +36,8 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # 予約した時点の先頭コミットだけをマージの対象にする。
-        # 予約ではマージが後になり --delete-branch が効かないので、ブランチの削除はリポジトリ設定
-        # （Automatically delete head branches）に任せる
+        # 通常は ci.yml の「Merge after checks」がチェック通過の直後にマージし、ブランチも消す。
+        # 予約からGitHubがマージした場合は --delete-branch が効かず、ブランチが残る
         run: >-
           gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash
           --match-head-commit "$PR_HEAD_SHA"
