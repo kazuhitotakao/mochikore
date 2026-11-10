@@ -2,6 +2,7 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import type { AuthTokenResponse } from "@/types/api";
 import { deleteAuthToken, getAuthToken, setAuthToken } from "./authCookie";
+import { clientIpFrom } from "./clientIp";
 import {
   apiErrorResponse,
   callLaravel,
@@ -22,8 +23,10 @@ export async function issueToken(
   const rejected = rejectCrossOrigin(request);
   if (rejected) return rejected;
 
+  // D-41：会員登録は同じIPから1時間10回、ログインはメール＋IPで5回までなので、利用者のIPを渡す
   const laravel = await callLaravel("POST", apiPath, {
     body: await request.text(),
+    clientIp: clientIpFrom(request.headers),
   });
   if (!laravel) return laravelUnavailableResponse();
   if (!laravel.ok) return toBrowserResponse(laravel);

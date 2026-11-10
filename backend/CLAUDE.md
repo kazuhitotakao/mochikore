@@ -58,7 +58,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 判定は `AppServiceProvider` の `Sanctum::authenticateAccessTokensUsing`（`App\Services\TokenLifetime`）で行う。`expires_at`・`sanctum.expiration` を使うと二重の判定になるので設定しない。
 - `last_activity_at` は `X-User-Activity` があるときだけ更新する。
 - 失効させるトークン：ログアウトは現在の分、パスワード再設定・退会・未認証アカウントの削除は本人のすべて、メール変更の確定は現在以外のすべて。期限切れは1日1回の定期処理で削除する。
-- 転送ヘッダーのIPをそのまま信用しない。
+- 転送ヘッダーのIPをそのまま信用しない。転送元（TrustProxies）は信頼せず、Next.jsが合言葉（`NEXTJS_PROXY_KEY`）付きで渡した利用者のIPだけを `UseClientIpFromNextJs` で使う（D-41）。
 
 ## Migration
 

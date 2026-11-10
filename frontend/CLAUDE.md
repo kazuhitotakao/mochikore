@@ -32,7 +32,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
   2. `lib/api/routes.ts` にあるメソッドとURLだけを通す
   3. HttpOnly Cookie のトークンを `Authorization: Bearer` へ移す
   4. 利用者の操作のときだけ `X-User-Activity` を付ける（自動処理・先読みには付けない）
-  5. タイムアウトを付けて転送する。転送元のヘッダーをそのまま渡さない
+  5. タイムアウトを付けて転送する。転送元のヘッダーをそのまま渡さない。利用者のIPは `lib/api/clientIp.ts` で読み、合言葉（`NEXTJS_PROXY_KEY`）付きで渡す（D-41）
   6. 401 なら Cookie を削除する。応答の形は変えず、204 は本文なしで返す
 - トークンを扱う `login`・`register`・`logout`・`me` は共通の窓口とは別ファイルにする。
 - Laravel のトークンをブラウザの JavaScript や localStorage へ渡さない。ブラウザへは `user` だけ返す。
