@@ -2,17 +2,22 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import type { ApiErrorBody } from "@/types/api";
 import { deleteAuthToken, getAuthToken } from "./authCookie";
+import { clientIpFrom } from "./clientIp";
 import { isAllowedRoute } from "./routes";
 
 const LARAVEL_TIMEOUT_MS = 10_000;
 const UNSAFE_METHODS = ["POST", "PUT", "PATCH", "DELETE"];
 const USER_ACTIVITY_HEADER = "X-User-Activity";
+// D-41：Laravel の UseClientIpFromNextJs と同じヘッダー名
+const CLIENT_IP_HEADER = "X-Mochikore-Client-Ip";
+const PROXY_KEY_HEADER = "X-Mochikore-Proxy-Key";
 
 type CallOptions = {
   token?: string;
   body?: string;
   search?: string;
   userActivity?: boolean;
+  clientIp?: string;
 };
 
 /**
@@ -71,6 +76,7 @@ export async function sendToLaravel(
       : undefined,
     search: request.nextUrl.search,
     userActivity: request.headers.get(USER_ACTIVITY_HEADER) === "1",
+    clientIp: clientIpFrom(request.headers),
   });
 
   if (!laravel) return laravelUnavailableResponse();
@@ -85,7 +91,13 @@ export async function sendToLaravel(
 export async function callLaravel(
   method: string,
   apiPath: string,
-  { token, body, search = "", userActivity = false }: CallOptions = {},
+  {
+    token,
+    body,
+    search = "",
+    userActivity = false,
+    clientIp,
+  }: CallOptions = {},
 ): Promise<Response | null> {
   const baseUrl = process.env.LARAVEL_API_BASE_URL;
   if (!baseUrl) {
@@ -99,6 +111,12 @@ export async function callLaravel(
   // 4. D-36：利用者の操作のときだけ印を付け、Laravel は印があるときだけ期限を延ばす
   if (userActivity) headers[USER_ACTIVITY_HEADER] = "1";
   if (body) headers["Content-Type"] = "application/json";
+  // D-41：Laravel から見えるのは Next.js のIPなので、利用者のIPを合言葉付きで渡す
+  const proxyKey = process.env.NEXTJS_PROXY_KEY;
+  if (clientIp && proxyKey) {
+    headers[CLIENT_IP_HEADER] = clientIp;
+    headers[PROXY_KEY_HEADER] = proxyKey;
+  }
 
   try {
     return await fetch(`${baseUrl}/api${apiPath}${search}`, {

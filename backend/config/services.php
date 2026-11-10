@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    // D-41：Next.jsの窓口と共有する合言葉。一致したときだけ、Next.jsが渡す利用者のIPを使う
+    'nextjs' => [
+        'proxy_key' => env('NEXTJS_PROXY_KEY'),
+    ],
+
 ];
