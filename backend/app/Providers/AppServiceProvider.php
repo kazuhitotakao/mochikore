@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Services\EmailVerification;
+use App\Services\PasswordResetService;
 use App\Services\TokenLifetime;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -33,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // D-41：登録済みのアドレスを大量に調べられないよう、同じIPアドレスから1時間に10回まで
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
+        // D-41：再設定メールも同じIPアドレスから1時間に10回まで。名前が別なので、会員登録とは別に数える
+        RateLimiter::for('forgot-password', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
 
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
@@ -61,6 +65,15 @@ class AppServiceProvider extends ServiceProvider
             ->line('下のボタンを押して登録を完了してください。リンクの有効期限は60分です。')
             ->action('メールアドレスを確認する', $url)
             ->line('心当たりがない場合は、このメールを削除してください。')
+            ->salutation('もちこれ'));
+
+        // API-20：再設定メールのリンクは、LaravelではなくNext.jsのSC-15を開かせる
+        ResetPassword::toMailUsing(fn (User $user, string $token): MailMessage => (new MailMessage)
+            ->subject('【もちこれ】パスワードの再設定')
+            ->greeting('パスワード再設定のご案内')
+            ->line('下のボタンを押して、新しいパスワードを設定してください。リンクの有効期限は60分です。')
+            ->action('パスワードを再設定する', app(PasswordResetService::class)->resetUrl($user, $token))
+            ->line('心当たりがない場合は、このメールを削除してください。パスワードは変更されません。')
             ->salutation('もちこれ'));
     }
 }

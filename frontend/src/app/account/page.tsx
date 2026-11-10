@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { LogoutButton } from "@/features/auth/LogoutButton";
 import { requireUser } from "@/features/auth/requireUser";
 
-// SC-12 アカウント設定。今はメールアドレスの表示とログアウトだけ置く
+// SC-12 アカウント設定。今はメールアドレスの表示・パスワードの変更・ログアウトだけ置く
 export default async function AccountPage() {
   const user = await requireUser("/account");
 
@@ -14,6 +15,11 @@ export default async function AccountPage() {
         <p>{user.email}</p>
         {user.pending_email && <p>確認中：{user.pending_email}</p>}
       </section>
+
+      {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える */}
+      <Link href="/forgot-password" className="underline">
+        パスワードを変更
+      </Link>
 
       <LogoutButton />
     </main>

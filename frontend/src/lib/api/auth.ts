@@ -64,6 +64,26 @@ export async function revokeToken(request: NextRequest): Promise<Response> {
 }
 
 /**
+ * 新しいパスワードの保存（API-21）。ログインは不要なので、Cookie のトークンは送らない。
+ * 成功すると Laravel は本人のトークンをすべて無効にするので、このブラウザの Cookie も消す
+ * （SC-15：古いログイン情報を無効にしてログイン画面へ進む）。
+ */
+export async function resetPassword(request: NextRequest): Promise<Response> {
+  const rejected = rejectCrossOrigin(request);
+  if (rejected) return rejected;
+
+  const laravel = await callLaravel("POST", "/reset-password", {
+    body: await request.text(),
+    clientIp: clientIpFrom(request.headers),
+  });
+  if (!laravel) return laravelUnavailableResponse();
+
+  if (laravel.status === 204) await deleteAuthToken();
+
+  return toBrowserResponse(laravel);
+}
+
+/**
  * 本人情報（API-04）。
  */
 export async function fetchMe(request: NextRequest): Promise<Response> {
