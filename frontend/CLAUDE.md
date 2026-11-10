@@ -37,7 +37,8 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 - トークンを扱う `login`・`register`・`logout`・`me` は共通の窓口とは別ファイルにする。
 - Laravel のトークンをブラウザの JavaScript や localStorage へ渡さない。ブラウザへは `user` だけ返す。
 - Cookie がないときは API-04 を呼ばず、ログイン前として表示する（D-80）。
-- Cookie の属性・期限はまだ（仮）。第11章の試作で確定する。
+- Cookie は `mochikore_token`。HttpOnly・SameSite=Lax・Path=/・期限はログインから1年。Secure は本番だけ有効にする（08_認証と構成、D-78）。
+- 窓口が自分で返すエラー：Origin 不一致は 403 `origin_not_allowed`、許可していないAPIは 404 `not_found`、Laravel へつながらないときは 502 `server_error`（D-76）。
 
 ## 型と項目名
 
