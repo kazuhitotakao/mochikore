@@ -17,7 +17,17 @@ export default async function LoginPage(props: PageProps<"/login">) {
         </p>
       )}
 
+      {/* 02_画面配置 SC-15-4：新しいパスワードを設定した後 */}
+      {searchParams.reset === "1" && (
+        <p role="status">パスワードを設定しました。ログインしてください。</p>
+      )}
+
       <LoginForm next={next} />
+
+      {/* SC-02-6 */}
+      <Link href="/forgot-password" className="underline">
+        パスワードを忘れた方
+      </Link>
 
       <Link href="/register" className="underline">
         新規会員登録

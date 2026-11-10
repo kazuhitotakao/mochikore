@@ -125,9 +125,14 @@ function RegisterError({ error }: { error: Error }) {
         <p>
           このメールアドレスはすでに登録されています。ログインするか、パスワードを再設定してください。
         </p>
-        <Link href="/login" className="underline">
-          ログイン
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/login" className="underline">
+            ログイン
+          </Link>
+          <Link href="/forgot-password" className="underline">
+            パスワードを再設定
+          </Link>
+        </div>
       </div>
     );
   }
