@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // ログイン画面はNext.js側にあり、Laravelにはない。未ログインはリダイレクトせず401で返す
         $middleware->redirectGuestsTo(fn () => null);
+
+        // D-92・C-01：前後空白の削除と空文字→nullはLaravel標準のまま使う。
+        // パスワード（password等は標準で対象外）と同じく、入力用tokenも空白を削らずに照合する
+        $middleware->trimStrings(except: ['token']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
