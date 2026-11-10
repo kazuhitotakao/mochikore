@@ -1,6 +1,8 @@
 import type { ApiErrorBody, ApiErrorCode } from "@/types/api";
 
-// 02_画面配置 共通10：通信失敗と500のときの共通の文言
+// 02_画面配置 共通10：通信失敗と500のときの共通の文言。
+// Next.js の窓口が返す 502（Laravel へつながらない）と 403 origin_not_allowed も同じ文言にする（D-76）。
+// 普段の操作では起きず、起きても利用者には直せないため
 export const NETWORK_ERROR_MESSAGE =
   "通信に失敗しました。もう一度お試しください。";
 

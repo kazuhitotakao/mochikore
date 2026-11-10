@@ -14,3 +14,15 @@ export function safeNextPath(
 
   return value;
 }
+
+/**
+ * 02_画面配置 共通7：ログインの期限が切れたときの SC-02。ログイン後は元の画面へ戻る。
+ * 元の画面が同じサイト内の安全なパスでなければ、戻り先を付けない。
+ */
+export function expiredLoginPath(currentPath: string): string {
+  const query = new URLSearchParams({ expired: "1" });
+  const next = safeNextPath(currentPath);
+  if (next) query.set("next", next);
+
+  return `/login?${query}`;
+}

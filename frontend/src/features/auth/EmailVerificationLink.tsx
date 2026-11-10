@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { useAuthErrorRedirect } from "./useAuthErrorRedirect";
 import { verificationApiPath, type VerificationLink } from "./verificationLink";
 
 type Props = {
@@ -18,6 +19,7 @@ type Status = "verifying" | "invalid" | "failed";
 // メールの安全確認のために先にリンクを開くサービスは JavaScript を動かさないので、認証は起きない
 export function EmailVerificationLink({ link, currentPath }: Props) {
   const router = useRouter();
+  const redirectOnAuthError = useAuthErrorRedirect();
   const [status, setStatus] = useState<Status>("verifying");
   // 開発中の Strict Mode では effect が2回動くので、1回だけ送る
   const started = useRef(false);
@@ -30,18 +32,15 @@ export function EmailVerificationLink({ link, currentPath }: Props) {
       // SC-04-6：成功を伝えてSC-05へ移る。文は移動先で出す（SC-15の完了と同じ形）
       .then(() => router.replace("/lists?verified=1"))
       .catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 401) {
-          // SC-04-6：ログイン後にこのリンクへ戻って、続けて認証する
-          router.replace(`/login?next=${encodeURIComponent(currentPath)}`);
-          return;
-        }
+        // SC-04-6：ログイン後にこのリンクへ戻って、続けて認証する
+        if (redirectOnAuthError(error, currentPath)) return;
         setStatus(
           error instanceof ApiError && error.code === "link_invalid"
             ? "invalid"
             : "failed",
         );
       });
-  }, [link, currentPath, router]);
+  }, [link, currentPath, router, redirectOnAuthError]);
 
   if (status === "verifying") {
     return <p role="status">メール認証を確認しています…</p>;
