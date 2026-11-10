@@ -29,14 +29,15 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - name: Enable squash auto-merge for the current head and delete the branch
+      - name: Enable squash auto-merge for the current head
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # 予約した時点の先頭コミットだけをマージの対象にする。
-        # マージ後のGitHub上の作業ブランチ削除も、--delete-branchで要求する
+        # 予約ではマージが後になり --delete-branch が効かないので、ブランチの削除はリポジトリ設定
+        # （Automatically delete head branches）に任せる
         run: >-
           gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash
-          --match-head-commit "$PR_HEAD_SHA" --delete-branch
+          --match-head-commit "$PR_HEAD_SHA"

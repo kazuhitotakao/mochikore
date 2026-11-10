@@ -152,7 +152,7 @@ fix: 他人のリストが403になる不具合を修正（D-43）
 - 実際に行った確認と結果（未実行のものは「未実行」と書く）
 ```
 
-- PRを自分でマージしない。チェックと develop への取り込みは GitHub Actions（チェックは `.github/workflows/ci.yml`、自動マージの予約は `.github/workflows/auto-merge.yml`）に任せる。自動マージの条件と導入段階は手順書第10-4-1・10-4-2章。
+- PRを自分でマージしない。チェックと develop への取り込みは GitHub Actions（チェックと、チェック通過後のマージは `.github/workflows/ci.yml`、ラベルでの自動マージの予約は `.github/workflows/auto-merge.yml`）に任せる。自動マージの条件と導入段階は手順書第10-4-1・10-4-2章。
 - main 向けのPRは作らない。develop から main への公開は人が判断する。
 - CIが失敗したら、原因を調べて同じ作業ブランチへ修正を push する。再実行だけで済ませない。
 
