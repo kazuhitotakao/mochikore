@@ -27,7 +27,8 @@ export function EmailVerificationLink({ link, currentPath }: Props) {
     started.current = true;
 
     clientApi(verificationApiPath(link))
-      .then(() => router.replace("/lists"))
+      // SC-04-6：成功を伝えてSC-05へ移る。文は移動先で出す（SC-15の完了と同じ形）
+      .then(() => router.replace("/lists?verified=1"))
       .catch((error: unknown) => {
         if (error instanceof ApiError && error.status === 401) {
           // SC-04-6：ログイン後にこのリンクへ戻って、続けて認証する
