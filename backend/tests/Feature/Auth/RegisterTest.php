@@ -59,8 +59,67 @@ class RegisterTest extends TestCase
         $this->assertDatabaseCount('users', 1);
     }
 
+    public function test_メールアドレスは標準の変換で前後の空白を除き、英字を小文字にして保存する(): void
+    {
+        // C-01：導入版の標準（TrimStrings）は、NBSP・ゼロ幅スペース・全角スペースなども前後から削る
+        $this->postJson('/api/register', [
+            'email' => "\u{200B}\u{00A0}\u{3000} User@Example.COM\t\r\n\u{FEFF}",
+            'password' => 'password1!',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.user.email', 'user@example.com');
+
+        $this->assertDatabaseHas('users', ['email' => 'user@example.com']);
+    }
+
+    public function test_大文字と小文字だけが違うアドレスは登録済みとして扱う(): void
+    {
+        User::factory()->create(['email' => 'user@example.com']);
+
+        $this->postJson('/api/register', [
+            'email' => 'USER@example.com',
+            'password' => 'password1!',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'email_already_registered');
+
+        $this->assertDatabaseCount('users', 1);
+    }
+
+    #[DataProvider('invalidEmails')]
+    public function test_条件に合わないメールアドレスは1項目1文の入力エラーになる(mixed $email, string $message): void
+    {
+        $this->postJson('/api/register', [
+            'email' => $email,
+            'password' => 'password1!',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'validation_error')
+            ->assertJsonPath('errors.email', [$message]);
+
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    /**
+     * V-01・C-04の確認例
+     *
+     * @return array<string, array{mixed, string}>
+     */
+    public static function invalidEmails(): array
+    {
+        return [
+            '空欄' => ['', 'メールアドレスを入力してください。'],
+            // 標準で空文字になり、さらにnullになるので必須のエラーにする
+            '空白だけ' => [" \u{3000}\t\u{00A0}\u{200B}", 'メールアドレスを入力してください。'],
+            'null' => [null, 'メールアドレスを入力してください。'],
+            '文字列でない' => [12345, 'メールアドレスを文字で入力してください。'],
+            '形式違い' => ['abc', '正しいメールアドレスを入力してください。'],
+            '256文字' => [str_repeat('a', 244).'@example.com', 'メールアドレスは255文字以内で入力してください。'],
+        ];
+    }
+
     #[DataProvider('invalidPasswords')]
-    public function test_条件に合わないパスワードは入力エラーになる(string $password, string $message): void
+    public function test_条件に合わないパスワードは1項目1文の入力エラーになる(mixed $password, string $message): void
     {
         $this->postJson('/api/register', [
             'email' => 'new@example.com',
@@ -68,31 +127,48 @@ class RegisterTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonPath('code', 'validation_error')
-            ->assertJsonPath('errors.password.0', $message);
+            ->assertJsonPath('errors.password', [$message]);
 
         $this->assertDatabaseCount('users', 0);
     }
 
     /**
-     * @return array<string, array{string, string}>
+     * V-02・C-04の確認例
+     *
+     * @return array<string, array{mixed, string}>
      */
     public static function invalidPasswords(): array
     {
+        $rule = 'パスワードは空白を含めず、半角の英字・数字・記号で8〜72文字にしてください。';
+
         return [
-            '7文字' => ['pass12!', 'パスワードは8文字以上で入力してください。'],
-            '73文字' => [str_repeat('a', 73), 'パスワードは72文字以内で入力してください。'],
-            '全角文字' => ['ぱすわーど12345', 'パスワードは半角の英字・数字・記号で入力してください。'],
-            '空白' => ['pass word1', 'パスワードは半角の英字・数字・記号で入力してください。'],
+            '空欄' => ['', 'パスワードを入力してください。'],
+            // パスワードは削らないが、Laravel標準のrequiredは半角スペース・タブ・改行だけの文字列を未入力とみなす
+            '半角スペースだけ' => ['   ', 'パスワードを入力してください。'],
+            '全角スペースだけ' => ["\u{3000}", $rule],
+            '文字列でない' => [12345678, 'パスワードを文字で入力してください。'],
+            '7文字' => ['pass12!', $rule],
+            '73文字' => [str_repeat('a', 73), $rule],
+            '全角文字' => ['ぱすわーど12345', $rule],
+            '途中の空白' => ['pass word1', $rule],
+            // パスワードは標準の空白削除の対象外なので、前後の空白も削らずに入力エラーにする
+            '前後の空白' => [' password1 ', $rule],
+            '前後のNBSP' => ["\u{00A0}password1\u{00A0}", $rule],
+            '前後のゼロ幅スペース' => ["\u{200B}password1", $rule],
+            '改行' => ["password1\n", $rule],
+            'タブ' => ["\tpassword1", $rule],
         ];
     }
 
-    public function test_パスワードは8文字と72文字ちょうどなら登録できる(): void
+    public function test_パスワードは8文字と72文字ちょうど・英字だけ・数字だけ・記号だけでも登録できる(): void
     {
-        $this->postJson('/api/register', ['email' => 'a@example.com', 'password' => 'Abc123!?'])
-            ->assertCreated();
+        // V-02：文字種の組み合わせは求めない
+        $passwords = ['Abc123!?', str_repeat('a', 72), 'abcdefgh', '12345678', '!@#$%^&*'];
 
-        $this->postJson('/api/register', ['email' => 'b@example.com', 'password' => str_repeat('a', 72)])
-            ->assertCreated();
+        foreach ($passwords as $i => $password) {
+            $this->postJson('/api/register', ['email' => "user{$i}@example.com", 'password' => $password])
+                ->assertCreated();
+        }
     }
 
     public function test_同じ接続元から1時間に11回目の登録は429になる(): void

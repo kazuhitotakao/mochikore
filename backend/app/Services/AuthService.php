@@ -9,7 +9,6 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Str;
 
 class AuthService
 {
@@ -45,7 +44,9 @@ class AuthService
      */
     public function login(string $email, string $password, string $ip): array
     {
-        $throttleKey = Str::transliterate(Str::lower($email)).'|'.$ip;
+        // D-37・V-03：LoginRequestで処理したメールをそのまま使う。キーだけに別の変換を重ねると、
+        // 認証とずれたり、前後空白や大小文字の違いで制限を回避できたりするため
+        $throttleKey = $email.'|'.$ip;
 
         if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_LOGIN_ATTEMPTS)) {
             throw new ApiException(
