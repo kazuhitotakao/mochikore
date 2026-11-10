@@ -17,6 +17,8 @@ class AuthService
 
     public const LOGIN_LOCK_SECONDS = 60;
 
+    public function __construct(private EmailVerification $emailVerification) {}
+
     /**
      * @return array{user: User, token: string}
      */
@@ -28,7 +30,7 @@ class AuthService
         }
 
         try {
-            return DB::transaction(function () use ($email, $password) {
+            $result = DB::transaction(function () use ($email, $password) {
                 $user = User::create(['email' => $email, 'password' => $password]);
 
                 return ['user' => $user, 'token' => $this->issueToken($user)];
@@ -37,6 +39,11 @@ class AuthService
             // 同じアドレスの登録が同時に届き、上の確認をすり抜けたときも同じ案内にする
             throw $this->emailAlreadyRegistered();
         }
+
+        // 登録を確定してから送る。送信に失敗しても、ログインして送り直せる（API-24）
+        $this->emailVerification->sendAfterRegistration($result['user']);
+
+        return $result;
     }
 
     /**

@@ -54,6 +54,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // D-72：確認メールなどのリンク先。画面（Next.js）のURLで、ブラウザから開くアドレス
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:3003'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
