@@ -111,3 +111,39 @@ jobs:
 
       - name: Tests
         run: php artisan test
+
+  # 自動マージの予約（auto-merge.yml）だけだと、チェックの成功からGitHubがマージするまで
+  # 2分ほど待つことがある（PR #11）。チェックが通った時点でここからマージし、待ち時間をなくす。
+  # 条件は auto-merge.yml と同じ。ラベルは、CIの途中で付けた場合も拾えるよう、この時点のものを確かめる
+  merge-after-checks:
+    name: Merge after checks (opt-in)
+    needs: [frontend, backend]
+    if: >-
+      ${{ vars.ENABLE_AUTO_MERGE == 'true' &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.base.ref == 'develop' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login == github.repository_owner &&
+          github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge the checked head if the automerge label is set
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # チェックしたコミットが今も先頭のときだけマージする（--match-head-commit）。
+        # マージできない状態なら、--auto により予約のまま残り、条件がそろった時点でGitHubがマージする。
+        # ブランチの削除はリポジトリ設定（Automatically delete head branches）に任せる
+        run: |
+          labels=$(gh pr view "$PR_URL" --repo "$GH_REPO" --json labels --jq '.labels[].name')
+          if ! grep -qx automerge <<< "$labels"; then
+            echo "automerge ラベルがないので、マージしない"
+            exit 0
+          fi
+          gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash --match-head-commit "$PR_HEAD_SHA"
