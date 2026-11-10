@@ -54,7 +54,8 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 - 初期版ではトークンを更新しない（D-74）。
 - トークンの発行は1か所にまとめ、`first_login_at` と `last_activity_at` を同時に設定する。会員登録（API-01）とログイン（API-02）の両方で使う（D-78）。
-- 期限は `last_activity_at`（180日）と `first_login_at`（1年）で判定する。`last_used_at` は判定に使わない（D-36）。
+- 期限は `last_activity_at`（180日）と `first_login_at`（1年＝365日）で判定する。`last_used_at` は判定に使わない（D-36）。
+- 判定は `AppServiceProvider` の `Sanctum::authenticateAccessTokensUsing`（`App\Services\TokenLifetime`）で行う。`expires_at`・`sanctum.expiration` を使うと二重の判定になるので設定しない。
 - `last_activity_at` は `X-User-Activity` があるときだけ更新する。
 - 失効させるトークン：ログアウトは現在の分、パスワード再設定・退会・未認証アカウントの削除は本人のすべて、メール変更の確定は現在以外のすべて。期限切れは1日1回の定期処理で削除する。
 - 転送ヘッダーのIPをそのまま信用しない。
