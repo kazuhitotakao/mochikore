@@ -3,9 +3,13 @@
 namespace App\Providers;
 
 use App\Models\PersonalAccessToken;
+use App\Models\User;
+use App\Services\EmailVerification;
 use App\Services\TokenLifetime;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -45,5 +49,18 @@ class AppServiceProvider extends ServiceProvider
                 app(TokenLifetime::class)->recordActivity($event->token);
             }
         });
+
+        // D-72：確認メールのリンクは、LaravelではなくNext.jsのSC-04を開かせる
+        VerifyEmail::createUrlUsing(
+            fn (User $user): string => app(EmailVerification::class)->verificationUrl($user),
+        );
+
+        VerifyEmail::toMailUsing(fn (User $user, string $url): MailMessage => (new MailMessage)
+            ->subject('【もちこれ】メールアドレスの確認')
+            ->greeting('もちこれへのご登録ありがとうございます。')
+            ->line('下のボタンを押して登録を完了してください。リンクの有効期限は60分です。')
+            ->action('メールアドレスを確認する', $url)
+            ->line('心当たりがない場合は、このメールを削除してください。')
+            ->salutation('もちこれ'));
     }
 }

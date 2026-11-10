@@ -9,6 +9,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -66,6 +67,15 @@ return Application::configure(basePath: dirname(__DIR__))
                 'しばらくしてから再度お試しください。',
                 (int) ($e->getHeaders()['Retry-After'] ?? 60),
             ))->render();
+        });
+
+        // D-72：署名付きリンクの不正・期限切れは、Laravel標準の403ではなく422 link_invalid にそろえる
+        $exceptions->render(function (InvalidSignatureException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return (new ApiException(ApiErrorCode::LinkInvalid, 'リンクの有効期限が切れているか、無効です。'))->render();
         });
 
         // 想定外のエラーは、原因の詳細を利用者へ返さない（ログには残る）
