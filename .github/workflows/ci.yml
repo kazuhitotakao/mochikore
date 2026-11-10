@@ -12,7 +12,10 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # PRでは取り消さない。PR作成とラベル付けで続けて実行されたとき、取り消された回のチェックが残り、
+  # 成功した回があってもPRが失敗扱いでマージされないことがあったため（PR #8）。
+  # pushでは従来どおり、古い実行を取り消す
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   frontend:
