@@ -72,6 +72,19 @@ export type SavedItem = {
   category: CategorySummary;
 };
 
+// API-29 グループ整理用の最新状態。よく使う項目の選択（SC-08）では grouping_revision を使う
+export type GroupingState = {
+  grouping_revision: number;
+  groups: PackingListGroup[];
+  items: PackingListItem[];
+};
+
+// API-34 一括追加の結果。追加した持ち物は選んだ順
+export type BulkAddResult = {
+  grouping_revision: number;
+  items: PackingListItem[];
+};
+
 // API-12 持ち物の削除。最後の1件を消すと非公開になることがある（D-51）
 export type ItemDeleteResult = {
   is_public: boolean;

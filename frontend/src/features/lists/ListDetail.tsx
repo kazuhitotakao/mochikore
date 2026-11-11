@@ -297,9 +297,19 @@ export function ListDetail({ list, categories }: Props) {
 
         {panelOpen && (
           <SavedItemPanel
+            listId={list.id}
             listCategoryId={list.category.id}
             categories={categories}
             onClose={() => setPanelOpen(false)}
+            onAdded={(added) => {
+              // API-34：選んだ順に末尾へ入った。SC-08-6：成功したらパネルを閉じて SC-07 に足す
+              setItems((current) => [...current, ...added]);
+              setPanelOpen(false);
+            }}
+            onListReloaded={(latest) => {
+              // SC-08-6：409 で読み直した最新の持ち物を表示する。削除した持ち物の候補と表示切替は残す
+              setItems(latest);
+            }}
           />
         )}
 
