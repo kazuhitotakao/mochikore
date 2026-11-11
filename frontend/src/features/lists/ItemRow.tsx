@@ -33,7 +33,7 @@ export function itemCheckboxId(itemId: number): string {
   return `item-checkbox-${itemId}`;
 }
 
-// SC-07-7〜10 持ち物の行。左からチェック、名前、「≡」、「…」
+// SC-07-7〜10 持ち物の行。左からチェック、名前、「…」。行のどこをつかんでも並べ替えられる（SC-07-9）
 export function ItemRow({
   item,
   onChanged,
@@ -42,6 +42,7 @@ export function ItemRow({
   sortDisabled,
 }: Props) {
   const router = useRouter();
+  const [editing, setEditing] = useState(false);
   const {
     attributes,
     listeners,
@@ -50,11 +51,24 @@ export function ItemRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id, disabled: sortDisabled });
+  } = useSortable({
+    id: item.id,
+    // 名前を入力している間は並べ替えない
+    disabled: sortDisabled || editing,
+    attributes: { role: "listitem", roleDescription: "並べ替えできる持ち物" },
+  });
+  // 行そのものを持ち手にする。キーボードは行にカーソルがあるときだけ持ち上げ、
+  // 中のボタン・入力欄でのスペースキーは、それぞれの操作に使う
+  const setRowRef = useCallback(
+    (node: HTMLLIElement | null) => {
+      setNodeRef(node);
+      setActivatorNodeRef(node);
+    },
+    [setNodeRef, setActivatorNodeRef],
+  );
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
   const errorId = useId();
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.name);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -160,10 +174,14 @@ export function ItemRow({
   }
 
   return (
+    // SC-07-9・D-03（利用者の指示で変更）：行のどこをつかんでも上下に動かせる。
+    // チェック・名前の入力欄・「…」から始めた操作は、並べ替えにしない（components/dragSensors）
     <li
-      ref={setNodeRef}
+      ref={setRowRef}
+      {...attributes}
+      {...listeners}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex flex-col gap-1 border-b border-zinc-200 bg-background py-2 ${isDragging ? "relative z-10 shadow-md" : ""}`}
+      className={`flex cursor-grab touch-manipulation flex-col gap-1 border-b border-zinc-200 bg-background py-2 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? "relative z-10 shadow-md" : ""}`}
     >
       <div className="flex items-center gap-2">
         <input
@@ -202,25 +220,13 @@ export function ItemRow({
               setDraft(item.name);
               setEditing(true);
             }}
-            className="min-w-0 flex-1 text-left wrap-break-word"
+            className="min-w-0 flex-1 cursor-grab text-left wrap-break-word"
           >
             {item.name}
           </button>
         )}
 
-        {/* SC-07-9・D-03：「≡」を長押しして上下に動かす。キーボードではスペースで持ち上げ、矢印で動かす */}
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          aria-label={`${item.name}を並べ替える`}
-          className="shrink-0 cursor-grab touch-none rounded px-2 py-1 select-none [-webkit-touch-callout:none] disabled:opacity-50"
-        >
-          ≡
-        </button>
-
-        <div ref={menuContainer} className="relative">
+        <div ref={menuContainer} data-no-drag className="relative">
           <button
             type="button"
             aria-label={`${item.name}の操作`}
