@@ -32,6 +32,12 @@ class ReorderPackingListItemsRequest extends FormRequest
             'item_ids' => ['bail', 'present', 'array', 'list'],
             // C-02：JSON の正の整数だけ。"1"・1.5 は変換せずに拒否する
             'item_ids.*' => ['bail', 'integer:strict', 'min:1', 'distinct:strict'],
+            // V-17・D-98：別のグループ・未分類へ動かしたときだけ、動かした持ち物と移動先を送る。
+            // item_ids に含まれるか・同じリストのグループかは、ロックした後に PackingListItemService で確かめる
+            'move' => ['bail', 'sometimes', 'array:item_id,group_id'],
+            'move.item_id' => ['bail', 'required_with:move', 'integer:strict', 'min:1'],
+            // null は未分類へ移すとき
+            'move.group_id' => ['bail', 'present_with:move', 'nullable', 'integer:strict', 'min:1'],
         ];
     }
 
@@ -40,6 +46,6 @@ class ReorderPackingListItemsRequest extends FormRequest
      */
     protected function editableFields(): array
     {
-        return ['item_ids'];
+        return ['item_ids', 'move'];
     }
 }
