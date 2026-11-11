@@ -21,6 +21,9 @@ class PackingList extends Model
     // D-50：非公開・公開・コピーしたリストをすべて数える
     public const MAX_PER_USER = 100;
 
+    // D-34：1リストの持ち物は200件まで。削除済みは数えない
+    public const MAX_ITEMS = 200;
+
     /**
      * @return array<string, string>
      */

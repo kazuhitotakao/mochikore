@@ -1,15 +1,16 @@
-// 09_バリデーション V-04〜V-06・C-01・C-04（D-92）。Laravel の lang/ja/validation.php と同じ文言にする
+// 09_バリデーション V-04〜V-06・V-08・C-01・C-04（D-92）。Laravel の lang/ja/validation.php と同じ文言にする
 
 import { trimLikeLaravel } from "@/features/auth/validation";
 
 export const TITLE_MAX_LENGTH = 50;
+export const ITEM_NAME_MAX_LENGTH = 50;
 export const DESCRIPTION_MAX_LENGTH = 500;
 // D-50：1人100件まで
 export const MAX_LISTS = 100;
 // D-34：1リスト200件まで
 export const MAX_ITEMS = 200;
 
-// V-04：途中の改行・タブ。Laravel（NormalizesListText）と同じ文字
+// V-04・V-08：途中の改行・タブ。Laravel（NormalizesListText）と同じ文字
 const LINE_BREAK_OR_TAB = /[\t\n\x0b\x0c\r\x85\u2028\u2029]/u;
 
 /**
@@ -31,20 +32,31 @@ export function descriptionLength(value: string): number {
 }
 
 /**
- * V-04：必須→長さ→形式の順に、最初の違反だけを返す（C-04）。
+ * V-04・V-08：名前の確かめ方は、リスト名と持ち物名で同じ。
+ * 必須→長さ→形式の順に、最初の違反だけを返す（C-04）。
  */
-export function validateTitle(value: string): string | undefined {
-  const title = trimLikeLaravel(value);
+function validateName(
+  value: string,
+  label: string,
+  max: number,
+): string | undefined {
+  const name = trimLikeLaravel(value);
 
-  if (title === "") return "リスト名を入力してください。";
-  if ([...title].length > TITLE_MAX_LENGTH) {
-    return "リスト名は50文字以内で入力してください。";
-  }
-  if (LINE_BREAK_OR_TAB.test(title)) {
-    return "リスト名は改行せずに入力してください。";
-  }
+  if (name === "") return `${label}を入力してください。`;
+  if ([...name].length > max)
+    return `${label}は${max}文字以内で入力してください。`;
+  if (LINE_BREAK_OR_TAB.test(name))
+    return `${label}は改行せずに入力してください。`;
 
   return undefined;
+}
+
+export function validateTitle(value: string): string | undefined {
+  return validateName(value, "リスト名", TITLE_MAX_LENGTH);
+}
+
+export function validateItemName(value: string): string | undefined {
+  return validateName(value, "持ち物名", ITEM_NAME_MAX_LENGTH);
 }
 
 /**

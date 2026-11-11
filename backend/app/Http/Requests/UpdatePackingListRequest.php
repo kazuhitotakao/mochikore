@@ -5,14 +5,10 @@ namespace App\Http\Requests;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Validator;
 
 class UpdatePackingListRequest extends FormRequest
 {
-    use NormalizesListText;
-
-    // API-08 で受け取る項目。公開設定は API-14 で変える（D-67）
-    private const FIELDS = ['title', 'category_id', 'description'];
+    use NormalizesListText, RejectsEmptyOrUndefinedFields;
 
     /**
      * Determine if the user is authorized to make this request.
@@ -48,24 +44,12 @@ class UpdatePackingListRequest extends FormRequest
     }
 
     /**
-     * C-03・C-04：変更する項目がない送信と、定義していない項目（is_public・user_id など）を拒否する。
+     * API-08 で受け取る項目。公開設定は API-14 で変える（D-67）。
      *
-     * @return array<int, callable>
+     * @return list<string>
      */
-    public function after(): array
+    protected function editableFields(): array
     {
-        return [
-            function (Validator $validator) {
-                $sent = array_keys($this->getInputSource()->all());
-
-                if (array_intersect($sent, self::FIELDS) === []) {
-                    $validator->errors()->add('_form', __('validation.no_changes'));
-                }
-
-                foreach (array_diff($sent, self::FIELDS) as $key) {
-                    $validator->errors()->add((string) $key, __('validation.undefined_field'));
-                }
-            },
-        ];
+        return ['title', 'category_id', 'description'];
     }
 }
