@@ -10,6 +10,7 @@ use App\Services\TokenLifetime;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Event;
@@ -33,6 +34,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // 一覧で関連を1件ずつ読む（N+1）書き方に、開発中・テスト中に気づけるようにする
+        Model::preventLazyLoading(! $this->app->isProduction());
+
         // D-41：登録済みのアドレスを大量に調べられないよう、同じIPアドレスから1時間に10回まで
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
         // D-41：再設定メールも同じIPアドレスから1時間に10回まで。名前が別なので、会員登録とは別に数える

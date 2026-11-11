@@ -19,4 +19,15 @@ class ApiErrorResponseTest extends TestCase
                 'code' => 'server_error',
             ]);
     }
+
+    public function test_用意していない宛先への要求は404_not_foundにする(): void
+    {
+        // D-54：画面は code で判定するので、Laravel 標準の404にも code を付ける
+        $this->getJson('/api/testing/missing')
+            ->assertNotFound()
+            ->assertExactJson([
+                'message' => 'ページが見つかりません。',
+                'code' => 'not_found',
+            ]);
+    }
 }

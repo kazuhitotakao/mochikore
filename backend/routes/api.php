@@ -1,13 +1,16 @@
 <?php
 
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\LogoutController;
+use App\Http\Controllers\PackingListController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
+use App\Http\Middleware\EnsureEmailIsVerified;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', RegisterController::class)->middleware('throttle:register');
@@ -25,4 +28,13 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('signed:relative')
         ->name('verification.verify');
     Route::post('/email/verification-notification', EmailVerificationNotificationController::class);
+
+    // D-19：自分のリストは、メール認証が済んでから使える
+    Route::middleware(EnsureEmailIsVerified::class)->group(function () {
+        Route::get('/lists', [PackingListController::class, 'index']);
+        Route::post('/lists', [PackingListController::class, 'store']);
+        Route::get('/lists/{list}', [PackingListController::class, 'show']);
+    });
 });
+
+Route::get('/categories', CategoryController::class);

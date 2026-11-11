@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 /**
  * 403 email_not_verified（D-19・D-54、02_画面配置 共通8、手順書第11章 手順9）。
- * 付けるAPI（リスト関連）は第13章で作るので、ここではテストの中だけのルートで確かめる。
+ * ここではテストの中だけのルートで仕組みを確かめる。リスト関連のAPIでの確認は tests/Feature/Lists にある。
  */
 class EnsureEmailIsVerifiedTest extends TestCase
 {

@@ -2,6 +2,7 @@
 
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
+use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\UseClientIpFromNextJs;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -11,6 +12,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Exceptions\InvalidSignatureException;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -31,6 +33,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // D-92・C-01：前後空白の削除と空文字→nullはLaravel標準のまま使う。
         // パスワード（password等は標準で対象外）と同じく、入力用tokenも空白を削らずに照合する
         $middleware->trimStrings(except: ['token']);
+
+        // D-43：メール未認証の人に、{list} の読み込み結果（ある・ない）で他人のリストのIDを知られないよう、
+        // ルートの引数をモデルに置き換える前に403を返す
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsureEmailIsVerified::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -80,6 +86,16 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return (new ApiException(ApiErrorCode::LinkInvalid, 'リンクの有効期限が切れているか、無効です。'))->render();
+        });
+
+        // D-43・D-54：存在しないデータ・他人のリスト（Policy の denyAsNotFound）・存在しないAPIを同じ404にする。
+        // 標準の文言にはモデル名やIDが入るので返さない
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) {
+            if (! $request->is('api/*') || $e->getStatusCode() !== 404) {
+                return null;
+            }
+
+            return (new ApiException(ApiErrorCode::NotFound, 'ページが見つかりません。'))->render();
         });
 
         // 想定外のエラーは、原因の詳細を利用者へ返さない（ログには残る）
