@@ -90,4 +90,41 @@ class PackingListItemService
             return $locked->is_public;
         });
     }
+
+    /**
+     * API-25 削除した持ち物を戻す。D-35：同じ行を戻すので、id・名前・チェック状態は削除前のまま。
+     * グループが消えていれば、DB（ON DELETE SET NULL）がすでに未分類にしている。
+     */
+    public function restore(PackingListItem $item): PackingListItem
+    {
+        return DB::transaction(function () use ($item) {
+            $locked = PackingList::whereKey($item->packing_list_id)->lockForUpdate()->firstOrFail();
+
+            // ロックした後で読み直す。この間に完全に削除されていたら404
+            $target = $locked->items()->withTrashed()->whereKey($item->id)->first()
+                ?? throw (new ModelNotFoundException)->setModel(PackingListItem::class);
+
+            // 応答が届かずに送り直されたときなど、すでに戻っていれば件数も revision も増やさずに成功にする
+            if (! $target->trashed()) {
+                return $target;
+            }
+
+            // D-34：200件あるときは戻さない。画面は復元の候補を残す
+            if ($locked->items()->count() >= PackingList::MAX_ITEMS) {
+                throw new ApiException(ApiErrorCode::ItemLimitReached, '持ち物は200件までです。');
+            }
+
+            // D-31：番号が残っていれば元の位置。削除後に並べ替えて番号が空になっていれば一番下
+            if ($target->sort_order === null) {
+                $target->sort_order = (int) $locked->items()->max('sort_order') + 1;
+            }
+            $target->restore();
+
+            // 構造が変わったので revision を増やす。updated_at も新しくなり一覧の上に戻る（D-24・D-59）。
+            // 公開は自動で戻さない（D-51）
+            $locked->increment('grouping_revision');
+
+            return $target;
+        });
+    }
 }

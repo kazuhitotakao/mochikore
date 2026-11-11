@@ -10,6 +10,7 @@ use App\Http\Controllers\PackingListItemController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\ResetChecksController;
 use App\Http\Controllers\ResetPasswordController;
+use App\Http\Controllers\RestorePackingListItemController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
 use App\Http\Middleware\EnsureEmailIsVerified;
@@ -44,6 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
         Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
+        // 削除済みの持ち物を読み込めるよう withTrashed を付ける。完全に削除されたものは404
+        Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed();
     });
 });
 
