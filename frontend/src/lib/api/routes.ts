@@ -15,6 +15,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "GET", path: /^\/email\/verify\/[^/]+\/[^/]+$/ },
   // API-24
   { method: "POST", path: /^\/email\/verification-notification$/ },
+  // API-06。一覧（API-05）・内容（API-07）・カテゴリー（API-18）の読み取りは Server Component から送る
+  { method: "POST", path: /^\/lists$/ },
 ];
 
 export function isAllowedRoute(method: string, path: string): boolean {
