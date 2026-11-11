@@ -28,8 +28,10 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/lists\/\d+\/items\/order$/ },
   { method: "PATCH", path: /^\/items\/\d+$/ },
   { method: "DELETE", path: /^\/items\/\d+$/ },
-  // API-32
+  // API-31・32・33。API-31 の category_id はクエリで送る（Laravel が確かめる）
+  { method: "GET", path: /^\/saved-items$/ },
   { method: "POST", path: /^\/saved-items$/ },
+  { method: "DELETE", path: /^\/saved-items\/\d+$/ },
   // API-25
   { method: "POST", path: /^\/items\/\d+\/restore$/ },
 ];

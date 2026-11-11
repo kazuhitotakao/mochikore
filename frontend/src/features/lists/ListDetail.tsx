@@ -11,6 +11,7 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { SaveItemDialog } from "@/features/saved-items/SaveItemDialog";
+import { SavedItemPanel } from "@/features/saved-items/SavedItemPanel";
 import type {
   Category,
   ItemDeleteResult,
@@ -65,6 +66,9 @@ export function ListDetail({ list, categories }: Props) {
   const [showChecked, setShowChecked] = useState(false);
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
   const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
+  // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
+  // チェック済みの表示切替は、開け閉めしても消えない（D-94）
+  const [panelOpen, setPanelOpen] = useState(false);
   // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
   const pendingFocusId = useRef<string | null>(null);
   const { delayedIds, hideLater, cancelHide } =
@@ -240,6 +244,15 @@ export function ListDetail({ list, categories }: Props) {
           <p className="whitespace-pre-wrap">{list.description}</p>
         )}
 
+        {/* SC-07-5 */}
+        <button
+          type="button"
+          onClick={() => setPanelOpen(true)}
+          className="self-start rounded border border-zinc-400 px-3 py-1"
+        >
+          よく使う項目から追加
+        </button>
+
         {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
             グループの見出し（SC-07-6）は手順書第15章で足す */}
         {items.length === 0 ? (
@@ -281,6 +294,14 @@ export function ListDetail({ list, categories }: Props) {
         )}
 
         <DeletedItems deletedItems={deletedItems} onRestored={handleRestored} />
+
+        {panelOpen && (
+          <SavedItemPanel
+            listCategoryId={list.category.id}
+            categories={categories}
+            onClose={() => setPanelOpen(false)}
+          />
+        )}
 
         {savingItem && (
           <SaveItemDialog

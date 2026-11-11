@@ -52,7 +52,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed();
 
         // F-21・F-22：よく使う項目も、メール認証が済んでから使える
+        Route::get('/saved-items', [SavedItemController::class, 'index']);
         Route::post('/saved-items', [SavedItemController::class, 'store']);
+        Route::delete('/saved-items/{savedItem}', [SavedItemController::class, 'destroy']);
     });
 });
 
