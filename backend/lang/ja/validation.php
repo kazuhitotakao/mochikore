@@ -11,6 +11,10 @@ return [
     'required' => ':attributeを入力してください。',
     'string' => ':attributeを文字で入力してください。',
 
+    // C-03・C-04：PATCH で変更する項目がないとき（errors._form）と、APIで定義していない項目を送ったとき
+    'no_changes' => '変更する項目を入力してください。',
+    'undefined_field' => 'この項目は送信できません。',
+
     'custom' => [
         'password' => [
             // V-02：長さと使える文字の違反は、同じ1文で伝える

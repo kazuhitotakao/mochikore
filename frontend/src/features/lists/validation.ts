@@ -20,10 +20,14 @@ export function titleLength(value: string): number {
 }
 
 /**
- * V-06：前後の空白を削り、途中の CRLF・CR を LF にそろえた後の文字数。
+ * V-06：Laravel が保存する形。前後の空白を削り、途中の CRLF・CR を LF にそろえる。
  */
+export function normalizeDescription(value: string): string {
+  return trimLikeLaravel(value).replace(/\r\n?/g, "\n");
+}
+
 export function descriptionLength(value: string): number {
-  return [...trimLikeLaravel(value).replace(/\r\n?/g, "\n")].length;
+  return [...normalizeDescription(value)].length;
 }
 
 /**

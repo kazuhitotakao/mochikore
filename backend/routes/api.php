@@ -34,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lists', [PackingListController::class, 'index']);
         Route::post('/lists', [PackingListController::class, 'store']);
         Route::get('/lists/{list}', [PackingListController::class, 'show']);
+        Route::patch('/lists/{list}', [PackingListController::class, 'update']);
+        Route::delete('/lists/{list}', [PackingListController::class, 'destroy']);
     });
 });
 
