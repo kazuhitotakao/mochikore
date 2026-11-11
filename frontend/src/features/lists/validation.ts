@@ -7,8 +7,6 @@ export const ITEM_NAME_MAX_LENGTH = 50;
 export const DESCRIPTION_MAX_LENGTH = 500;
 // D-50：1人100件まで
 export const MAX_LISTS = 100;
-// D-34：1リスト200件まで
-export const MAX_ITEMS = 200;
 
 // V-04・V-08：途中の改行・タブ。Laravel（NormalizesListText）と同じ文字
 const LINE_BREAK_OR_TAB = /[\t\n\x0b\x0c\r\x85\u2028\u2029]/u;
@@ -35,7 +33,7 @@ export function descriptionLength(value: string): number {
  * V-04・V-08・V-11：名前の確かめ方は、リスト名・持ち物名・よく使う項目の名前で同じ。
  * 必須→長さ→形式の順に、最初の違反だけを返す（C-04）。
  */
-function validateName(
+export function validateName(
   value: string,
   label: string,
   max: number,

@@ -31,7 +31,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 ## エラー
 
-- エラーは必ず `message` と `code` を返す。16種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
+- エラーは必ず `message` と `code` を返す。15種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
 - 標準の例外は `bootstrap/app.php` で変換する：入力エラー 422 `validation_error`、未ログイン 401 `unauthenticated`、回数制限 429 `too_many_requests` と `retry_after`、署名付きリンクの403 は 422 `link_invalid`、想定外 500 `server_error`（詳細は返さない）。
 - メール未認証の403は、標準の `verified` ではなく ApiException を投げる自作ミドルウェアで返す。
 
@@ -47,7 +47,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - `$touches` を使わない。親の更新は Service で明示する（D-25。チェックだけでは親の日時を変えない）。
 - 持ち物の構造を変える処理（追加・削除・復元・並べ替え・グループ変更）は、親リストを `lockForUpdate()` してトランザクション内で行い、`grouping_revision` を増やす（D-59）。チェックと名前変更では増やさない。
 - API-25 のルートには `withTrashed()` を付ける。
-- 上限値は Model の定数にまとめる（例：`PackingList::MAX_ITEMS`）。
+- 上限値は Model の定数にまとめる（例：`PackingList::MAX_PER_USER`）。
 - キーワード検索では `%` と `_` をエスケープする。
 
 ## 認証トークン（Sanctum）

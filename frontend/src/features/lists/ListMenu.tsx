@@ -17,14 +17,18 @@ type Props = {
   checkedCount: number;
   onToggleChecked: () => void;
   onChecksReset: () => void;
+  // SC-07-16：削除した持ち物の候補があるときは、整理画面へ移る前に案内する
+  hasDeletedItems: boolean;
+  // SC-07-16：並べ替えなどの自動保存が終わるまでは、整理画面へ移らない
+  saving: boolean;
 };
 
 // チェックで最後の行が隠れたときに、カーソルを移す先（SC-07-7）
 export const LIST_MENU_BUTTON_ID = "list-menu-button";
 
-type Confirming = "reset-checks" | "delete" | null;
+type Confirming = "grouping" | "reset-checks" | "delete" | null;
 
-// SC-07-4「…」メニュー。「グループを整理」は手順書第15章で足す
+// SC-07-4「…」メニュー
 export function ListMenu({
   listId,
   title,
@@ -32,6 +36,8 @@ export function ListMenu({
   checkedCount,
   onToggleChecked,
   onChecksReset,
+  hasDeletedItems,
+  saving,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -61,6 +67,22 @@ export function ListMenu({
     }
 
     return false;
+  }
+
+  // D-95（利用者の指示）：チェック済みを表示しているときだけ、整理画面でもチェック済みを分類できるようにする。
+  // 表示の切替は画面の中の状態なので、開くときのURLで渡す
+  const groupingHref = showChecked
+    ? `/lists/${listId}/grouping?show_checked=1`
+    : `/lists/${listId}/grouping`;
+
+  // SC-07-4・F-19：押したときだけ整理画面（SC-09）を開く（D-56）
+  function openGrouping() {
+    setMenuOpen(false);
+    if (hasDeletedItems) {
+      openConfirm("grouping");
+      return;
+    }
+    router.push(groupingHref);
   }
 
   // SC-07-14・D-17：チェックだけ外し、持ち物は残す（API-13）
@@ -143,6 +165,16 @@ export function ListMenu({
           <li>
             <button
               type="button"
+              onClick={openGrouping}
+              disabled={saving}
+              className="block w-full px-4 py-2 text-left disabled:opacity-50"
+            >
+              グループを整理
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
               onClick={() => openConfirm("reset-checks")}
               className="block w-full px-4 py-2 text-left"
             >
@@ -160,6 +192,16 @@ export function ListMenu({
           </li>
         </ul>
       )}
+
+      {/* SC-07-16・D-61：整理画面は別の画面なので、移ると削除した持ち物の候補は消える */}
+      <ConfirmDialog
+        open={confirming === "grouping"}
+        message="グループを整理すると、削除した持ち物は元に戻せなくなります。"
+        confirmLabel="整理する"
+        cancelLabel="やめる"
+        onConfirm={() => router.push(groupingHref)}
+        onCancel={() => setConfirming(null)}
+      />
 
       <ConfirmDialog
         open={confirming === "reset-checks"}

@@ -21,7 +21,7 @@ class StoreBulkItemsRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * ここでは形だけを確かめる。本人の候補か・revision が最新か・200件を超えないかは、
+     * ここでは形だけを確かめる。本人の候補か・revision が最新かは、
      * 親リストをロックした後に PackingListItemService で確かめる。
      *
      * @return array<string, ValidationRule|array<mixed>|string>

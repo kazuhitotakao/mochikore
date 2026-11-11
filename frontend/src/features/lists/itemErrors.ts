@@ -8,9 +8,6 @@ export function itemErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return NETWORK_ERROR_MESSAGE;
 
   switch (error.code) {
-    // 02_画面配置 SC-07-13
-    case "item_limit_reached":
-      return "持ち物は200件までです。";
     case "validation_error":
       return error.errors.name?.[0] ?? error.message;
     default:
