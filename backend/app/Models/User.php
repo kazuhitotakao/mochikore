@@ -41,4 +41,12 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(PackingList::class);
     }
+
+    /**
+     * @return HasMany<SavedItem, $this>
+     */
+    public function savedItems(): HasMany
+    {
+        return $this->hasMany(SavedItem::class);
+    }
 }

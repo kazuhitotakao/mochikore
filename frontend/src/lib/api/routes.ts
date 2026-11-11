@@ -28,6 +28,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/lists\/\d+\/items\/order$/ },
   { method: "PATCH", path: /^\/items\/\d+$/ },
   { method: "DELETE", path: /^\/items\/\d+$/ },
+  // API-32
+  { method: "POST", path: /^\/saved-items$/ },
   // API-25
   { method: "POST", path: /^\/items\/\d+\/restore$/ },
 ];

@@ -22,6 +22,8 @@ type Props = {
   item: PackingListItem;
   onChanged: (item: PackingListItem) => void;
   onDeleted: (item: PackingListItem, result: ItemDeleteResult) => void;
+  // SC-07-10・17：「よく使う項目に保存」を選んだとき
+  onSaveAsFavorite: (item: PackingListItem) => void;
   // 並べ替えの保存中は、続けて動かせないようにする
   sortDisabled: boolean;
 };
@@ -32,7 +34,13 @@ export function itemCheckboxId(itemId: number): string {
 }
 
 // SC-07-7〜10 持ち物の行。左からチェック、名前、「≡」、「…」
-export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
+export function ItemRow({
+  item,
+  onChanged,
+  onDeleted,
+  onSaveAsFavorite,
+  sortDisabled,
+}: Props) {
   const router = useRouter();
   const {
     attributes,
@@ -224,12 +232,24 @@ export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
           >
             …
           </button>
-          {/* SC-07-10：「よく使う項目に保存」は手順書第14章で足す */}
+          {/* SC-07-10 */}
           {menuOpen && (
             <ul
               id={menuId}
-              className="absolute right-0 z-10 mt-1 w-32 rounded border border-zinc-300 bg-background py-1 shadow"
+              className="absolute right-0 z-10 mt-1 w-48 rounded border border-zinc-300 bg-background py-1 shadow"
             >
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onSaveAsFavorite(item);
+                  }}
+                  className="block w-full px-4 py-2 text-left"
+                >
+                  よく使う項目に保存
+                </button>
+              </li>
               <li>
                 <button
                   type="button"

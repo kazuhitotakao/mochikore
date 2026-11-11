@@ -32,17 +32,18 @@ export function descriptionLength(value: string): number {
 }
 
 /**
- * V-04・V-08：名前の確かめ方は、リスト名と持ち物名で同じ。
+ * V-04・V-08・V-11：名前の確かめ方は、リスト名・持ち物名・よく使う項目の名前で同じ。
  * 必須→長さ→形式の順に、最初の違反だけを返す（C-04）。
  */
 function validateName(
   value: string,
   label: string,
   max: number,
+  requiredMessage = `${label}を入力してください。`,
 ): string | undefined {
   const name = trimLikeLaravel(value);
 
-  if (name === "") return `${label}を入力してください。`;
+  if (name === "") return requiredMessage;
   if ([...name].length > max)
     return `${label}は${max}文字以内で入力してください。`;
   if (LINE_BREAK_OR_TAB.test(name))
@@ -57,6 +58,16 @@ export function validateTitle(value: string): string | undefined {
 
 export function validateItemName(value: string): string | undefined {
   return validateName(value, "持ち物名", ITEM_NAME_MAX_LENGTH);
+}
+
+// V-11：よく使う項目の名前は持ち物名と同じ条件で、空欄だけ専用の文にする
+export function validateSavedItemName(value: string): string | undefined {
+  return validateName(
+    value,
+    "項目名",
+    ITEM_NAME_MAX_LENGTH,
+    "保存する項目名を入力してください。",
+  );
 }
 
 /**

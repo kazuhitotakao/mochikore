@@ -17,6 +17,12 @@ return [
     'no_changes' => '変更する項目を入力してください。',
     'undefined_field' => 'この項目は送信できません。',
 
+    // V-11：よく使う項目の名前は「項目名」と呼び、空欄だけ専用の文にする（StoreSavedItemRequest）
+    'saved_item' => [
+        'attribute' => '項目名',
+        'required' => '保存する項目名を入力してください。',
+    ],
+
     'custom' => [
         'password' => [
             // V-02：長さと使える文字の違反は、同じ1文で伝える
