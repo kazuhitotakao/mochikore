@@ -3,11 +3,10 @@
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -18,15 +17,17 @@ import type {
 } from "@/types/api";
 import { AddItemForm } from "./AddItemForm";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
-import { ItemRow } from "./ItemRow";
+import { ItemRow, itemCheckboxId } from "./ItemRow";
 import { isNotFound } from "./itemErrors";
+import { reorderVisibleItems } from "./itemOrder";
+import { useDelayedHide } from "./useDelayedHide";
 import {
   itemSortAnnouncements,
   restrictToVerticalAxis,
   screenReaderInstructions,
   useItemSortSensors,
 } from "./itemSorting";
-import { ListMenu } from "./ListMenu";
+import { LIST_MENU_BUTTON_ID, ListMenu } from "./ListMenu";
 import { MAX_ITEMS } from "./validation";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
@@ -56,6 +57,19 @@ export function ListDetail({ list }: Props) {
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
+  // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる
+  const [showChecked, setShowChecked] = useState(false);
+  // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
+  const pendingFocusId = useRef<string | null>(null);
+  const { delayedIds, hideLater, cancelHide } =
+    useDelayedHide(handleHideDelayEnd);
+
+  // D-95：件数・200件の上限は、隠れたチェック済みも含む全件（items）で判定し、表示だけを絞る。
+  // 隠している間にチェックを付けた持ち物は、少しの間だけ表示に残す（delayedIds）
+  const visibleItems = showChecked
+    ? items
+    : items.filter((item) => !item.is_checked || delayedIds.has(item.id));
+  const checkedCount = items.filter((item) => item.is_checked).length;
 
   useEffect(() => {
     if (!notice) return;
@@ -63,12 +77,48 @@ export function ListDetail({ list }: Props) {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  // SC-07-7：チェックして行が隠れたら、次の行（なければ表示切替のある「…」ボタン）へカーソルを移す
+  useEffect(() => {
+    const targetId = pendingFocusId.current;
+    if (!targetId) return;
+    pendingFocusId.current = null;
+    document.getElementById(targetId)?.focus();
+  }, [items, delayedIds]);
+
+  // 少し待った後、チェック済みの行が表示から外れる直前に呼ばれる
+  function handleHideDelayEnd(itemId: number) {
+    // 待っている間に全部表示へ切り替えた・チェックを外した・削除したときは、何も隠れない
+    if (showChecked) return;
+    const index = items.findIndex((item) => item.id === itemId);
+    if (!items[index]?.is_checked) return;
+
+    // その行にカーソルがあるとき（またはどこにもないとき）だけ移す。
+    // 待っている間に追加欄など別の所へ移っていたら、そのままにする
+    const row = document.getElementById(itemCheckboxId(itemId))?.closest("li");
+    const active = document.activeElement;
+    const focusInRow = row && active && row.contains(active);
+    const focusLost = !active || active === document.body;
+    if (!focusInRow && !focusLost) return;
+
+    const next = items.slice(index + 1).find((item) => !item.is_checked);
+    pendingFocusId.current = next
+      ? itemCheckboxId(next.id)
+      : LIST_MENU_BUTTON_ID;
+  }
+
   function handleAdded(item: PackingListItem) {
     // API-10：新しい持ち物は全体の末尾に入る
     setItems((current) => [...current, item]);
   }
 
+  // API-11 の成功後に呼ばれる。保存できた値で更新するので、隠す・戻すのも保存できてから（D-94）
   function handleChanged(item: PackingListItem) {
+    const before = items.find((existing) => existing.id === item.id);
+    if (!showChecked && item.is_checked && before && !before.is_checked) {
+      hideLater(item.id);
+    }
+    if (!item.is_checked) cancelHide(item.id);
+
     setItems((current) =>
       current.map((existing) => (existing.id === item.id ? item : existing)),
     );
@@ -108,6 +158,10 @@ export function ListDetail({ list }: Props) {
     setDeletedItems((current) =>
       current.filter((deleted) => deleted.item.id !== item.id),
     );
+    // D-95：チェック済みのまま戻した持ち物は、隠している間は見えないので案内する
+    if (item.is_checked && !showChecked) {
+      setNotice("戻しました。チェック済みにあります。");
+    }
   }
 
   // SC-07-9・F-15：離したら自動で保存する（API-19）。動かした順に先に表示し、失敗したら元の順に戻す。
@@ -115,12 +169,14 @@ export function ListDetail({ list }: Props) {
   async function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
 
+    // D-95：チェック済みを隠しているときは、表示中の持ち物の位置だけを入れ替える
     const before = items;
-    const moved = arrayMove(
+    const moved = reorderVisibleItems(
       before,
-      before.findIndex((item) => item.id === active.id),
-      before.findIndex((item) => item.id === over.id),
-    ).map((item, index) => ({ ...item, sort_order: index + 1 }));
+      visibleItems,
+      Number(active.id),
+      Number(over.id),
+    );
 
     setItems(moved);
     setReordering(true);
@@ -166,6 +222,9 @@ export function ListDetail({ list }: Props) {
           <ListMenu
             listId={list.id}
             title={list.title}
+            showChecked={showChecked}
+            checkedCount={checkedCount}
+            onToggleChecked={() => setShowChecked((shown) => !shown)}
             onChecksReset={handleChecksReset}
           />
         </header>
@@ -175,9 +234,14 @@ export function ListDetail({ list }: Props) {
           <p className="whitespace-pre-wrap">{list.description}</p>
         )}
 
-        {/* SC-07-11：0件のときだけ。グループの見出し（SC-07-6）は手順書第15章で足す */}
+        {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
+            グループの見出し（SC-07-6）は手順書第15章で足す */}
         {items.length === 0 ? (
           <p>持ち物はまだありません。</p>
+        ) : visibleItems.length === 0 ? (
+          <p>
+            すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
+          </p>
         ) : (
           <DndContext
             id={dndId}
@@ -185,17 +249,17 @@ export function ListDetail({ list }: Props) {
             collisionDetection={closestCenter}
             modifiers={[restrictToVerticalAxis]}
             accessibility={{
-              announcements: itemSortAnnouncements(items),
+              announcements: itemSortAnnouncements(visibleItems),
               screenReaderInstructions,
             }}
             onDragEnd={(event) => void handleDragEnd(event)}
           >
             <SortableContext
-              items={items}
+              items={visibleItems}
               strategy={verticalListSortingStrategy}
             >
               <ul className="flex flex-col">
-                {items.map((item) => (
+                {visibleItems.map((item) => (
                   <ItemRow
                     key={item.id}
                     item={item}
