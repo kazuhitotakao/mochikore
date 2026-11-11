@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -47,6 +48,7 @@ import {
   useItemSortSensors,
 } from "./itemSorting";
 import { LIST_MENU_BUTTON_ID, ListMenu } from "./ListMenu";
+import { SelectionList } from "./SelectionList";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
@@ -147,6 +149,17 @@ export function ListDetail({ list, categories }: Props) {
     undefined,
   );
   const [groupCheckError, setGroupCheckError] = useState<string | null>(null);
+  // SC-07-18・D-100：「選んで削除」の選ぶ表示。選んだ持ち物とグループは、この画面の中だけに持つ
+  const [selecting, setSelecting] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const [selectedGroupIds, setSelectedGroupIds] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
   // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる
   const [showChecked, setShowChecked] = useState(false);
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
@@ -446,6 +459,81 @@ export function ListDetail({ list, categories }: Props) {
     }
   }
 
+  // SC-07-18：選ぶ表示を始める・やめる。やめたら選んだものを消す。削除した持ち物の候補は消さない
+  function setSelectingMode(on: boolean) {
+    setSelecting(on);
+    setSelectedItemIds(new Set());
+    setSelectedGroupIds(new Set());
+    setBulkDeleteError(null);
+  }
+
+  function toggleInSet(
+    set: ReadonlySet<number>,
+    id: number,
+  ): ReadonlySet<number> {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  }
+
+  // 削除する持ち物：1件ずつ選んだものと、選んだグループの中の全有効持ち物（隠れたチェック済みも含む）
+  const deleteTargetIds = items
+    .filter(
+      (item) =>
+        selectedItemIds.has(item.id) ||
+        (item.group_id !== null && selectedGroupIds.has(item.group_id)),
+    )
+    .map((item) => item.id);
+
+  // SC-07-19：確認文。グループを選んだときは、グループも消えることを添える
+  function bulkDeleteMessage(): string {
+    const itemCount = deleteTargetIds.length;
+    const groupCount = selectedGroupIds.size;
+    if (itemCount === 0) {
+      return `選んだグループ（${groupCount}件）を削除しますか？元に戻せません。`;
+    }
+    const groupNote =
+      groupCount > 0 ? `グループ（${groupCount}件）も削除します。` : "";
+    return `選んだ持ち物（${itemCount}件）を削除しますか？元に戻せません。${groupNote}`;
+  }
+
+  // F-26・D-100：選んだ持ち物とグループをまとめて削除する（API-38）。確認してから消すので、戻す候補には入れない
+  async function handleBulkDelete() {
+    const itemIds = deleteTargetIds;
+    const groupIds = [...selectedGroupIds];
+    setBulkDeleting(true);
+    setBulkDeleteError(null);
+    try {
+      const result = await clientApi<ItemDeleteResult>(
+        `/lists/${list.id}/items/bulk-delete`,
+        { method: "POST", body: { item_ids: itemIds, group_ids: groupIds } },
+      );
+      const removed = new Set(itemIds);
+      setItems((current) => current.filter((item) => !removed.has(item.id)));
+      setGroups((current) =>
+        current.filter((group) => !selectedGroupIds.has(group.id)),
+      );
+      // D-51：公開中のリストで持ち物が0件になると、自動で非公開になる
+      if (isPublic && !result.is_public) {
+        setNotice("持ち物がなくなったため、リストを非公開にしました。");
+      }
+      setIsPublic(result.is_public);
+      setConfirmingDelete(false);
+      setSelectingMode(false);
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      // 失敗したときは選んだものを残し、確認の中に理由を出す
+      setBulkDeleteError(bulkDeleteErrorMessage(failure));
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   function renderSection(groupId: number | null, title: string) {
     const sectionItems = visibleItems.filter(
       (item) => item.group_id === groupId,
@@ -500,16 +588,21 @@ export function ListDetail({ list, categories }: Props) {
               <span>{isPublic ? "公開" : "非公開"}</span>
             </p>
           </div>
-          <ListMenu
-            listId={list.id}
-            title={list.title}
-            showChecked={showChecked}
-            checkedCount={checkedCount}
-            onToggleChecked={() => setShowChecked((shown) => !shown)}
-            onChecksReset={handleChecksReset}
-            hasDeletedItems={deletedItems.length > 0}
-            saving={reordering}
-          />
+          {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
+          {!selecting && (
+            <ListMenu
+              listId={list.id}
+              title={list.title}
+              showChecked={showChecked}
+              checkedCount={checkedCount}
+              onToggleChecked={() => setShowChecked((shown) => !shown)}
+              onChecksReset={handleChecksReset}
+              hasDeletedItems={deletedItems.length > 0}
+              saving={reordering || groupChecking !== undefined}
+              canSelectToDelete={items.length > 0 || groups.length > 0}
+              onSelectToDelete={() => setSelectingMode(true)}
+            />
+          )}
         </header>
 
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
@@ -518,18 +611,35 @@ export function ListDetail({ list, categories }: Props) {
         )}
 
         {/* SC-07-5 */}
-        <button
-          type="button"
-          onClick={() => setPanelOpen(true)}
-          className="self-start rounded border border-zinc-400 px-3 py-1"
-        >
-          よく使う項目から追加
-        </button>
+        {!selecting && (
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            className="self-start rounded border border-zinc-400 px-3 py-1"
+          >
+            よく使う項目から追加
+          </button>
+        )}
 
         {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
             グループがあるときは、全部チェック済みでも案内に切り替えず、見出しを残す（利用者の指示、D-99）。
             見出しのチェックで、そのままグループごと外せる */}
-        {items.length === 0 ? (
+        {selecting ? (
+          // SC-07-18：「選んで削除」の選ぶ表示
+          <SelectionList
+            groups={groups}
+            visibleItems={visibleItems}
+            selectedItemIds={selectedItemIds}
+            selectedGroupIds={selectedGroupIds}
+            disabled={bulkDeleting}
+            onToggleItem={(itemId) =>
+              setSelectedItemIds((current) => toggleInSet(current, itemId))
+            }
+            onToggleGroup={(groupId) =>
+              setSelectedGroupIds((current) => toggleInSet(current, groupId))
+            }
+          />
+        ) : items.length === 0 ? (
           <p>持ち物はまだありません。</p>
         ) : visibleItems.length === 0 && groups.length === 0 ? (
           <p>
@@ -627,11 +737,69 @@ export function ListDetail({ list, categories }: Props) {
               {groupCheckError}
             </p>
           )}
-          <AddItemForm listId={list.id} onAdded={handleAdded} />
+          {selecting ? (
+            // SC-07-18：選ぶ表示の間は、追加欄の代わりに選んだ件数と「削除」「やめる」を出す
+            <div className="flex items-center justify-between gap-3">
+              <p role="status">
+                {deleteTargetIds.length}件選択中
+                {selectedGroupIds.size > 0 &&
+                  `（グループ${selectedGroupIds.size}件）`}
+              </p>
+              <div className="flex shrink-0 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectingMode(false)}
+                  disabled={bulkDeleting}
+                  className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+                >
+                  やめる
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkDeleteError(null);
+                    setConfirmingDelete(true);
+                  }}
+                  disabled={
+                    bulkDeleting ||
+                    (deleteTargetIds.length === 0 &&
+                      selectedGroupIds.size === 0)
+                  }
+                  className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ) : (
+            <AddItemForm listId={list.id} onAdded={handleAdded} />
+          )}
         </div>
       </div>
+
+      {/* SC-07-19：まとめて削除の確認。元に戻せないことを伝える（D-100） */}
+      <ConfirmDialog
+        open={confirmingDelete}
+        message={bulkDeleteMessage()}
+        confirmLabel="削除する"
+        cancelLabel="やめる"
+        busy={bulkDeleting}
+        destructive
+        error={bulkDeleteError}
+        onConfirm={() => void handleBulkDelete()}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </>
   );
+}
+
+// V-20：まとめて削除の送信が正しくないのは、ほかの画面で持ち物やグループが変わったときなので、読み直しを案内する
+function bulkDeleteErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === "validation_error") {
+    return "削除する持ち物の情報が正しくありません。リストを読み直してください。";
+  }
+
+  return NETWORK_ERROR_MESSAGE;
 }
 
 // V-10・V-17：並べ替えの送信が正しくないのは、ほかの画面で持ち物やグループが変わったときなので、読み直しを案内する

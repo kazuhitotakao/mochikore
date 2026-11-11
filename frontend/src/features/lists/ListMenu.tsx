@@ -21,6 +21,9 @@ type Props = {
   hasDeletedItems: boolean;
   // SC-07-16：並べ替えなどの自動保存が終わるまでは、整理画面へ移らない
   saving: boolean;
+  // SC-07-18・D-100：「選んで削除」で、この画面のまま選ぶ表示にする。選ぶものがなければ押せない
+  canSelectToDelete: boolean;
+  onSelectToDelete: () => void;
 };
 
 // チェックで最後の行が隠れたときに、カーソルを移す先（SC-07-7）
@@ -38,6 +41,8 @@ export function ListMenu({
   onChecksReset,
   hasDeletedItems,
   saving,
+  canSelectToDelete,
+  onSelectToDelete,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -170,6 +175,19 @@ export function ListMenu({
               className="block w-full px-4 py-2 text-left disabled:opacity-50"
             >
               グループを整理
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onSelectToDelete();
+              }}
+              disabled={saving || !canSelectToDelete}
+              className="block w-full px-4 py-2 text-left disabled:opacity-50"
+            >
+              選んで削除
             </button>
           </li>
           <li>
