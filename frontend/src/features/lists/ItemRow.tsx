@@ -3,7 +3,14 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
-import { useId, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
@@ -18,6 +25,11 @@ type Props = {
   // 並べ替えの保存中は、続けて動かせないようにする
   sortDisabled: boolean;
 };
+
+// 行が隠れたときに、次の行のチェック欄へカーソルを移すためのID（SC-07-7）
+export function itemCheckboxId(itemId: number): string {
+  return `item-checkbox-${itemId}`;
+}
 
 // SC-07-7〜10 持ち物の行。左からチェック、名前、「≡」、「…」
 export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
@@ -38,6 +50,9 @@ export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
   const [draft, setDraft] = useState(item.name);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuContainer = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useDismiss(menuContainer, menuOpen, closeMenu);
   const [error, setError] = useState<string | null>(null);
 
   // 404・401などで画面を移動・読み直ししたら true
@@ -145,6 +160,7 @@ export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
+          id={itemCheckboxId(item.id)}
           checked={item.is_checked}
           disabled={busy}
           aria-label={item.name}
@@ -196,7 +212,7 @@ export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
           ≡
         </button>
 
-        <div className="relative">
+        <div ref={menuContainer} className="relative">
           <button
             type="button"
             aria-label={`${item.name}の操作`}

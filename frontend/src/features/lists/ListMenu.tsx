@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -11,17 +12,34 @@ import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 type Props = {
   listId: number;
   title: string;
+  // D-94：チェック済みの表示切替。画面の中の表示だけを変え、通信しない
+  showChecked: boolean;
+  checkedCount: number;
+  onToggleChecked: () => void;
   onChecksReset: () => void;
 };
+
+// チェックで最後の行が隠れたときに、カーソルを移す先（SC-07-7）
+export const LIST_MENU_BUTTON_ID = "list-menu-button";
 
 type Confirming = "reset-checks" | "delete" | null;
 
 // SC-07-4「…」メニュー。「グループを整理」は手順書第15章で足す
-export function ListMenu({ listId, title, onChecksReset }: Props) {
+export function ListMenu({
+  listId,
+  title,
+  showChecked,
+  checkedCount,
+  onToggleChecked,
+  onChecksReset,
+}: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuContainer = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useDismiss(menuContainer, menuOpen, closeMenu);
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +99,10 @@ export function ListMenu({ listId, title, onChecksReset }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div ref={menuContainer} className="relative">
       <button
         type="button"
+        id={LIST_MENU_BUTTON_ID}
         aria-label="リストの操作"
         aria-expanded={menuOpen}
         aria-controls={menuId}
@@ -106,6 +125,20 @@ export function ListMenu({ listId, title, onChecksReset }: Props) {
             >
               リストを編集
             </Link>
+          </li>
+          <li>
+            {/* 利用者の指示で、説明文と一覧の間からこのメニューの中へ移した。0件でも出す */}
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onToggleChecked();
+              }}
+              className="block w-full px-4 py-2 text-left"
+            >
+              {showChecked ? "チェック済みを隠す" : "チェック済みを表示"}（
+              {checkedCount}件）
+            </button>
           </li>
           <li>
             <button
