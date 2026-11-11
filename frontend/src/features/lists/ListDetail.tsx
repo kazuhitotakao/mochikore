@@ -10,7 +10,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { SaveItemDialog } from "@/features/saved-items/SaveItemDialog";
 import type {
+  Category,
   ItemDeleteResult,
   PackingListDetail,
   PackingListItem,
@@ -40,11 +42,13 @@ function byListOrder(a: PackingListItem, b: PackingListItem): number {
 
 type Props = {
   list: PackingListDetail;
+  // SC-07-17：よく使う項目に保存するときのカテゴリーの選択肢（API-18）
+  categories: Category[];
 };
 
 // SC-07 自分のリストの内容（通常画面）。持ち物の追加・削除で件数や公開の表示が変わるので、
 // 画面の状態として持ち、保存できた値（D-71）で表示を更新する
-export function ListDetail({ list }: Props) {
+export function ListDetail({ list, categories }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
@@ -59,6 +63,8 @@ export function ListDetail({ list }: Props) {
   const [reorderError, setReorderError] = useState<string | null>(null);
   // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる
   const [showChecked, setShowChecked] = useState(false);
+  // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
+  const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
   // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
   const pendingFocusId = useRef<string | null>(null);
   const { delayedIds, hideLater, cancelHide } =
@@ -265,6 +271,7 @@ export function ListDetail({ list }: Props) {
                     item={item}
                     onChanged={handleChanged}
                     onDeleted={handleDeleted}
+                    onSaveAsFavorite={setSavingItem}
                     sortDisabled={reordering}
                   />
                 ))}
@@ -274,6 +281,21 @@ export function ListDetail({ list }: Props) {
         )}
 
         <DeletedItems deletedItems={deletedItems} onRestored={handleRestored} />
+
+        {savingItem && (
+          <SaveItemDialog
+            key={savingItem.id}
+            item={savingItem}
+            categories={categories}
+            defaultCategoryId={list.category.id}
+            onClose={() => setSavingItem(null)}
+            onSaved={() => {
+              setSavingItem(null);
+              // SC-07-17・共通4：保存できたら知らせる。保存した持ち物そのものは変わらない（D-66）
+              setNotice("保存しました");
+            }}
+          />
+        )}
       </div>
 
       {/* SC-07-13：持ち物の追加欄は画面下に固定する（D-73） */}

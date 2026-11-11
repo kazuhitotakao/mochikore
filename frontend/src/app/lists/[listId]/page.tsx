@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { readAsUser } from "@/features/auth/requireUser";
+import { serverApi } from "@/lib/api/server";
 import { ListDetail } from "@/features/lists/ListDetail";
-import type { PackingListDetail } from "@/types/api";
+import type { Category, PackingListDetail } from "@/types/api";
 
 // SC-07 自分のリストの内容（通常画面）
 export default async function ListPage(props: PageProps<"/lists/[listId]">) {
@@ -16,6 +17,8 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
     `/lists/${listId}`,
     `/lists/${listId}`,
   );
+  // SC-07-17：よく使う項目に保存するときに選ぶカテゴリー（API-18、ログイン不要）
+  const categories = await serverApi<Category[]>("/categories");
 
   return (
     <main className="flex flex-col gap-6 py-8">
@@ -25,6 +28,7 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
       <ListDetail
         key={`${list.grouping_revision}-${list.updated_at}`}
         list={list}
+        categories={categories}
       />
     </main>
   );

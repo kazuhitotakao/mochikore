@@ -65,6 +65,13 @@ export type PackingListItem = {
   is_checked: boolean;
 };
 
+// よく使う項目1件。API-31・32 で同じ形（D-66・D-72）
+export type SavedItem = {
+  id: number;
+  name: string;
+  category: CategorySummary;
+};
+
 // API-12 持ち物の削除。最後の1件を消すと非公開になることがある（D-51）
 export type ItemDeleteResult = {
   is_public: boolean;

@@ -12,6 +12,7 @@ use App\Http\Controllers\ReorderPackingListItemsController;
 use App\Http\Controllers\ResetChecksController;
 use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\RestorePackingListItemController;
+use App\Http\Controllers\SavedItemController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
 use App\Http\Middleware\EnsureEmailIsVerified;
@@ -49,6 +50,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
         // 削除済みの持ち物を読み込めるよう withTrashed を付ける。完全に削除されたものは404
         Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed();
+
+        // F-21・F-22：よく使う項目も、メール認証が済んでから使える
+        Route::post('/saved-items', [SavedItemController::class, 'store']);
     });
 });
 
