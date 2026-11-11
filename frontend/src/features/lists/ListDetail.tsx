@@ -142,6 +142,11 @@ export function ListDetail({ list, categories }: Props) {
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
+  // D-99：見出しのチェックで送信中のグループ（未分類は null、送信中でなければ undefined）
+  const [groupChecking, setGroupChecking] = useState<number | null | undefined>(
+    undefined,
+  );
+  const [groupCheckError, setGroupCheckError] = useState<string | null>(null);
   // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる
   const [showChecked, setShowChecked] = useState(false);
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
@@ -379,13 +384,15 @@ export function ListDetail({ list, categories }: Props) {
     }
   }
 
-  function renderItems(sectionItems: PackingListItem[]) {
+  // indented：グループの中の持ち物は、見出しのチェック欄と同じ列に並ばないよう1段右に下げる（利用者の指示）。
+  // pl-7 はチェック欄（size-5）と見出しとのすき間（gap-2）を合わせた幅
+  function renderItems(sectionItems: PackingListItem[], indented = false) {
     return (
       <SortableContext
         items={sectionItems}
         strategy={verticalListSortingStrategy}
       >
-        <ul className="flex flex-col">
+        <ul className={`flex flex-col ${indented ? "pl-7" : ""}`}>
           {sectionItems.map((item) => (
             <ItemRow
               key={item.id}
@@ -401,16 +408,63 @@ export function ListDetail({ list, categories }: Props) {
     );
   }
 
+  // F-25・D-99：見出しのチェックで、そのグループの全有効持ち物（隠れたチェック済みも含む）を
+  // まとめてチェックする。全部チェック済みなら全部外す（API-37）。成功してから表示を変える
+  async function handleGroupCheck(groupId: number | null) {
+    const targets = items.filter((item) => item.group_id === groupId);
+    if (targets.length === 0 || groupChecking !== undefined) return;
+
+    const checked = !targets.every((item) => item.is_checked);
+    const targetIds = new Set(targets.map((item) => item.id));
+    setGroupChecking(groupId);
+    setGroupCheckError(null);
+    try {
+      await clientApi<void>(`/lists/${list.id}/items/checks`, {
+        method: "PATCH",
+        body: { item_ids: [...targetIds], is_checked: checked },
+      });
+      // D-94：隠している間は、新しくチェックを付けた持ち物を1秒おいて隠す。外したものは隠さない
+      for (const item of targets) {
+        if (checked && !item.is_checked && !showChecked) hideLater(item.id);
+        if (!checked) cancelHide(item.id);
+      }
+      setItems((current) =>
+        current.map((item) =>
+          targetIds.has(item.id) ? { ...item, is_checked: checked } : item,
+        ),
+      );
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      // 失敗したときは、チェックも表示も元のまま
+      setGroupCheckError(groupCheckErrorMessage(failure));
+    } finally {
+      setGroupChecking(undefined);
+    }
+  }
+
   function renderSection(groupId: number | null, title: string) {
     const sectionItems = visibleItems.filter(
       (item) => item.group_id === groupId,
     );
-    const total = items.filter((item) => item.group_id === groupId).length;
+    const groupItems = items.filter((item) => item.group_id === groupId);
+    const total = groupItems.length;
     // SC-07-6：未分類は、全有効件数が0なら見出しごと出さない。
     // D-98：ただし持ち物を動かしている間は、未分類へ移せるよう出す
     if (groupId === null && total === 0 && draggingItemId === null) {
       return null;
     }
+    // D-99：隠れたチェック済みも含めて、全部・一部・なしを判定する
+    const checkedInGroup = groupItems.filter((item) => item.is_checked).length;
+    const checkState =
+      total > 0 && checkedInGroup === total
+        ? "all"
+        : checkedInGroup > 0
+          ? "some"
+          : "none";
 
     return (
       // SC-07-6：件数は画面に出している持ち物だけを数え、チェック済みを隠しているときは含めない
@@ -422,13 +476,12 @@ export function ListDetail({ list, categories }: Props) {
         count={sectionItems.length}
         highlighted={dropGroupId === groupId}
         sortDisabled={reordering}
+        checkState={checkState}
+        checkDisabled={total === 0 || groupChecking !== undefined || reordering}
+        onToggleCheck={() => void handleGroupCheck(groupId)}
       >
-        {total > 0 && sectionItems.length === 0 && (
-          <p className="text-sm text-zinc-600">
-            このグループはすべてチェック済みです。
-          </p>
-        )}
-        {renderItems(sectionItems)}
+        {/* 利用者の指示：全部チェック済みで隠れていても案内文は出さず、見出しだけを残す（D-99） */}
+        {renderItems(sectionItems, true)}
       </GroupSection>
     );
   }
@@ -473,10 +526,12 @@ export function ListDetail({ list, categories }: Props) {
           よく使う項目から追加
         </button>
 
-        {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける */}
+        {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
+            グループがあるときは、全部チェック済みでも案内に切り替えず、見出しを残す（利用者の指示、D-99）。
+            見出しのチェックで、そのままグループごと外せる */}
         {items.length === 0 ? (
           <p>持ち物はまだありません。</p>
-        ) : visibleItems.length === 0 ? (
+        ) : visibleItems.length === 0 && groups.length === 0 ? (
           <p>
             すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
           </p>
@@ -567,6 +622,11 @@ export function ListDetail({ list, categories }: Props) {
               {reorderError}
             </p>
           )}
+          {groupCheckError && (
+            <p role="alert" className="text-sm text-red-700">
+              {groupCheckError}
+            </p>
+          )}
           <AddItemForm listId={list.id} onAdded={handleAdded} />
         </div>
       </div>
@@ -587,6 +647,15 @@ function reorderErrorMessage(error: unknown): string {
 function groupOrderErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code === "validation_error") {
     return "リストの情報を読み直してください。";
+  }
+
+  return NETWORK_ERROR_MESSAGE;
+}
+
+// V-19：まとめてチェックの送信が正しくないのは、ほかの画面で持ち物が増減したときなので、読み直しを案内する
+function groupCheckErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === "validation_error") {
+    return "チェックする持ち物の情報が正しくありません。リストを読み直してください。";
   }
 
   return NETWORK_ERROR_MESSAGE;

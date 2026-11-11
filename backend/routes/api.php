@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BulkAddItemsController;
+use App\Http\Controllers\BulkCheckItemsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -48,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/lists/{list}/reset-checks', ResetChecksController::class);
         Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);
         Route::patch('/lists/{list}/items/order', ReorderPackingListItemsController::class);
+        Route::patch('/lists/{list}/items/checks', BulkCheckItemsController::class);
         Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class);
         Route::get('/lists/{list}/grouping', [PackingListGroupingController::class, 'show']);
         Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
