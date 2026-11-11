@@ -123,13 +123,14 @@ class PackingListItemService
 
     /**
      * API-19 並べ替えた順番を保存する。全体の sort_order を配列の順に振り直す。
-     * グループの所属・チェックは変えない。
+     * チェックは変えない。所属は、別のグループ・未分類へ動かした1件（move）だけ変える（D-98）。
      *
      * @param  list<int>  $itemIds  同じリストの削除していない持ち物すべてのID（新しい順）
+     * @param  array{item_id: int, group_id: int|null}|null  $move
      */
-    public function reorder(PackingList $list, array $itemIds): void
+    public function reorder(PackingList $list, array $itemIds, ?array $move = null): void
     {
-        DB::transaction(function () use ($list, $itemIds) {
+        DB::transaction(function () use ($list, $itemIds, $move) {
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
 
             // V-10：ロックした後で、削除していない持ち物すべてを1回ずつ含むか確かめる。
@@ -140,6 +141,19 @@ class PackingListItemService
                 throw ValidationException::withMessages([
                     'item_ids' => [__('validation.custom.item_ids.list')],
                 ]);
+            }
+
+            // V-17：動かした持ち物は並べ替える持ち物の中にあり、移動先は同じリストのグループ（または未分類）だけ
+            if ($move !== null) {
+                $validTarget = $move['group_id'] === null
+                    || $locked->groups()->whereKey($move['group_id'])->exists();
+                if (! in_array($move['item_id'], $itemIds, true) || ! $validTarget) {
+                    throw ValidationException::withMessages([
+                        'move' => [__('validation.custom.move.list')],
+                    ]);
+                }
+                // group_id は Fillable に入れていないので、クエリで直接変える
+                $locked->items()->whereKey($move['item_id'])->update(['group_id' => $move['group_id']]);
             }
 
             if ($itemIds !== []) {

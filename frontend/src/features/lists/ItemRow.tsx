@@ -55,6 +55,8 @@ export function ItemRow({
     id: item.id,
     // 名前を入力している間は並べ替えない
     disabled: sortDisabled || editing,
+    // D-98：別のグループへ動かせるので、どのグループの持ち物かを相手に伝える
+    data: { groupId: item.group_id },
     attributes: { role: "listitem", roleDescription: "並べ替えできる持ち物" },
   });
   // 行そのものを持ち手にする。キーボードは行にカーソルがあるときだけ持ち上げ、

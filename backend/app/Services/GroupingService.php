@@ -140,4 +140,34 @@ class GroupingService
 
         return true;
     }
+
+    /**
+     * API-36 グループの順番を保存する（F-24、D-98）。SC-07 で見出しを動かしたとき、
+     * 送られた順に sort_order を0から振り直す。持ち物の所属・順番・チェックは変えない。
+     *
+     * @param  list<int>  $groupIds  同じリストの全グループのID（新しい順）
+     */
+    public function reorderGroups(PackingList $list, array $groupIds): void
+    {
+        DB::transaction(function () use ($list, $groupIds) {
+            $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
+
+            // V-18：ロックした後で、同じリストの全グループを1回ずつ含むか確かめる。違えば何も変えない
+            $currentIds = $locked->groups()->pluck('id')->sort()->values()->all();
+            $sentIds = collect($groupIds)->sort()->values()->all();
+            if ($sentIds !== $currentIds) {
+                throw ValidationException::withMessages([
+                    'group_ids' => [__('validation.custom.group_ids.list')],
+                ]);
+            }
+
+            // グループは1リスト20件までなので、1件ずつ更新する
+            foreach ($groupIds as $index => $groupId) {
+                $locked->groups()->whereKey($groupId)->update(['sort_order' => $index]);
+            }
+
+            // D-24・D-59：構造が変わったので revision を増やし、更新日時も新しくする
+            $locked->increment('grouping_revision');
+        });
+    }
 }

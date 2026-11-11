@@ -27,3 +27,37 @@ export function reorderVisibleItems(
     .map((item) => (visibleIds.has(item.id) ? movedVisible[next++] : item))
     .map((item, index) => ({ ...item, sort_order: index + 1 }));
 }
+
+/**
+ * D-98：持ち物を別のグループ（または未分類）へ動かしたときの全体の順番と所属を返す。
+ * 動かした持ち物を外して、目印の持ち物の前（before が true）か後ろに入れる。
+ * 目印がないとき（中身が見えていないグループの見出しで離したとき）は、そのグループの最後の持ち物の後ろへ、
+ * そのグループに持ち物がなければ元の位置のまま所属だけを変える。
+ * 隠れているチェック済みの位置はそのまま（D-95）。API-19 は全有効IDが必要なので全体を返す（番号は1から）。
+ */
+export function moveItemToGroup(
+  all: PackingListItem[],
+  activeId: number,
+  groupId: number | null,
+  anchor: { id: number; before: boolean } | null,
+): PackingListItem[] {
+  const activeIndex = all.findIndex((item) => item.id === activeId);
+  if (activeIndex < 0) return all;
+
+  const moved = { ...all[activeIndex], group_id: groupId };
+  const rest = all.filter((item) => item.id !== activeId);
+  const anchorIndex = anchor
+    ? rest.findIndex((item) => item.id === anchor.id)
+    : -1;
+  const lastInGroup = rest.map((item) => item.group_id).lastIndexOf(groupId);
+
+  let index = activeIndex;
+  if (anchor && anchorIndex >= 0) {
+    index = anchor.before ? anchorIndex : anchorIndex + 1;
+  } else if (lastInGroup >= 0) {
+    index = lastInGroup + 1;
+  }
+
+  rest.splice(index, 0, moved);
+  return rest.map((item, order) => ({ ...item, sort_order: order + 1 }));
+}

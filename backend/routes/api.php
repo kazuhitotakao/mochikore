@@ -10,6 +10,7 @@ use App\Http\Controllers\PackingListController;
 use App\Http\Controllers\PackingListGroupingController;
 use App\Http\Controllers\PackingListItemController;
 use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\ReorderGroupsController;
 use App\Http\Controllers\ReorderPackingListItemsController;
 use App\Http\Controllers\ResetChecksController;
 use App\Http\Controllers\ResetPasswordController;
@@ -50,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class);
         Route::get('/lists/{list}/grouping', [PackingListGroupingController::class, 'show']);
         Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
+        Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class);
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
         Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
