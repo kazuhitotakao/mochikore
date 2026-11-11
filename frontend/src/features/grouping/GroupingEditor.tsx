@@ -1,8 +1,24 @@
 "use client";
 
+import {
+  DndContext,
+  DragOverlay,
+  pointerWithin,
+  rectIntersection,
+  useDraggable,
+  useDroppable,
+  type Announcements,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragStartEvent,
+  type KeyboardCoordinateGetter,
+  type ScreenReaderInstructions,
+  type UniqueIdentifier,
+} from "@dnd-kit/core";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useDragSensors } from "@/components/dragSensors";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
@@ -17,6 +33,77 @@ import { MAX_GROUPS } from "./validation";
 
 // V-13：分類の保存（API-30）の競合
 const CONFLICT_MESSAGE = "リストが変更されています。読み直してください。";
+
+// 未分類の欄を表す、ドラッグの置き場所のID
+const UNGROUPED_DROP_ID = "ungrouped";
+
+// 丸と未分類の欄に持たせる、置いたときの移し先（groupKey が null なら未分類）
+type DropData = { groupKey: string | null; label: string };
+
+// 画面読み上げで伝える文。dnd-kit の既定は英語なので、日本語にする
+const screenReaderInstructions: ScreenReaderInstructions = {
+  draggable:
+    "グループへ移すときは、スペースキーで持ち上げ、矢印キーで移す先の丸を選び、スペースキーで置きます。Escキーでやめます。",
+};
+
+// 指・マウスは、離した位置にある丸（または未分類の欄）へ移す。
+// キーボードは指の位置がないので、持ち物が重なっている丸へ移す
+const detectDropArea: CollisionDetection = (args) =>
+  args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args);
+
+const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+/**
+ * キーボードの矢印キーで、その向きにあるいちばん近い丸（または未分類の欄）の真ん中へ持ち物を動かす。
+ * dnd-kit の並べ替え用の計算は、持ち物自体が置き場所でないと動かないので、ここで決める。
+ */
+const dropAreaKeyboardCoordinates: KeyboardCoordinateGetter = (
+  event,
+  {
+    context: {
+      active,
+      collisionRect,
+      droppableRects,
+      droppableContainers,
+      over,
+    },
+  },
+) => {
+  if (!ARROW_KEYS.includes(event.code)) return undefined;
+  event.preventDefault();
+  if (!active || !collisionRect) return undefined;
+
+  const fromX = collisionRect.left + collisionRect.width / 2;
+  const fromY = collisionRect.top + collisionRect.height / 2;
+  let nearest: { x: number; y: number; distance: number } | null = null;
+
+  for (const container of droppableContainers.getEnabled()) {
+    // 今重なっている丸は飛ばして、次の丸へ進む
+    if (container.id === over?.id) continue;
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const ahead =
+      (event.code === "ArrowDown" && y > fromY) ||
+      (event.code === "ArrowUp" && y < fromY) ||
+      (event.code === "ArrowRight" && x > fromX) ||
+      (event.code === "ArrowLeft" && x < fromX);
+    if (!ahead) continue;
+
+    const distance = Math.hypot(x - fromX, y - fromY);
+    if (!nearest || distance < nearest.distance) {
+      nearest = { x, y, distance };
+    }
+  }
+
+  if (!nearest) return undefined;
+  return {
+    x: nearest.x - collisionRect.width / 2,
+    y: nearest.y - collisionRect.height / 2,
+  };
+};
 
 type DraftGroup = { key: string; id: number | null; name: string };
 type Draft = {
@@ -73,7 +160,6 @@ export function GroupingEditor({
   const [state, setState] = useState(initialState);
   const [savedDraft, setSavedDraft] = useState(() => draftFrom(initialState));
   const [draft, setDraft] = useState(() => draftFrom(initialState));
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialog>(null);
   const [afterDiscard, setAfterDiscard] = useState<AfterDiscard>(null);
   const [saving, setSaving] = useState(false);
@@ -83,6 +169,11 @@ export function GroupingEditor({
   const newGroupCount = useRef(0);
   // 保存できて SC-07 へ戻るときは、離脱の確認を出さない
   const leaving = useRef(false);
+  // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
+  const dndId = useId();
+  // D-58（利用者の指示で変更）：SC-07 の並べ替えと同じく、持ち物のどこをつかんでも動かせる
+  const sensors = useDragSensors(dropAreaKeyboardCoordinates);
+  const [draggingItemId, setDraggingItemId] = useState<number | null>(null);
 
   const dirty = !sameDraft(draft, savedDraft);
   const busy = saving || reloading;
@@ -91,7 +182,7 @@ export function GroupingEditor({
     ? state.items
     : state.items.filter((item) => !item.is_checked);
   const hiddenCheckedCount = state.items.length - shownItems.length;
-  const selectedItem = shownItems.find((item) => item.id === selectedItemId);
+  const draggingItem = shownItems.find((item) => item.id === draggingItemId);
 
   // 29-04：変更があるまま再読み込み・タブを閉じようとしたら、ブラウザの確認を出す
   useEffect(() => {
@@ -116,23 +207,43 @@ export function GroupingEditor({
     setDraft(change);
   }
 
-  // SC-09-4・6：選んでいる持ち物を、押した丸（または未分類）へ移す。1件につき1グループまで（D-56）
-  function moveSelectedTo(key: string | null) {
-    if (selectedItemId === null || busy) return;
-    const itemId = selectedItemId;
+  // 持ち物を丸（または未分類）へ移す。1件につき1グループまで（D-56）。順番とチェックは変えない（D-60）
+  function moveItemTo(itemId: number, key: string | null) {
+    if (busy) return;
     updateDraft((current) => ({
       ...current,
       assignment: { ...current.assignment, [itemId]: key },
     }));
-    setSelectedItemId(null);
   }
 
-  // 丸の中の何もない所を押したときも移す。中のボタン（持ち物・操作）を押したときは、そちらの操作だけにする
-  function handleAreaClick(event: MouseEvent<HTMLElement>, key: string | null) {
-    if (selectedItemId === null) return;
-    if ((event.target as HTMLElement).closest("button")) return;
-    moveSelectedTo(key);
+  // SC-09-4・6・D-58：持ち物をドラッグして丸（または未分類）に置いたら移す
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingItemId(Number(event.active.id));
   }
+
+  // 丸の外に置いたとき・Escキーでやめたときは移さず、元の所属のままにする（D-58）
+  function handleDragEnd(event: DragEndEvent) {
+    setDraggingItemId(null);
+    const target = event.over?.data.current as DropData | undefined;
+    if (!target) return;
+    moveItemTo(Number(event.active.id), target.groupKey);
+  }
+
+  const nameOf = (id: UniqueIdentifier) =>
+    shownItems.find((item) => item.id === id)?.name ?? "";
+  const labelOf = (data: unknown) => (data as DropData | undefined)?.label;
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `${nameOf(active.id)}を持ち上げました。`,
+    onDragOver: ({ active, over }) =>
+      over
+        ? `${nameOf(active.id)}を「${labelOf(over.data.current)}」の上に動かしています。`
+        : undefined,
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `${nameOf(active.id)}を「${labelOf(over.data.current)}」へ移しました。`
+        : `${nameOf(active.id)}を移さずに戻しました。`,
+    onDragCancel: ({ active }) => `${nameOf(active.id)}の移動をやめました。`,
+  };
 
   function addGroup(name: string) {
     newGroupCount.current += 1;
@@ -208,7 +319,7 @@ export function GroupingEditor({
       const fresh = draftFrom(latest);
       setSavedDraft(fresh);
       setDraft(fresh);
-      setSelectedItemId(null);
+      setDraggingItemId(null);
       setConflict(false);
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
@@ -338,79 +449,56 @@ export function GroupingEditor({
           </p>
         )}
 
-        {/* SC-09-4：丸のグループ。画面幅に合わせて折り返して並べる。位置は保存しない */}
-        {draft.groups.length > 0 && (
-          <div className="flex flex-wrap gap-3">
-            {draft.groups.map((group, index) => (
-              <GroupCircle
-                key={group.key}
-                name={group.name}
-                items={itemsIn(group.key)}
-                selectedItemId={selectedItemId}
-                canMoveUp={index > 0}
-                canMoveDown={index < draft.groups.length - 1}
-                disabled={busy}
-                onAreaClick={(event) => handleAreaClick(event, group.key)}
-                onMoveHere={() => moveSelectedTo(group.key)}
-                onSelectItem={setSelectedItemId}
-                onRename={() =>
-                  setNameDialog({ mode: "rename", key: group.key })
-                }
-                onMoveUp={() => moveGroup(group.key, -1)}
-                onMoveDown={() => moveGroup(group.key, 1)}
-                onDelete={() => deleteGroup(group.key)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* SC-09-6：未分類の欄 */}
-        <section
-          aria-label="未分類"
-          onClick={(event) => handleAreaClick(event, null)}
-          className={`flex flex-col gap-2 rounded border-2 border-dashed p-3 ${
-            selectedItemId !== null ? "border-zinc-900" : "border-zinc-300"
-          }`}
+        {/* SC-09-4・6・D-58：持ち物を丸か未分類の欄へドラッグして移す。丸の外に置いたら移さない */}
+        <DndContext
+          id={dndId}
+          sensors={sensors}
+          collisionDetection={detectDropArea}
+          accessibility={{ announcements, screenReaderInstructions }}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setDraggingItemId(null)}
         >
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-medium">未分類（{unclassified.length}件）</h2>
-            {selectedItemId !== null && (
-              <button
-                type="button"
-                onClick={() => moveSelectedTo(null)}
-                disabled={busy}
-                className="shrink-0 rounded bg-zinc-900 px-3 py-1 text-sm text-white disabled:opacity-50"
-              >
-                ここへ移す
-              </button>
-            )}
-          </div>
-          <ItemChips
-            items={unclassified}
-            selectedItemId={selectedItemId}
-            disabled={busy}
-            onSelect={setSelectedItemId}
-          />
-        </section>
-      </div>
-
-      {/* SC-09-8・9：選択中の表示と「キャンセル」「OK」は画面下に固定する */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
-        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
-          {selectedItem && (
-            <div className="flex items-center justify-between gap-3">
-              <p role="status" className="min-w-0 wrap-break-word">
-                「{selectedItem.name}」を選択中
-              </p>
-              <button
-                type="button"
-                onClick={() => setSelectedItemId(null)}
-                className="shrink-0 rounded border border-zinc-400 px-3 py-1"
-              >
-                取消
-              </button>
+          {/* SC-09-4：丸のグループ。画面幅に合わせて折り返して並べる。位置は保存しない */}
+          {draft.groups.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {draft.groups.map((group, index) => (
+                <GroupCircle
+                  key={group.key}
+                  dropKey={group.key}
+                  name={group.name}
+                  items={itemsIn(group.key)}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < draft.groups.length - 1}
+                  disabled={busy}
+                  onRename={() =>
+                    setNameDialog({ mode: "rename", key: group.key })
+                  }
+                  onMoveUp={() => moveGroup(group.key, -1)}
+                  onMoveDown={() => moveGroup(group.key, 1)}
+                  onDelete={() => deleteGroup(group.key)}
+                />
+              ))}
             </div>
           )}
+
+          {/* SC-09-6：未分類の欄 */}
+          <UnclassifiedArea items={unclassified} disabled={busy} />
+
+          {/* ドラッグ中は、指やマウスの下に持ち物の名前を出す */}
+          <DragOverlay>
+            {draggingItem ? (
+              <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-zinc-900 bg-background px-3 py-1 shadow-md">
+                {draggingItem.name}
+              </span>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
+
+      {/* SC-09-9：「キャンセル」「OK」は画面下に固定する */}
+      <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
+        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
           <div className="flex justify-end gap-3">
             <button
               type="button"
@@ -472,33 +560,39 @@ export function GroupingEditor({
   );
 }
 
+// 移し先の枠の見た目。ドラッグで上にいるときは、枠を太くして文でも示す（色だけで示さない）
+function dropAreaBorder(isOver: boolean): string {
+  if (isOver)
+    return "border-zinc-900 outline-2 outline-offset-2 outline-zinc-900";
+  return "border-zinc-300";
+}
+
+function DropHint() {
+  return <span className="shrink-0 text-sm font-medium">ここに移します</span>;
+}
+
 type GroupCircleProps = {
+  // ドラッグで置いたときの移し先
+  dropKey: string;
   name: string;
   items: PackingListItem[];
-  selectedItemId: number | null;
   canMoveUp: boolean;
   canMoveDown: boolean;
   disabled: boolean;
-  onAreaClick: (event: MouseEvent<HTMLElement>) => void;
-  onMoveHere: () => void;
-  onSelectItem: (itemId: number | null) => void;
   onRename: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
 };
 
-// SC-09-4・5：丸の中にグループ名と件数、中の持ち物。持ち物を選んでいるときは、丸を押すと移す
+// SC-09-4・5：丸の中にグループ名と件数、中の持ち物。ドラッグして丸の上で離すと移す（D-58）
 function GroupCircle({
+  dropKey,
   name,
   items,
-  selectedItemId,
   canMoveUp,
   canMoveDown,
   disabled,
-  onAreaClick,
-  onMoveHere,
-  onSelectItem,
   onRename,
   onMoveUp,
   onMoveDown,
@@ -507,6 +601,12 @@ function GroupCircle({
   const menuContainer = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useDismiss(menuContainer, menuOpen, () => setMenuOpen(false));
+  const dropData: DropData = { groupKey: dropKey, label: name };
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group-${dropKey}`,
+    data: dropData,
+    disabled,
+  });
 
   function choose(action: () => void) {
     setMenuOpen(false);
@@ -515,16 +615,17 @@ function GroupCircle({
 
   return (
     <section
+      ref={setNodeRef}
       aria-label={name}
-      onClick={onAreaClick}
-      className={`flex min-w-36 flex-1 flex-col gap-2 rounded-4xl border-2 px-4 py-3 ${
-        selectedItemId !== null ? "border-zinc-900" : "border-zinc-300"
-      }`}
+      className={`flex min-w-36 flex-1 flex-col gap-2 rounded-4xl border-2 px-4 py-3 ${dropAreaBorder(
+        isOver,
+      )}`}
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 font-medium wrap-break-word">
           {name}（{items.length}件）
         </h2>
+        {isOver && <DropHint />}
         <div ref={menuContainer} className="relative shrink-0">
           <button
             type="button"
@@ -582,62 +683,89 @@ function GroupCircle({
           )}
         </div>
       </div>
-      {selectedItemId !== null && (
-        <button
-          type="button"
-          onClick={onMoveHere}
-          disabled={disabled}
-          className="self-start rounded bg-zinc-900 px-3 py-1 text-sm text-white disabled:opacity-50"
-        >
-          ここへ移す
-        </button>
-      )}
-      <ItemChips
-        items={items}
-        selectedItemId={selectedItemId}
-        disabled={disabled}
-        onSelect={onSelectItem}
-      />
+      <ItemChips items={items} disabled={disabled} />
     </section>
   );
 }
 
-// SC-09-7：持ち物の行。チェックの印は出さない。押すと選んで強調し、もう一度押すと解除する
-function ItemChips({
+// SC-09-6：未分類の欄へドラッグして離すと戻す（D-58）
+function UnclassifiedArea({
   items,
-  selectedItemId,
   disabled,
-  onSelect,
 }: {
   items: PackingListItem[];
-  selectedItemId: number | null;
   disabled: boolean;
-  onSelect: (itemId: number | null) => void;
+}) {
+  const dropData: DropData = { groupKey: null, label: "未分類" };
+  const { setNodeRef, isOver } = useDroppable({
+    id: UNGROUPED_DROP_ID,
+    data: dropData,
+    disabled,
+  });
+
+  return (
+    <section
+      ref={setNodeRef}
+      aria-label="未分類"
+      className={`flex flex-col gap-2 rounded border-2 border-dashed p-3 ${dropAreaBorder(
+        isOver,
+      )}`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-medium">未分類（{items.length}件）</h2>
+        {isOver && <DropHint />}
+      </div>
+      <ItemChips items={items} disabled={disabled} />
+    </section>
+  );
+}
+
+// SC-09-7：チェックの印は出さず、持ち物を直接ドラッグして移す
+function ItemChips({
+  items,
+  disabled,
+}: {
+  items: PackingListItem[];
+  disabled: boolean;
 }) {
   if (items.length === 0) return null;
 
   return (
     <ul className="flex flex-wrap gap-2">
-      {items.map((item) => {
-        const selected = item.id === selectedItemId;
-        return (
-          <li key={item.id}>
-            <button
-              type="button"
-              aria-pressed={selected}
-              disabled={disabled}
-              onClick={() => onSelect(selected ? null : item.id)}
-              className={`rounded-full border px-3 py-1 text-left wrap-break-word disabled:opacity-50 ${
-                selected
-                  ? "border-zinc-900 bg-zinc-900 text-white"
-                  : "border-zinc-400"
-              }`}
-            >
-              {item.name}
-            </button>
-          </li>
-        );
-      })}
+      {items.map((item) => (
+        <ItemChip key={item.id} item={item} disabled={disabled} />
+      ))}
     </ul>
+  );
+}
+
+function ItemChip({
+  item,
+  disabled,
+}: {
+  item: PackingListItem;
+  disabled: boolean;
+}) {
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
+    id: item.id,
+    disabled,
+    attributes: { roleDescription: "グループへ移動できる持ち物" },
+  });
+
+  return (
+    <li className={isDragging ? "opacity-40" : undefined}>
+      {/* D-58（利用者の指示で変更）：持ち手を出さず、名前のどこからでも動かせる。
+          キーボードでも、このボタンから持ち上げて移動できる */}
+      <button
+        ref={setNodeRef}
+        type="button"
+        {...attributes}
+        {...listeners}
+        disabled={disabled}
+        className="cursor-grab touch-manipulation rounded-full border border-zinc-400 px-3 py-1 text-left wrap-break-word select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-50"
+      >
+        {item.name}
+      </button>
+    </li>
   );
 }
