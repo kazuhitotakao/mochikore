@@ -90,6 +90,50 @@ class PackingListItemService
     }
 
     /**
+     * API-38 選んだ持ち物とグループをまとめて削除する（F-26、D-100）。確認してから消すので、画面は戻す候補にしない。
+     * 持ち物は1件ずつの削除と同じく一時削除（deleted_at）にし、定期処理で完全に消す（D-35）。
+     * 選んだグループに画面で見えていなかった持ち物（別の端末で足したもの）は消さず、DB の SET NULL で未分類へ移る。
+     *
+     * @param  list<int>  $itemIds
+     * @param  list<int>  $groupIds
+     * @return bool 削除した後の親リストの is_public
+     */
+    public function bulkDelete(PackingList $list, array $itemIds, array $groupIds): bool
+    {
+        return DB::transaction(function () use ($list, $itemIds, $groupIds) {
+            $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
+
+            // V-20：ロックした後で、同じリストの削除していない持ち物と、同じリストのグループか確かめる。
+            // 1件でも違えば、何も消さずに全体を拒否する
+            $validItems = $locked->items()->whereKey($itemIds)->count() === count($itemIds);
+            $validGroups = $locked->groups()->whereKey($groupIds)->count() === count($groupIds);
+            if (! $validItems || ! $validGroups) {
+                throw ValidationException::withMessages([
+                    'item_ids' => [__('validation.bulk_delete.items')],
+                ]);
+            }
+
+            if ($itemIds !== []) {
+                // SoftDeletes の範囲で delete すると、deleted_at を入れる一時削除になる
+                $locked->items()->whereKey($itemIds)->delete();
+            }
+            if ($groupIds !== []) {
+                $locked->groups()->whereKey($groupIds)->delete();
+            }
+
+            // D-51：公開中のリストで持ち物が0件になったら、自動で非公開にする
+            $changes = ['grouping_revision' => $locked->grouping_revision + 1];
+            if ($locked->is_public && ! $locked->items()->exists()) {
+                $changes['is_public'] = false;
+            }
+            // updated_at も新しくなり、削除したリストは一覧の上に戻る（D-24・D-59）
+            $locked->forceFill($changes)->save();
+
+            return $locked->is_public;
+        });
+    }
+
+    /**
      * API-25 削除した持ち物を戻す。D-35：同じ行を戻すので、id・名前・チェック状態は削除前のまま。
      * グループが消えていれば、DB（ON DELETE SET NULL）がすでに未分類にしている。
      */

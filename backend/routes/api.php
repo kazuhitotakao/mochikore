@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BulkAddItemsController;
 use App\Http\Controllers\BulkCheckItemsController;
+use App\Http\Controllers\BulkDeleteItemsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -51,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/lists/{list}/items/order', ReorderPackingListItemsController::class);
         Route::patch('/lists/{list}/items/checks', BulkCheckItemsController::class);
         Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class);
+        Route::post('/lists/{list}/items/bulk-delete', BulkDeleteItemsController::class);
         Route::get('/lists/{list}/grouping', [PackingListGroupingController::class, 'show']);
         Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
         Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class);
