@@ -8,9 +8,10 @@ use App\Models\PackingList;
 use App\Models\PackingListItem;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
- * 持ち物の追加・変更・削除。D-59：持ち物の構造を変える処理（追加・削除）は、親リストの行をロックして
+ * 持ち物の追加・変更・削除・復元・並べ替え。D-59：持ち物の構造を変える処理（追加・削除・復元・並べ替え）は、親リストの行をロックして
  * grouping_revision を増やす。チェックと名前の変更は構造を変えないので増やさない。
  */
 class PackingListItemService
@@ -125,6 +126,45 @@ class PackingListItemService
             $locked->increment('grouping_revision');
 
             return $target;
+        });
+    }
+
+    /**
+     * API-19 並べ替えた順番を保存する。全体の sort_order を配列の順に振り直す。
+     * グループの所属・チェックは変えない。
+     *
+     * @param  list<int>  $itemIds  同じリストの削除していない持ち物すべてのID（新しい順）
+     */
+    public function reorder(PackingList $list, array $itemIds): void
+    {
+        DB::transaction(function () use ($list, $itemIds) {
+            $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
+
+            // V-10：ロックした後で、削除していない持ち物すべてを1回ずつ含むか確かめる。
+            // 不足・他リスト・存在しない・削除済みのIDがあれば、何も変えずに全体を拒否する
+            $activeIds = $locked->items()->pluck('id')->sort()->values()->all();
+            $sentIds = collect($itemIds)->sort()->values()->all();
+            if ($sentIds !== $activeIds) {
+                throw ValidationException::withMessages([
+                    'item_ids' => [__('validation.custom.item_ids.list')],
+                ]);
+            }
+
+            if ($itemIds !== []) {
+                // 200件まで1回で更新する。IDは検証済みの整数なので、そのまま式に入れる
+                $cases = collect($itemIds)
+                    ->map(fn (int $id, int $index) => 'WHEN '.$id.' THEN '.($index + 1))
+                    ->implode(' ');
+                $locked->items()->whereKey($itemIds)->update([
+                    'sort_order' => DB::raw("CASE id {$cases} END"),
+                ]);
+            }
+
+            // D-31：削除した後に並べ替えたら、削除済みの番号を空にして、戻すときは一番下に入れる
+            $locked->items()->onlyTrashed()->update(['sort_order' => null]);
+
+            // D-24・D-59：並べ替えたリストは一覧の上に戻り、revision も増える
+            $locked->increment('grouping_revision');
         });
     }
 }

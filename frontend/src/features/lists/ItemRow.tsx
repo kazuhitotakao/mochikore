@@ -1,5 +1,7 @@
 "use client";
 
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import { useId, useState, type KeyboardEvent } from "react";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
@@ -13,11 +15,22 @@ type Props = {
   item: PackingListItem;
   onChanged: (item: PackingListItem) => void;
   onDeleted: (item: PackingListItem, result: ItemDeleteResult) => void;
+  // 並べ替えの保存中は、続けて動かせないようにする
+  sortDisabled: boolean;
 };
 
-// SC-07-7・8・10 持ち物の行。「≡」（順番6）は、その機能を作るときに足す
-export function ItemRow({ item, onChanged, onDeleted }: Props) {
+// SC-07-7〜10 持ち物の行。左からチェック、名前、「≡」、「…」
+export function ItemRow({ item, onChanged, onDeleted, sortDisabled }: Props) {
   const router = useRouter();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, disabled: sortDisabled });
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
   const errorId = useId();
@@ -124,7 +137,11 @@ export function ItemRow({ item, onChanged, onDeleted }: Props) {
   }
 
   return (
-    <li className="flex flex-col gap-1 border-b border-zinc-200 py-2">
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`flex flex-col gap-1 border-b border-zinc-200 bg-background py-2 ${isDragging ? "relative z-10 shadow-md" : ""}`}
+    >
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
@@ -166,6 +183,18 @@ export function ItemRow({ item, onChanged, onDeleted }: Props) {
             {item.name}
           </button>
         )}
+
+        {/* SC-07-9・D-03：「≡」を長押しして上下に動かす。キーボードではスペースで持ち上げ、矢印で動かす */}
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          aria-label={`${item.name}を並べ替える`}
+          className="shrink-0 cursor-grab touch-none rounded px-2 py-1 select-none [-webkit-touch-callout:none] disabled:opacity-50"
+        >
+          ≡
+        </button>
 
         <div className="relative">
           <button

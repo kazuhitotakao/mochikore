@@ -10,6 +10,8 @@ import { isNotFound, itemErrorMessage } from "./itemErrors";
 export type DeletedItem = {
   item: PackingListItem;
   position: number;
+  // D-31：削除した後に並べ替えたら、戻すと元の位置ではなく一番下に入る
+  movesToBottom?: boolean;
 };
 
 type Props = {
@@ -53,7 +55,7 @@ function DeletedItemRow({
   const redirectIfAuthError = useAuthErrorRedirect();
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { item, position } = deleted;
+  const { item, position, movesToBottom } = deleted;
 
   // API-25：1件ずつ戻す。D-35：送信中は押せない
   async function restore() {
@@ -84,6 +86,11 @@ function DeletedItemRow({
             元の位置：{position}番目・
             {item.is_checked ? "チェック済み" : "未チェック"}
           </span>
+          {movesToBottom && (
+            <span className="text-sm text-zinc-600">
+              並べ替えたため、戻すと一番下に入ります
+            </span>
+          )}
         </div>
         <button
           type="button"
