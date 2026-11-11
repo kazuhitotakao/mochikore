@@ -65,6 +65,11 @@ export type PackingListItem = {
   is_checked: boolean;
 };
 
+// API-12 持ち物の削除。最後の1件を消すと非公開になることがある（D-51）
+export type ItemDeleteResult = {
+  is_public: boolean;
+};
+
 // API-07 自分のリストの内容。削除済みの持ち物は含まない
 export type PackingListDetail = PackingList & {
   grouping_revision: number;

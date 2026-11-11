@@ -20,6 +20,10 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   // API-08・09
   { method: "PATCH", path: /^\/lists\/\d+$/ },
   { method: "DELETE", path: /^\/lists\/\d+$/ },
+  // API-10・11・12
+  { method: "POST", path: /^\/lists\/\d+\/items$/ },
+  { method: "PATCH", path: /^\/items\/\d+$/ },
+  { method: "DELETE", path: /^\/items\/\d+$/ },
 ];
 
 export function isAllowedRoute(method: string, path: string): boolean {

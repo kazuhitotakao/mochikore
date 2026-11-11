@@ -6,6 +6,7 @@ use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\LogoutController;
 use App\Http\Controllers\PackingListController;
+use App\Http\Controllers\PackingListItemController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\UserController;
@@ -36,6 +37,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lists/{list}', [PackingListController::class, 'show']);
         Route::patch('/lists/{list}', [PackingListController::class, 'update']);
         Route::delete('/lists/{list}', [PackingListController::class, 'destroy']);
+
+        Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);
+        // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
+        Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
+        Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
     });
 });
 
