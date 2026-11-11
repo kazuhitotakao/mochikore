@@ -7,12 +7,18 @@ import type {
   PackingListItem,
 } from "@/types/api";
 import { AddItemForm } from "./AddItemForm";
+import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { ItemRow } from "./ItemRow";
 import { ListMenu } from "./ListMenu";
 import { MAX_ITEMS } from "./validation";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
+
+// API-07 と同じ並び（全体の sort_order、同じならid の小さい順）
+function byListOrder(a: PackingListItem, b: PackingListItem): number {
+  return a.sort_order - b.sort_order || a.id - b.id;
+}
 
 type Props = {
   list: PackingListDetail;
@@ -24,6 +30,8 @@ export function ListDetail({ list }: Props) {
   const [items, setItems] = useState(list.items);
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [notice, setNotice] = useState<string | null>(null);
+  // SC-07-12：この画面で削除した持ち物の候補（D-28）
+  const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
 
   useEffect(() => {
     if (!notice) return;
@@ -50,14 +58,32 @@ export function ListDetail({ list }: Props) {
   }
 
   function handleDeleted(item: PackingListItem, result: ItemDeleteResult) {
+    const position = items.findIndex((existing) => existing.id === item.id) + 1;
     setItems((current) =>
       current.filter((existing) => existing.id !== item.id),
     );
+    // 削除した持ち物は候補に移し、新しく削除したものを上に出す
+    setDeletedItems((current) => [
+      { item, position },
+      ...current.filter((deleted) => deleted.item.id !== item.id),
+    ]);
     // D-51：公開中のリストで最後の持ち物を削除すると、自動で非公開になる
     if (isPublic && !result.is_public) {
       setNotice("持ち物がなくなったため、リストを非公開にしました。");
     }
     setIsPublic(result.is_public);
+  }
+
+  // API-25：戻した持ち物だけを候補から外し、番号の位置に入れる（D-28・D-31）
+  function handleRestored(item: PackingListItem) {
+    setItems((current) =>
+      [...current.filter((existing) => existing.id !== item.id), item].sort(
+        byListOrder,
+      ),
+    );
+    setDeletedItems((current) =>
+      current.filter((deleted) => deleted.item.id !== item.id),
+    );
   }
 
   return (
@@ -103,6 +129,8 @@ export function ListDetail({ list }: Props) {
             ))}
           </ul>
         )}
+
+        <DeletedItems deletedItems={deletedItems} onRestored={handleRestored} />
       </div>
 
       {/* SC-07-13：持ち物の追加欄は画面下に固定する（D-73） */}
