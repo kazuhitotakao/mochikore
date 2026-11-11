@@ -6,12 +6,14 @@ use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\PackingList;
 use App\Models\PackingListItem;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * 持ち物の追加・変更・削除・復元・並べ替え。D-59：持ち物の構造を変える処理（追加・削除・復元・並べ替え）は、親リストの行をロックして
+ * 持ち物の追加・変更・削除・復元・並べ替え・一括追加。D-59：持ち物の構造を変える処理（追加・削除・復元・並べ替え・一括追加）は、親リストの行をロックして
  * grouping_revision を増やす。チェックと名前の変更は構造を変えないので増やさない。
  */
 class PackingListItemService
@@ -165,6 +167,57 @@ class PackingListItemService
 
             // D-24・D-59：並べ替えたリストは一覧の上に戻り、revision も増える
             $locked->increment('grouping_revision');
+        });
+    }
+
+    /**
+     * API-34 よく使う項目から一括追加（F-22、D-68）。選んだ順に、新しい持ち物として未チェック・未分類で末尾へ入れる。
+     * 保存元の候補は変えない（名前を複製する、D-66）。全件を確かめてから入れ、途中だけ追加しない。
+     *
+     * @param  list<int>  $savedItemIds
+     * @return array{grouping_revision: int, items: Collection<int, PackingListItem>}
+     */
+    public function addFromSavedItems(PackingList $list, User $user, array $savedItemIds, int $baseRevision): array
+    {
+        return DB::transaction(function () use ($list, $user, $savedItemIds, $baseRevision) {
+            $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
+
+            // V-13：パネルを開いた後にリストが変わっていたら上書きしない。応答が届かずに同じ値で送り直されたときも、
+            // 前回の追加で revision が増えているので、ここで止まって二重に追加しない
+            if ($locked->grouping_revision !== $baseRevision) {
+                throw new ApiException(ApiErrorCode::GroupingConflict, 'リストが変更されています。読み直してください。');
+            }
+
+            // V-12：本人の、今ある候補だけ。他人の候補・削除済み・存在しない候補が1つでもあれば全体を拒否する
+            $savedItems = $user->savedItems()->whereKey($savedItemIds)->get()->keyBy('id');
+            if ($savedItems->count() !== count($savedItemIds)) {
+                throw ValidationException::withMessages([
+                    'saved_item_ids' => [__('validation.custom.saved_item_ids.list')],
+                ]);
+            }
+
+            // D-34：追加した後に200件を超えるなら、1件も追加しない
+            if ($locked->items()->count() + count($savedItemIds) > PackingList::MAX_ITEMS) {
+                throw new ApiException(ApiErrorCode::ItemLimitReached, '持ち物は200件までです。');
+            }
+
+            $nextSortOrder = (int) $locked->items()->max('sort_order') + 1;
+            $createdIds = [];
+            foreach ($savedItemIds as $index => $savedItemId) {
+                $createdIds[] = $locked->items()->create([
+                    'name' => $savedItems[$savedItemId]->name,
+                    'sort_order' => $nextSortOrder + $index,
+                ])->id;
+            }
+
+            // increment は updated_at も新しくするので、追加したリストは一覧の上に戻る（D-24）
+            $locked->increment('grouping_revision');
+
+            return [
+                'grouping_revision' => $locked->grouping_revision,
+                // is_checked・group_id などのDBの既定値も返すため、選んだ順（sort_order）でまとめて読み直す
+                'items' => PackingListItem::whereKey($createdIds)->orderBy('sort_order')->get(),
+            ];
         });
     }
 }

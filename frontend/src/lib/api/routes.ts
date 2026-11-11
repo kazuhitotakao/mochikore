@@ -24,6 +24,9 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "POST", path: /^\/lists\/\d+\/reset-checks$/ },
   // API-10・11・12
   { method: "POST", path: /^\/lists\/\d+\/items$/ },
+  // API-29・34
+  { method: "GET", path: /^\/lists\/\d+\/grouping$/ },
+  { method: "POST", path: /^\/lists\/\d+\/items\/bulk$/ },
   // API-19
   { method: "PATCH", path: /^\/lists\/\d+\/items\/order$/ },
   { method: "PATCH", path: /^\/items\/\d+$/ },
