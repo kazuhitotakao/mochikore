@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { useFieldErrors } from "@/features/auth/useFieldErrors";
-import { firstErrors } from "@/features/auth/validation";
+import { firstErrors, trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { Category, PackingList } from "@/types/api";
@@ -13,6 +13,7 @@ import {
   DESCRIPTION_MAX_LENGTH,
   TITLE_MAX_LENGTH,
   descriptionLength,
+  normalizeDescription,
   titleLength,
   validateCategory,
   validateDescription,
@@ -22,17 +23,29 @@ import {
 // 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う
 const FIELDS = ["title", "category_id", "description"] as const;
 
+// C-04：空のPATCHのとき。Laravel の errors._form と同じ文言
+const NO_CHANGES_MESSAGE = "変更する項目を入力してください。";
+
+type EditableList = Pick<
+  PackingList,
+  "id" | "title" | "description" | "category"
+>;
+
 type Props = {
   categories: Category[];
+  // 編集のときだけ渡す。ないときは新規作成
+  list?: EditableList;
 };
 
-// SC-06 リスト作成・編集。今は新規作成（API-06）だけ
-export function ListForm({ categories }: Props) {
+// SC-06 リスト作成・編集。新規は API-06、編集は API-08
+export function ListForm({ categories, list }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
-  const [title, setTitle] = useState("");
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(list?.title ?? "");
+  const [categoryId, setCategoryId] = useState<number | null>(
+    list?.category.id ?? null,
+  );
+  const [description, setDescription] = useState(list?.description ?? "");
   const [submitting, setSubmitting] = useState(false);
   const fieldErrors = useFieldErrors(FIELDS);
   const [formError, setFormError] = useState<string | null>(null);
@@ -52,20 +65,40 @@ export function ListForm({ categories }: Props) {
       return;
     }
 
+    // API-08：変更する項目だけ送る（C-03）。Laravel が保存する形にそろえてから比べる
+    const changes = list
+      ? changedFields(list, { title, categoryId, description })
+      : null;
+    if (changes && Object.keys(changes).length === 0) {
+      setFormError(NO_CHANGES_MESSAGE);
+      return;
+    }
+
     setSubmitting(true);
     fieldErrors.reset();
 
     try {
       // 前後空白の削除・空欄→null・改行の統一は Laravel が行うので、入力のまま送る（D-92）
-      const list = await clientApi<PackingList>("/lists", {
-        method: "POST",
-        body: { title, category_id: categoryId, description },
-      });
-      // SC-06-6：保存したらそのリストの内容（SC-07）へ。戻るで空の作成画面に戻らないよう置き換える。
+      const saved = list
+        ? await clientApi<PackingList>(`/lists/${list.id}`, {
+            method: "PATCH",
+            body: changes,
+          })
+        : await clientApi<PackingList>("/lists", {
+            method: "POST",
+            body: { title, category_id: categoryId, description },
+          });
+      // SC-06-6：保存したらそのリストの内容（SC-07）へ。戻るでこの画面に戻らないよう置き換える。
       // 移動が終わるまで送信中のままにして、二重送信を防ぐ
-      router.replace(`/lists/${list.id}`);
+      router.replace(`/lists/${saved.id}`);
     } catch (error) {
       if (redirectIfAuthError(error)) return;
+
+      // 共通9：編集中にリストが削除されていたら、読み直して「ページが見つかりません」にする（D-43）
+      if (error instanceof ApiError && error.status === 404) {
+        router.refresh();
+        return;
+      }
 
       const serverErrors =
         error instanceof ApiError && error.code === "validation_error"
@@ -215,6 +248,29 @@ function RemainingCount({
   );
 }
 
+/**
+ * 編集で、最初の内容から変わった項目だけを、入力のままの値で返す。
+ */
+function changedFields(
+  list: EditableList,
+  current: { title: string; categoryId: number | null; description: string },
+): Record<string, string | number | null> {
+  const changes: Record<string, string | number | null> = {};
+
+  if (trimLikeLaravel(current.title) !== list.title) {
+    changes.title = current.title;
+  }
+  if (current.categoryId !== list.category.id) {
+    changes.category_id = current.categoryId;
+  }
+  // 空欄は Laravel が null にするので、null と空文字を同じに扱う
+  if (normalizeDescription(current.description) !== (list.description ?? "")) {
+    changes.description = current.description;
+  }
+
+  return changes;
+}
+
 // 02_画面配置 SC-06-6：画面は code で文言を決める
 function listErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return NETWORK_ERROR_MESSAGE;
@@ -223,7 +279,8 @@ function listErrorMessage(error: unknown): string {
     case "list_limit_reached":
       return "リストは100件までです。";
     case "validation_error":
-      return error.message;
+      // C-04：入力欄に結びつかないエラー（errors._form）はフォームの上に出す
+      return error.errors._form?.[0] ?? error.message;
     default:
       return NETWORK_ERROR_MESSAGE;
   }

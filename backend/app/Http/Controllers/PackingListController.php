@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePackingListRequest;
+use App\Http\Requests\UpdatePackingListRequest;
 use App\Http\Resources\PackingListDetailResource;
 use App\Http\Resources\PackingListResource;
 use App\Http\Resources\PackingListSummaryResource;
@@ -10,6 +11,7 @@ use App\Models\PackingList;
 use App\Services\PackingListService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 
 class PackingListController extends Controller
@@ -56,5 +58,30 @@ class PackingListController extends Controller
         ]);
 
         return new PackingListDetailResource($list);
+    }
+
+    /**
+     * API-08 リストの編集。送られた項目だけを変える（C-03）。
+     */
+    public function update(UpdatePackingListRequest $request, PackingList $list): PackingListResource
+    {
+        Gate::authorize('update', $list);
+
+        // D-24：内容が変わったときだけ updated_at が新しくなり、一覧の上に戻る
+        $list->update($request->validated());
+
+        return new PackingListResource($list->load('category'));
+    }
+
+    /**
+     * API-09 リストの削除。持ち物（削除済みを含む）・グループ・通報はDBが一緒に消す（04_テーブル定義）。
+     */
+    public function destroy(PackingList $list): Response
+    {
+        Gate::authorize('delete', $list);
+
+        $list->delete();
+
+        return response()->noContent();
     }
 }
