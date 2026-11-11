@@ -15,7 +15,7 @@ type Props = {
   onDeleted: (item: PackingListItem, result: ItemDeleteResult) => void;
 };
 
-// SC-07-7・8・10 持ち物の行。チェック（順番4）と「≡」（順番6）は、その機能を作るときに足す
+// SC-07-7・8・10 持ち物の行。「≡」（順番6）は、その機能を作るときに足す
 export function ItemRow({ item, onChanged, onDeleted }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -85,6 +85,27 @@ export function ItemRow({ item, onChanged, onDeleted }: Props) {
     }
   }
 
+  // SC-07-7・F-06：チェックを押したら保存し、保存できた値で表示する。
+  // 保存が終わるまで表示を変えないので、失敗したときは元の状態のまま（02_画面配置 SC-07-7）
+  async function toggleChecked() {
+    if (busy) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await clientApi<PackingListItem>(`/items/${item.id}`, {
+        method: "PATCH",
+        body: { is_checked: !item.is_checked },
+      });
+      onChanged(saved);
+    } catch (failure) {
+      if (handleMovingError(failure)) return;
+      setError(itemErrorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // SC-07-10：確認なしで削除する（API-12、D-27）
   async function deleteItem() {
     setMenuOpen(false);
@@ -105,6 +126,15 @@ export function ItemRow({ item, onChanged, onDeleted }: Props) {
   return (
     <li className="flex flex-col gap-1 border-b border-zinc-200 py-2">
       <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={item.is_checked}
+          disabled={busy}
+          aria-label={item.name}
+          aria-describedby={errorId}
+          onChange={() => void toggleChecked()}
+          className="size-5 shrink-0"
+        />
         {editing ? (
           <input
             type="text"

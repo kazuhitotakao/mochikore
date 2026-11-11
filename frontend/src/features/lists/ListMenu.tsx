@@ -11,21 +11,61 @@ import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 type Props = {
   listId: number;
   title: string;
+  onChecksReset: () => void;
 };
 
-// SC-07-4「…」メニュー。今は「リストを編集」「このリストを削除」だけ。
-// 「グループを整理」「チェックを全部外す」は、その機能を作るときに足す
-export function ListMenu({ listId, title }: Props) {
+type Confirming = "reset-checks" | "delete" | null;
+
+// SC-07-4「…」メニュー。「グループを整理」は手順書第15章で足す
+export function ListMenu({ listId, title, onChecksReset }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [confirming, setConfirming] = useState<Confirming>(null);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function openConfirm(kind: Exclude<Confirming, null>) {
+    setMenuOpen(false);
+    setError(null);
+    setConfirming(kind);
+  }
+
+  // 401・403 email_not_verified・404 で画面を移動・読み直ししたら true
+  function handleMovingError(failure: unknown): boolean {
+    if (redirectIfAuthError(failure)) return true;
+
+    // 共通9：ほかの画面で先に削除されていたら、読み直して「ページが見つかりません」にする（D-43）
+    if (failure instanceof ApiError && failure.status === 404) {
+      router.refresh();
+      return true;
+    }
+
+    return false;
+  }
+
+  // SC-07-14・D-17：チェックだけ外し、持ち物は残す（API-13）
+  async function handleResetChecks() {
+    setSending(true);
+    setError(null);
+
+    try {
+      await clientApi<void>(`/lists/${listId}/reset-checks`, {
+        method: "POST",
+      });
+      onChecksReset();
+      setConfirming(null);
+    } catch (failure) {
+      if (handleMovingError(failure)) return;
+      setError(NETWORK_ERROR_MESSAGE);
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function handleDelete() {
-    setDeleting(true);
+    setSending(true);
     setError(null);
 
     try {
@@ -34,16 +74,9 @@ export function ListMenu({ listId, title }: Props) {
       // 移動が終わるまで送信中のままにして、二重送信を防ぐ
       router.replace("/lists");
     } catch (failure) {
-      if (redirectIfAuthError(failure)) return;
-
-      // 共通9：ほかの画面で先に削除されていたら、読み直して「ページが見つかりません」にする（D-43）
-      if (failure instanceof ApiError && failure.status === 404) {
-        router.refresh();
-        return;
-      }
-
+      if (handleMovingError(failure)) return;
       setError(NETWORK_ERROR_MESSAGE);
-      setDeleting(false);
+      setSending(false);
     }
   }
 
@@ -77,11 +110,16 @@ export function ListMenu({ listId, title }: Props) {
           <li>
             <button
               type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                setError(null);
-                setConfirming(true);
-              }}
+              onClick={() => openConfirm("reset-checks")}
+              className="block w-full px-4 py-2 text-left"
+            >
+              チェックを全部外す
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              onClick={() => openConfirm("delete")}
               className="block w-full px-4 py-2 text-left text-red-700"
             >
               このリストを削除
@@ -90,16 +128,28 @@ export function ListMenu({ listId, title }: Props) {
         </ul>
       )}
 
+      <ConfirmDialog
+        open={confirming === "reset-checks"}
+        message="このリストのチェックを全部外しますか？"
+        confirmLabel="外す"
+        cancelLabel="やめる"
+        busy={sending}
+        error={error}
+        onConfirm={handleResetChecks}
+        onCancel={() => setConfirming(null)}
+      />
+
       {/* SC-07-15・D-26：実際のリスト名と、中の持ち物も消えることを伝える */}
       <ConfirmDialog
-        open={confirming}
+        open={confirming === "delete"}
         message={`「${title}」を削除しますか？中の持ち物も削除されます。`}
         confirmLabel="削除する"
         cancelLabel="やめる"
-        busy={deleting}
+        busy={sending}
+        destructive
         error={error}
         onConfirm={handleDelete}
-        onCancel={() => setConfirming(false)}
+        onCancel={() => setConfirming(null)}
       />
     </div>
   );
