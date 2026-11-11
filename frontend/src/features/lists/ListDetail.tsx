@@ -42,6 +42,13 @@ export function ListDetail({ list }: Props) {
     );
   }
 
+  // API-13：このリストのチェックを全部外した。持ち物・順番はそのまま
+  function handleChecksReset() {
+    setItems((current) =>
+      current.map((item) => ({ ...item, is_checked: false })),
+    );
+  }
+
   function handleDeleted(item: PackingListItem, result: ItemDeleteResult) {
     setItems((current) =>
       current.filter((existing) => existing.id !== item.id),
@@ -69,7 +76,11 @@ export function ListDetail({ list }: Props) {
               </span>
             </p>
           </div>
-          <ListMenu listId={list.id} title={list.title} />
+          <ListMenu
+            listId={list.id}
+            title={list.title}
+            onChecksReset={handleChecksReset}
+          />
         </header>
 
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}

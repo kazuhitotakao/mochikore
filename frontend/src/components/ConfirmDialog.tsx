@@ -9,6 +9,8 @@ type Props = {
   cancelLabel: string;
   // 送信中は、どちらのボタンも押せないようにする
   busy?: boolean;
+  // 削除など元に戻せない操作のときは、実行のボタンを赤にする
+  destructive?: boolean;
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
@@ -22,6 +24,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   busy = false,
+  destructive = false,
   error,
   onConfirm,
   onCancel,
@@ -66,7 +69,7 @@ export function ConfirmDialog({
           type="button"
           onClick={onConfirm}
           disabled={busy}
-          className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
+          className={`rounded px-4 py-2 text-white disabled:opacity-50 ${destructive ? "bg-red-700" : "bg-zinc-900"}`}
         >
           {confirmLabel}
         </button>
