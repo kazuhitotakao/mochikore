@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useState } from "react";
+import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
+import { clientApi } from "@/lib/api/client";
+import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type {
   ItemDeleteResult,
   PackingListDetail,
@@ -9,6 +19,13 @@ import type {
 import { AddItemForm } from "./AddItemForm";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { ItemRow } from "./ItemRow";
+import { isNotFound } from "./itemErrors";
+import {
+  itemSortAnnouncements,
+  restrictToVerticalAxis,
+  screenReaderInstructions,
+  useItemSortSensors,
+} from "./itemSorting";
 import { ListMenu } from "./ListMenu";
 import { MAX_ITEMS } from "./validation";
 
@@ -27,11 +44,18 @@ type Props = {
 // SC-07 自分のリストの内容（通常画面）。持ち物の追加・削除で件数や公開の表示が変わるので、
 // 画面の状態として持ち、保存できた値（D-71）で表示を更新する
 export function ListDetail({ list }: Props) {
+  const router = useRouter();
+  const redirectIfAuthError = useAuthErrorRedirect();
+  // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
+  const dndId = useId();
+  const sensors = useItemSortSensors();
   const [items, setItems] = useState(list.items);
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [notice, setNotice] = useState<string | null>(null);
   // SC-07-12：この画面で削除した持ち物の候補（D-28）
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
+  const [reordering, setReordering] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!notice) return;
@@ -86,6 +110,43 @@ export function ListDetail({ list }: Props) {
     );
   }
 
+  // SC-07-9・F-15：離したら自動で保存する（API-19）。動かした順に先に表示し、失敗したら元の順に戻す。
+  // グループの見出しがあるときに同じグループの中だけで動かす制限は、手順書第15章で足す
+  async function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+
+    const before = items;
+    const moved = arrayMove(
+      before,
+      before.findIndex((item) => item.id === active.id),
+      before.findIndex((item) => item.id === over.id),
+    ).map((item, index) => ({ ...item, sort_order: index + 1 }));
+
+    setItems(moved);
+    setReordering(true);
+    setReorderError(null);
+    try {
+      await clientApi<void>(`/lists/${list.id}/items/order`, {
+        method: "PATCH",
+        body: { item_ids: moved.map((item) => item.id) },
+      });
+      // D-31：並べ替えた後は、削除した持ち物を戻すと一番下に入る
+      setDeletedItems((current) =>
+        current.map((deleted) => ({ ...deleted, movesToBottom: true })),
+      );
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      setItems(before);
+      setReorderError(reorderErrorMessage(failure));
+    } finally {
+      setReordering(false);
+    }
+  }
+
   return (
     <>
       {/* 画面下に固定した追加欄に、最後の持ち物が隠れないよう余白をとる */}
@@ -118,16 +179,34 @@ export function ListDetail({ list }: Props) {
         {items.length === 0 ? (
           <p>持ち物はまだありません。</p>
         ) : (
-          <ul className="flex flex-col">
-            {items.map((item) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                onChanged={handleChanged}
-                onDeleted={handleDeleted}
-              />
-            ))}
-          </ul>
+          <DndContext
+            id={dndId}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
+            accessibility={{
+              announcements: itemSortAnnouncements(items),
+              screenReaderInstructions,
+            }}
+            onDragEnd={(event) => void handleDragEnd(event)}
+          >
+            <SortableContext
+              items={items}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="flex flex-col">
+                {items.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    onChanged={handleChanged}
+                    onDeleted={handleDeleted}
+                    sortDisabled={reordering}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         )}
 
         <DeletedItems deletedItems={deletedItems} onRestored={handleRestored} />
@@ -141,6 +220,11 @@ export function ListDetail({ list }: Props) {
               {notice}
             </p>
           )}
+          {reorderError && (
+            <p role="alert" className="text-sm text-red-700">
+              {reorderError}
+            </p>
+          )}
           <AddItemForm
             listId={list.id}
             isFull={items.length >= MAX_ITEMS}
@@ -150,4 +234,13 @@ export function ListDetail({ list }: Props) {
       </div>
     </>
   );
+}
+
+// V-10：並べ替えの送信が正しくないのは、ほかの画面で持ち物が増減したときなので、読み直しを案内する
+function reorderErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === "validation_error") {
+    return "並べ替える持ち物の情報が正しくありません。リストを読み直してください。";
+  }
+
+  return NETWORK_ERROR_MESSAGE;
 }

@@ -8,6 +8,7 @@ use App\Http\Controllers\LogoutController;
 use App\Http\Controllers\PackingListController;
 use App\Http\Controllers\PackingListItemController;
 use App\Http\Controllers\RegisterController;
+use App\Http\Controllers\ReorderPackingListItemsController;
 use App\Http\Controllers\ResetChecksController;
 use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\RestorePackingListItemController;
@@ -42,6 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/lists/{list}/reset-checks', ResetChecksController::class);
         Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);
+        Route::patch('/lists/{list}/items/order', ReorderPackingListItemsController::class);
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
         Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
