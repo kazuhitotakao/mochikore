@@ -123,18 +123,16 @@ class BulkAddItemsTest extends ListApiTestCase
         $this->assertSame(3, $this->list->fresh()->grouping_revision);
     }
 
-    public function test_199件に1件は追加でき、2件は全体を422で拒否する(): void
+    public function test_200件あっても、件数の上限なく一括追加できる(): void
     {
-        // D-34・12_手動テスト 38-01
-        PackingListItem::factory()->count(199)->for($this->list)->create();
+        // D-34：持ち物の件数に上限は設けない（利用者の指示で200件から変更）。12_手動テスト 38-01
+        PackingListItem::factory()->count(200)->for($this->list)->create();
 
         $this->bulk(['saved_item_ids' => [$this->milk->id, $this->egg->id], 'base_revision' => 3])
-            ->assertUnprocessable()
-            ->assertExactJson(['message' => '持ち物は200件までです。', 'code' => 'item_limit_reached']);
-        $this->assertSame(199, $this->list->items()->count());
+            ->assertCreated();
 
-        $this->bulk(['saved_item_ids' => [$this->milk->id], 'base_revision' => 3])->assertCreated();
-        $this->assertSame(200, $this->list->items()->count());
+        $this->assertSame(202, $this->list->items()->count());
+        $this->assertSame(4, $this->list->fresh()->grouping_revision);
     }
 
     /**

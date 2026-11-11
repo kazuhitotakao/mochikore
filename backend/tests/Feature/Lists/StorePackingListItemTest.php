@@ -81,21 +81,17 @@ class StorePackingListItemTest extends ListApiTestCase
             ->assertJsonPath('data.is_checked', false);
     }
 
-    public function test_199件目までは追加でき、200件あれば422_item_limit_reachedで追加しない(): void
+    public function test_200件あっても、件数の上限なく追加できる(): void
     {
-        PackingListItem::factory()->count(199)->for($this->list)->create();
-        // 削除済みは数えない
-        PackingListItem::factory()->for($this->list)->create(['deleted_at' => now()]);
-
-        $this->actingAsUser($this->user)
-            ->postJson("/api/lists/{$this->list->id}/items", ['name' => '200件目'])
-            ->assertCreated();
+        // D-34：持ち物の件数に上限は設けない（利用者の指示で200件から変更）
+        PackingListItem::factory()->count(200)->for($this->list)->create();
 
         $this->actingAsUser($this->user)
             ->postJson("/api/lists/{$this->list->id}/items", ['name' => '201件目'])
-            ->assertUnprocessable()
-            ->assertExactJson(['message' => '持ち物は200件までです。', 'code' => 'item_limit_reached']);
-        $this->assertSame(200, $this->list->items()->count());
+            ->assertCreated()
+            ->assertJsonPath('data.name', '201件目');
+
+        $this->assertSame(201, $this->list->items()->count());
         $this->assertSame(1, $this->list->fresh()->grouping_revision);
     }
 

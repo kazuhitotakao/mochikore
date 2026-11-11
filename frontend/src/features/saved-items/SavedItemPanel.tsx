@@ -177,9 +177,6 @@ export function SavedItemPanel({
       } else if (failure.code === "grouping_conflict") {
         setAddError(CONFLICT_MESSAGE);
         await reloadAfterConflict();
-      } else if (failure.code === "item_limit_reached") {
-        // 選んだ候補は残し、減らしてから送り直せるようにする
-        setAddError("持ち物は200件までです。");
       } else if (failure.code === "validation_error") {
         // ほかの画面で候補が削除されたときなど。選び直してもらうため、選択を外して候補を読み直す
         setAddError(CHOOSE_AGAIN_MESSAGE);

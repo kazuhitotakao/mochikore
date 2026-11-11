@@ -26,11 +26,6 @@ class PackingListItemService
         return DB::transaction(function () use ($list, $name) {
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
 
-            // C-05：同時に追加されても200件を超えないよう、ロックした後で数える
-            if ($locked->items()->count() >= PackingList::MAX_ITEMS) {
-                throw new ApiException(ApiErrorCode::ItemLimitReached, '持ち物は200件までです。');
-            }
-
             // API-10：削除していない持ち物の最大値＋1。削除済みの番号は詰めない（D-31）
             $item = $locked->items()->create([
                 'name' => $name,
@@ -112,11 +107,6 @@ class PackingListItemService
                 return $target;
             }
 
-            // D-34：200件あるときは戻さない。画面は復元の候補を残す
-            if ($locked->items()->count() >= PackingList::MAX_ITEMS) {
-                throw new ApiException(ApiErrorCode::ItemLimitReached, '持ち物は200件までです。');
-            }
-
             // D-31：番号が残っていれば元の位置。削除後に並べ替えて番号が空になっていれば一番下
             if ($target->sort_order === null) {
                 $target->sort_order = (int) $locked->items()->max('sort_order') + 1;
@@ -153,7 +143,7 @@ class PackingListItemService
             }
 
             if ($itemIds !== []) {
-                // 200件まで1回で更新する。IDは検証済みの整数なので、そのまま式に入れる
+                // 1件ずつ更新せず、1回でまとめて更新する。IDは検証済みの整数なので、そのまま式に入れる
                 $cases = collect($itemIds)
                     ->map(fn (int $id, int $index) => 'WHEN '.$id.' THEN '.($index + 1))
                     ->implode(' ');
@@ -194,11 +184,6 @@ class PackingListItemService
                 throw ValidationException::withMessages([
                     'saved_item_ids' => [__('validation.custom.saved_item_ids.list')],
                 ]);
-            }
-
-            // D-34：追加した後に200件を超えるなら、1件も追加しない
-            if ($locked->items()->count() + count($savedItemIds) > PackingList::MAX_ITEMS) {
-                throw new ApiException(ApiErrorCode::ItemLimitReached, '持ち物は200件までです。');
             }
 
             $nextSortOrder = (int) $locked->items()->max('sort_order') + 1;

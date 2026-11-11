@@ -10,12 +10,11 @@ import { validateItemName } from "./validation";
 
 type Props = {
   listId: number;
-  isFull: boolean;
   onAdded: (item: PackingListItem) => void;
 };
 
-// SC-07-13 持ち物の追加欄（API-10）。画面下に固定し、追加した後も続けて入力できる
-export function AddItemForm({ listId, isFull, onAdded }: Props) {
+// SC-07-13 持ち物の追加欄（API-10）。画面下に固定し、追加した後も続けて入力できる。件数の上限はない（D-34）
+export function AddItemForm({ listId, onAdded }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,7 +24,7 @@ export function AddItemForm({ listId, isFull, onAdded }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting || isFull) return;
+    if (submitting) return;
 
     const invalid = validateItemName(name);
     if (invalid) {
@@ -82,14 +81,12 @@ export function AddItemForm({ listId, isFull, onAdded }: Props) {
         />
         <button
           type="submit"
-          disabled={submitting || isFull}
+          disabled={submitting}
           className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
         >
           追加
         </button>
       </div>
-      {/* SC-07-13：200件のときは押せない */}
-      {isFull && <p className="text-sm">持ち物は200件までです。</p>}
       {error && (
         <p id="new-item-error" role="alert" className="text-sm text-red-700">
           {error}

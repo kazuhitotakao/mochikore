@@ -49,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/lists/{list}/items/order', ReorderPackingListItemsController::class);
         Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class);
         Route::get('/lists/{list}/grouping', [PackingListGroupingController::class, 'show']);
+        Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
         Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);

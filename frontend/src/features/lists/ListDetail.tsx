@@ -31,7 +31,6 @@ import {
   useItemSortSensors,
 } from "./itemSorting";
 import { LIST_MENU_BUTTON_ID, ListMenu } from "./ListMenu";
-import { MAX_ITEMS } from "./validation";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
@@ -74,12 +73,30 @@ export function ListDetail({ list, categories }: Props) {
   const { delayedIds, hideLater, cancelHide } =
     useDelayedHide(handleHideDelayEnd);
 
-  // D-95：件数・200件の上限は、隠れたチェック済みも含む全件（items）で判定し、表示だけを絞る。
+  // D-95：画面は隠れたチェック済みも含む全件（items）を持ち、表示だけを絞る。
   // 隠している間にチェックを付けた持ち物は、少しの間だけ表示に残す（delayedIds）
   const visibleItems = showChecked
     ? items
     : items.filter((item) => !item.is_checked || delayedIds.has(item.id));
   const checkedCount = items.filter((item) => item.is_checked).length;
+
+  // SC-07-6・F-20：グループがなければ見出しのない1本のリスト。あればグループ順に見出しを付け、
+  // 未分類を最後に置く。各グループの中は全体の持ち物順（D-60）
+  const sections: {
+    key: string;
+    title: string | null;
+    groupId?: number | null;
+  }[] =
+    list.groups.length === 0
+      ? [{ key: "all", title: null }]
+      : [
+          ...list.groups.map((group) => ({
+            key: `group-${group.id}`,
+            title: group.name,
+            groupId: group.id,
+          })),
+          { key: "ungrouped", title: "未分類", groupId: null },
+        ];
 
   useEffect(() => {
     if (!notice) return;
@@ -179,13 +196,21 @@ export function ListDetail({ list, categories }: Props) {
   async function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
 
-    // D-95：チェック済みを隠しているときは、表示中の持ち物の位置だけを入れ替える
+    // F-15・D-60：グループがあるときは、同じグループ（未分類を含む）の中だけで動かす
+    const activeItem = items.find((item) => item.id === active.id);
+    const overItem = items.find((item) => item.id === over.id);
+    if (!activeItem || !overItem || activeItem.group_id !== overItem.group_id) {
+      return;
+    }
+
+    // D-95：そのグループで表示中の持ち物が占める位置だけを入れ替え、ほかのグループと
+    // 隠れているチェック済みの位置は保つ。API-19 には全有効IDを送る
     const before = items;
     const moved = reorderVisibleItems(
       before,
-      visibleItems,
-      Number(active.id),
-      Number(over.id),
+      visibleItems.filter((item) => item.group_id === activeItem.group_id),
+      activeItem.id,
+      overItem.id,
     );
 
     setItems(moved);
@@ -221,12 +246,10 @@ export function ListDetail({ list, categories }: Props) {
         <header className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
             <h1 className="text-2xl font-bold wrap-break-word">{list.title}</h1>
+            {/* 利用者の指示で、持ち物の件数は出さない（D-95） */}
             <p className="flex flex-wrap gap-x-3 text-sm text-zinc-600">
               <span>{list.category.name}</span>
               <span>{isPublic ? "公開" : "非公開"}</span>
-              <span>
-                {items.length}/{MAX_ITEMS}件
-              </span>
             </p>
           </div>
           <ListMenu
@@ -236,6 +259,8 @@ export function ListDetail({ list, categories }: Props) {
             checkedCount={checkedCount}
             onToggleChecked={() => setShowChecked((shown) => !shown)}
             onChecksReset={handleChecksReset}
+            hasDeletedItems={deletedItems.length > 0}
+            saving={reordering}
           />
         </header>
 
@@ -253,8 +278,7 @@ export function ListDetail({ list, categories }: Props) {
           よく使う項目から追加
         </button>
 
-        {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
-            グループの見出し（SC-07-6）は手順書第15章で足す */}
+        {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける */}
         {items.length === 0 ? (
           <p>持ち物はまだありません。</p>
         ) : visibleItems.length === 0 ? (
@@ -273,23 +297,58 @@ export function ListDetail({ list, categories }: Props) {
             }}
             onDragEnd={(event) => void handleDragEnd(event)}
           >
-            <SortableContext
-              items={visibleItems}
-              strategy={verticalListSortingStrategy}
-            >
-              <ul className="flex flex-col">
-                {visibleItems.map((item) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    onChanged={handleChanged}
-                    onDeleted={handleDeleted}
-                    onSaveAsFavorite={setSavingItem}
-                    sortDisabled={reordering}
-                  />
-                ))}
-              </ul>
-            </SortableContext>
+            {sections.map((section) => {
+              const sectionItems = visibleItems.filter(
+                (item) =>
+                  section.groupId === undefined ||
+                  item.group_id === section.groupId,
+              );
+              const total = items.filter(
+                (item) =>
+                  section.groupId === undefined ||
+                  item.group_id === section.groupId,
+              ).length;
+              // SC-07-6：未分類は、全有効件数が0なら見出しごと出さない
+              if (section.groupId === null && total === 0) return null;
+
+              return (
+                <section
+                  key={section.key}
+                  aria-label={section.title ?? undefined}
+                  className="flex flex-col gap-1"
+                >
+                  {section.title !== null && (
+                    // SC-07-6：グループ名と件数。件数は画面に出している持ち物だけを数え、
+                    // チェック済みを隠しているときは含めない（D-95、利用者の指示）。空のグループは「0件」
+                    <h2 className="font-medium wrap-break-word">
+                      {section.title}（{sectionItems.length}件）
+                    </h2>
+                  )}
+                  {total > 0 && sectionItems.length === 0 && (
+                    <p className="text-sm text-zinc-600">
+                      このグループはすべてチェック済みです。
+                    </p>
+                  )}
+                  <SortableContext
+                    items={sectionItems}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <ul className="flex flex-col">
+                      {sectionItems.map((item) => (
+                        <ItemRow
+                          key={item.id}
+                          item={item}
+                          onChanged={handleChanged}
+                          onDeleted={handleDeleted}
+                          onSaveAsFavorite={setSavingItem}
+                          sortDisabled={reordering}
+                        />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </section>
+              );
+            })}
           </DndContext>
         )}
 
@@ -342,11 +401,7 @@ export function ListDetail({ list, categories }: Props) {
               {reorderError}
             </p>
           )}
-          <AddItemForm
-            listId={list.id}
-            isFull={items.length >= MAX_ITEMS}
-            onAdded={handleAdded}
-          />
+          <AddItemForm listId={list.id} onAdded={handleAdded} />
         </div>
       </div>
     </>

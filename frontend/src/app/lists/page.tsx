@@ -66,8 +66,8 @@ export default async function ListsPage(props: PageProps<"/lists">) {
                   </span>
                 )}
                 <span className="flex flex-wrap gap-x-3 text-sm text-zinc-600">
+                  {/* 利用者の指示で、持ち物の件数は出さない（D-63） */}
                   <span>{list.category.name}</span>
-                  <span>{list.items_count}件</span>
                   <span>{list.is_public ? "公開" : "非公開"}</span>
                   <span>更新 {formatDate(list.updated_at)}</span>
                 </span>

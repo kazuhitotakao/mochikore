@@ -115,19 +115,20 @@ class RestorePackingListItemTest extends ListApiTestCase
         $this->assertSame(6, $this->list->fresh()->grouping_revision);
     }
 
-    public function test_200件あれば422_item_limit_reachedで、戻さない(): void
+    public function test_200件あっても、件数の上限なく戻せる(): void
     {
-        // D-34
+        // D-34：持ち物の件数に上限は設けない（利用者の指示で200件から変更）
         PackingListItem::factory()->count(200)->for($this->list)->create();
         $item = PackingListItem::factory()->for($this->list)->create(['deleted_at' => now()]);
 
         $this->actingAsUser($this->user)
             ->postJson("/api/items/{$item->id}/restore")
-            ->assertUnprocessable()
-            ->assertExactJson(['message' => '持ち物は200件までです。', 'code' => 'item_limit_reached']);
+            ->assertOk()
+            ->assertJsonPath('data.id', $item->id);
 
-        $this->assertSoftDeleted($item);
-        $this->assertSame(5, $this->list->fresh()->grouping_revision);
+        $this->assertNotSoftDeleted($item);
+        $this->assertSame(201, $this->list->items()->count());
+        $this->assertSame(6, $this->list->fresh()->grouping_revision);
     }
 
     public function test_戻しても自動では再公開しない(): void

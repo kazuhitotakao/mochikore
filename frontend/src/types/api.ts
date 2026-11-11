@@ -79,6 +79,11 @@ export type GroupingState = {
   items: PackingListItem[];
 };
 
+// API-30 グループ整理の保存結果。group_key_map は下書きの key → 保存後のグループID
+export type GroupingSaveResult = GroupingState & {
+  group_key_map: Record<string, number>;
+};
+
 // API-34 一括追加の結果。追加した持ち物は選んだ順
 export type BulkAddResult = {
   grouping_revision: number;
@@ -97,14 +102,13 @@ export type PackingListDetail = PackingList & {
   items: PackingListItem[];
 };
 
-// 06_API一覧「エラーコード一覧」の16種類と、Next.js の窓口だけが返す origin_not_allowed
+// 06_API一覧「エラーコード一覧」の15種類と、Next.js の窓口だけが返す origin_not_allowed
 export type ApiErrorCode =
   | "validation_error"
   | "email_already_registered"
   | "invalid_credentials"
   | "invalid_password"
   | "list_limit_reached"
-  | "item_limit_reached"
   | "saved_item_limit_reached"
   | "list_has_no_items"
   | "link_invalid"
