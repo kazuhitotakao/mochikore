@@ -175,6 +175,24 @@ class PackingListItemService
     }
 
     /**
+     * API-37 選んだ持ち物をまとめてチェック・解除する（F-25、D-99）。SC-07 はグループの見出しのチェックで、
+     * そのグループの全有効持ち物を送る。チェックだけなので構造は変えず、revision も親リストの更新日時も変えない（D-25）。
+     *
+     * @param  list<int>  $itemIds
+     */
+    public function setChecks(PackingList $list, array $itemIds, bool $checked): void
+    {
+        // V-19：同じリストの削除していない持ち物だけ。1件でも違えば、何も変えずに全体を拒否する
+        if ($list->items()->whereKey($itemIds)->count() !== count($itemIds)) {
+            throw ValidationException::withMessages([
+                'item_ids' => [__('validation.bulk_check.items')],
+            ]);
+        }
+
+        $list->items()->whereKey($itemIds)->update(['is_checked' => $checked]);
+    }
+
+    /**
      * API-34 よく使う項目から一括追加（F-22、D-68）。選んだ順に、新しい持ち物として未チェック・未分類で末尾へ入れる。
      * 保存元の候補は変えない（名前を複製する、D-66）。全件を確かめてから入れ、途中だけ追加しない。
      *

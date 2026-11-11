@@ -33,6 +33,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/lists\/\d+\/items\/order$/ },
   // API-36
   { method: "PATCH", path: /^\/lists\/\d+\/groups\/order$/ },
+  // API-37
+  { method: "PATCH", path: /^\/lists\/\d+\/items\/checks$/ },
   { method: "PATCH", path: /^\/items\/\d+$/ },
   { method: "DELETE", path: /^\/items\/\d+$/ },
   // API-31・32・33。API-31 の category_id はクエリで送る（Laravel が確かめる）
