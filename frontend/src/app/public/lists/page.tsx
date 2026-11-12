@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
+import { PublicHeader } from "@/components/PublicHeader";
 import { optionalUser } from "@/features/auth/optionalUser";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { PublicListSearch } from "@/features/lists/PublicListSearch";
-import { publicListHref, publicListQuery } from "@/features/lists/publicSearch";
+import {
+  publicListDetailHref,
+  publicListHref,
+  publicListQuery,
+} from "@/features/lists/publicSearch";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { serverApi } from "@/lib/api/server";
 import type {
@@ -59,32 +64,7 @@ export default async function PublicListsPage(
 
   return (
     <>
-      <header className="flex items-center justify-between gap-3 py-4">
-        <Link
-          href={user ? "/lists" : "/"}
-          prefetch={false}
-          className="font-bold"
-        >
-          もちこれ
-        </Link>
-        <nav aria-label="メインメニュー" className="flex gap-3 text-sm">
-          <Link
-            href="/public/lists"
-            prefetch={false}
-            aria-current="page"
-            className="underline"
-          >
-            公開リスト
-          </Link>
-          <Link
-            href={user ? "/account" : "/login"}
-            prefetch={false}
-            className="underline"
-          >
-            {user ? "アカウント" : "ログイン"}
-          </Link>
-        </nav>
-      </header>
+      <PublicHeader user={user} listIndex />
       <main className="flex flex-col gap-6 py-4">
         <BackLink href={user ? "/lists" : "/"} />
         <h1 className="text-2xl font-bold">公開リスト</h1>
@@ -107,21 +87,24 @@ export default async function PublicListsPage(
             ) : (
               <ul aria-label="検索結果" className="flex flex-col gap-2">
                 {result.data.map((list) => (
-                  <li
-                    key={list.id}
-                    className="flex flex-col gap-1 rounded border border-zinc-300 px-4 py-3"
-                  >
-                    <h2 className="font-medium wrap-break-word">
-                      {list.title}
-                    </h2>
-                    {list.description && (
-                      <p className="line-clamp-2 text-sm text-zinc-600">
-                        {list.description}
+                  <li key={list.id}>
+                    <Link
+                      href={publicListDetailHref(list.id, query)}
+                      prefetch={false}
+                      className="flex flex-col gap-1 rounded border border-zinc-300 px-4 py-3 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      <h2 className="font-medium wrap-break-word">
+                        {list.title}
+                      </h2>
+                      {list.description && (
+                        <p className="line-clamp-2 text-sm text-zinc-600">
+                          {list.description}
+                        </p>
+                      )}
+                      <p className="text-sm text-zinc-600">
+                        {list.category.name}
                       </p>
-                    )}
-                    <p className="text-sm text-zinc-600">
-                      {list.category.name}
-                    </p>
+                    </Link>
                   </li>
                 ))}
               </ul>
