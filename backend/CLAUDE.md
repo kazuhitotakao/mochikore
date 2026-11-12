@@ -31,7 +31,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 ## エラー
 
-- エラーは必ず `message` と `code` を返す。15種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
+- エラーは必ず `message` と `code` を返す。16種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
 - 標準の例外は `bootstrap/app.php` で変換する：入力エラー 422 `validation_error`、未ログイン 401 `unauthenticated`、回数制限 429 `too_many_requests` と `retry_after`、署名付きリンクの403 は 422 `link_invalid`、想定外 500 `server_error`（詳細は返さない）。
 - メール未認証の403は、標準の `verified` ではなく ApiException を投げる自作ミドルウェアで返す。
 

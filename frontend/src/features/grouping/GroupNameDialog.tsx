@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { FieldError } from "@/components/FieldError";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { validateGroupName } from "./validation";
@@ -13,6 +20,8 @@ type Props = {
   otherNames: readonly string[];
   onSubmit: (name: string) => void;
   onCancel: () => void;
+  // SC-09-11：「グループを追加」のときだけ、入力欄の下によく使うグループの候補を出す（D-102）
+  children?: ReactNode;
 };
 
 // SC-09-3・5：グループ名の入力。下書きに入れるだけで、まだ保存しない（OK でまとめて保存する、D-59）。
@@ -24,6 +33,7 @@ export function GroupNameDialog({
   otherNames,
   onSubmit,
   onCancel,
+  children,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -80,6 +90,7 @@ export function GroupNameDialog({
           />
           <FieldError id={errorId} message={error ?? undefined} />
         </div>
+        {children}
         <div className="flex justify-end gap-3">
           <button
             type="button"

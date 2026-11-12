@@ -43,6 +43,10 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "GET", path: /^\/saved-items$/ },
   { method: "POST", path: /^\/saved-items$/ },
   { method: "DELETE", path: /^\/saved-items\/\d+$/ },
+  // API-39・40・41。API-39 の category_id はクエリで送る（Laravel が確かめる）
+  { method: "GET", path: /^\/saved-groups$/ },
+  { method: "POST", path: /^\/saved-groups$/ },
+  { method: "DELETE", path: /^\/saved-groups\/\d+$/ },
   // API-25
   { method: "POST", path: /^\/items\/\d+\/restore$/ },
 ];

@@ -103,6 +103,46 @@ class DataSchemaTest extends TestCase
         $this->assertSame(3, DB::table('saved_items')->where('name', '牛乳')->count());
     }
 
+    public function test_よく使うグループは「はは」と「ぱぱ」を別に保存でき、同じ本人・カテゴリー・名前は二重に保存できない(): void
+    {
+        // D-102：saved_items と同じく、照合順序は utf8mb4_bin で UNIQUE(user_id, category_id, name)
+        $user = User::factory()->create();
+        $this->insertSavedGroup($user->id, $this->categoryId, 'はは');
+        $this->insertSavedGroup($user->id, $this->categoryId, 'ぱぱ');
+        $this->insertSavedGroup($user->id, $this->otherCategoryId, 'はは');
+
+        $this->assertSame(3, DB::table('saved_groups')->where('user_id', $user->id)->count());
+        $this->assertSame('utf8mb4_bin', collect(Schema::getColumns('saved_groups'))->firstWhere('name', 'name')['collation']);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        $this->insertSavedGroup($user->id, $this->categoryId, 'はは');
+    }
+
+    public function test_よく使うグループが使っているカテゴリーは削除できない(): void
+    {
+        $user = User::factory()->create();
+        $this->insertSavedGroup($user->id, $this->categoryId, '冷蔵');
+
+        $this->expectException(QueryException::class);
+
+        DB::table('categories')->where('id', $this->categoryId)->delete();
+    }
+
+    public function test_利用者を削除すると、本人のよく使うグループも削除される(): void
+    {
+        // D-102・D-09：退会では本人のよく使うグループも消し、ほかの人の候補は残す
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $this->insertSavedGroup($user->id, $this->categoryId, '冷蔵');
+        $this->insertSavedGroup($otherUser->id, $this->categoryId, '冷蔵');
+
+        DB::table('users')->where('id', $user->id)->delete();
+
+        $this->assertSame(0, DB::table('saved_groups')->where('user_id', $user->id)->count());
+        $this->assertSame(1, DB::table('saved_groups')->where('user_id', $otherUser->id)->count());
+    }
+
     public function test_リストが使っているカテゴリーは削除できない(): void
     {
         $user = User::factory()->create();
@@ -212,6 +252,15 @@ class DataSchemaTest extends TestCase
     private function insertSavedItem(int $userId, int $categoryId, string $name): int
     {
         return $this->insert('saved_items', [
+            'user_id' => $userId,
+            'category_id' => $categoryId,
+            'name' => $name,
+        ]);
+    }
+
+    private function insertSavedGroup(int $userId, int $categoryId, string $name): int
+    {
+        return $this->insert('saved_groups', [
             'user_id' => $userId,
             'category_id' => $categoryId,
             'name' => $name,
