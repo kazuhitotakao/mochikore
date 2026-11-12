@@ -14,7 +14,6 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useRouter } from "next/navigation";
@@ -36,7 +35,11 @@ import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
 import { ItemRow, itemCheckboxId } from "./ItemRow";
 import { isNotFound } from "./itemErrors";
-import { moveItemToGroup, reorderVisibleItems } from "./itemOrder";
+import {
+  moveItemToGroup,
+  reorderVisibleGroups,
+  reorderVisibleItems,
+} from "./itemOrder";
 import { useDelayedHide } from "./useDelayedHide";
 import {
   groupIdOfSection,
@@ -59,7 +62,7 @@ type ItemSortData = { groupId: number | null };
 /**
  * D-98：グループの見出しを動かしているときは、ほかのグループの区切りと入れ替える（未分類は最後のまま）。
  * 持ち物を動かしているときは、指やマウスがあるグループの中でいちばん近い持ち物を相手にする。
- * そのグループに見えている持ち物がなければ（空・全部チェック済みで非表示）、グループそのものを相手にする。
+ * そのグループに見えている持ち物がなければ（空のグループ・全部チェック済みで隠している未分類）、グループそのものを相手にする。
  * キーボードは指の位置がないので、いちばん近い持ち物を相手にする。
  */
 const detectSortTarget: CollisionDetection = (args) => {
@@ -178,6 +181,20 @@ export function ListDetail({ list, categories }: Props) {
     ? items
     : items.filter((item) => !item.is_checked || delayedIds.has(item.id));
   const checkedCount = items.filter((item) => item.is_checked).length;
+  // D-101：チェック済みを隠しているときは、中の全有効持ち物がチェック済みのグループ（未分類を含む）を
+  // 見出しごと隠す。1秒おいて隠す持ち物（delayedIds）が残っている間は、まだ出しておく。0件のグループは隠さない
+  const hiddenSectionIds = new Set<number | null>(
+    showChecked
+      ? []
+      : [...groups.map((group) => group.id), null].filter(
+          (groupId) =>
+            items.some((item) => item.group_id === groupId) &&
+            !visibleItems.some((item) => item.group_id === groupId),
+        ),
+  );
+  const visibleGroups = groups.filter(
+    (group) => !hiddenSectionIds.has(group.id),
+  );
 
   useEffect(() => {
     if (!notice) return;
@@ -197,21 +214,42 @@ export function ListDetail({ list, categories }: Props) {
   function handleHideDelayEnd(itemId: number) {
     // 待っている間に全部表示へ切り替えた・チェックを外した・削除したときは、何も隠れない
     if (showChecked) return;
-    const index = items.findIndex((item) => item.id === itemId);
-    if (!items[index]?.is_checked) return;
+    const item = items.find((existing) => existing.id === itemId);
+    if (!item?.is_checked) return;
 
-    // その行にカーソルがあるとき（またはどこにもないとき）だけ移す。
-    // 待っている間に追加欄など別の所へ移っていたら、そのままにする
+    // D-101：グループの持ち物が全部チェック済みなら、見出しごと隠れる。
+    // そのときは、見出しのチェック欄にカーソルがあっても移す
+    const sectionItems = items.filter(
+      (existing) => existing.group_id === item.group_id,
+    );
+    const sectionHides = sectionItems.every((existing) => existing.is_checked);
     const row = document.getElementById(itemCheckboxId(itemId))?.closest("li");
-    const active = document.activeElement;
-    const focusInRow = row && active && row.contains(active);
-    const focusLost = !active || active === document.body;
-    if (!focusInRow && !focusLost) return;
+    const area = sectionHides ? row?.closest("section") : row;
 
-    const next = items.slice(index + 1).find((item) => !item.is_checked);
+    // その行（隠れるグループ）にカーソルがあるとき、またはどこにもないときだけ移す。
+    // 待っている間に追加欄など別の所へ移っていたら、そのままにする
+    const active = document.activeElement;
+    const focusInArea = area && active && area.contains(active);
+    const focusLost = !active || active === document.body;
+    if (!focusInArea && !focusLost) return;
+
+    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ「…」ボタンへ
+    const displayed = displayOrder();
+    const last = sectionHides ? sectionItems[sectionItems.length - 1] : item;
+    const next = displayed
+      .slice(displayed.indexOf(last) + 1)
+      .find((other) => !other.is_checked);
     pendingFocusId.current = next
       ? itemCheckboxId(next.id)
       : LIST_MENU_BUTTON_ID;
+  }
+
+  // 画面に出す並び。グループがあるときはグループ順に並べ、未分類を最後に置く（SC-07-6）
+  function displayOrder(): PackingListItem[] {
+    if (groups.length === 0) return items;
+    return [...groups.map((group) => group.id), null].flatMap((groupId) =>
+      items.filter((item) => item.group_id === groupId),
+    );
   }
 
   function handleAdded(item: PackingListItem) {
@@ -338,14 +376,24 @@ export function ListDetail({ list, categories }: Props) {
     });
   }
 
-  // D-98：グループの見出しを動かして、中の持ち物ごとグループの順番を変える（API-36）
+  // D-98：グループの見出しを動かして、中の持ち物ごとグループの順番を変える（API-36）。
+  // D-101：表示中のグループが占める位置だけを入れ替え、隠したグループの位置は保つ。API-36 には全グループのIDを送る
   async function saveGroupOrder(activeId: string, overId: string | number) {
-    const from = groups.findIndex((group) => sectionId(group.id) === activeId);
-    const to = groups.findIndex((group) => sectionId(group.id) === overId);
-    if (from < 0 || to < 0 || from === to) return;
+    const activeGroup = visibleGroups.find(
+      (group) => sectionId(group.id) === activeId,
+    );
+    const overGroup = visibleGroups.find(
+      (group) => sectionId(group.id) === overId,
+    );
+    if (!activeGroup || !overGroup || activeGroup === overGroup) return;
 
     const before = groups;
-    const next = arrayMove(groups, from, to);
+    const next = reorderVisibleGroups(
+      groups,
+      visibleGroups,
+      activeGroup.id,
+      overGroup.id,
+    );
     setGroups(next);
     setReordering(true);
     setReorderError(null);
@@ -540,9 +588,13 @@ export function ListDetail({ list, categories }: Props) {
     );
     const groupItems = items.filter((item) => item.group_id === groupId);
     const total = groupItems.length;
-    // SC-07-6：未分類は、全有効件数が0なら見出しごと出さない。
+    // SC-07-6：未分類は、全有効件数が0なら見出しごと出さない。全部チェック済みで隠しているときも出さない（D-101）。
     // D-98：ただし持ち物を動かしている間は、未分類へ移せるよう出す
-    if (groupId === null && total === 0 && draggingItemId === null) {
+    if (
+      groupId === null &&
+      (total === 0 || hiddenSectionIds.has(null)) &&
+      draggingItemId === null
+    ) {
       return null;
     }
     // D-99：隠れたチェック済みも含めて、全部・一部・なしを判定する
@@ -568,7 +620,6 @@ export function ListDetail({ list, categories }: Props) {
         checkDisabled={total === 0 || groupChecking !== undefined || reordering}
         onToggleCheck={() => void handleGroupCheck(groupId)}
       >
-        {/* 利用者の指示：全部チェック済みで隠れていても案内文は出さず、見出しだけを残す（D-99） */}
         {renderItems(sectionItems, true)}
       </GroupSection>
     );
@@ -622,12 +673,13 @@ export function ListDetail({ list, categories }: Props) {
         )}
 
         {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
-            グループがあるときは、全部チェック済みでも案内に切り替えず、見出しを残す（利用者の指示、D-99）。
-            見出しのチェックで、そのままグループごと外せる */}
+            グループがあるときは、全部チェック済みのグループを見出しごと隠し、表示するグループ・未分類が
+            1つも残らないときだけ案内を出す。0件のグループが残っていれば出さない（利用者の指示、D-101） */}
         {selecting ? (
-          // SC-07-18：「選んで削除」の選ぶ表示
+          // SC-07-18：「選んで削除」の選ぶ表示。隠したグループは出さない（D-101）
           <SelectionList
             groups={groups}
+            hiddenGroupIds={hiddenSectionIds}
             visibleItems={visibleItems}
             selectedItemIds={selectedItemIds}
             selectedGroupIds={selectedGroupIds}
@@ -641,7 +693,7 @@ export function ListDetail({ list, categories }: Props) {
           />
         ) : items.length === 0 ? (
           <p>持ち物はまだありません。</p>
-        ) : visibleItems.length === 0 && groups.length === 0 ? (
+        ) : visibleItems.length === 0 && visibleGroups.length === 0 ? (
           <p>
             すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
           </p>
@@ -670,12 +722,15 @@ export function ListDetail({ list, categories }: Props) {
             ) : (
               <>
                 {/* SC-07-6・F-20：グループ順に見出しを付け、未分類を最後に置く。各グループの中は全体の持ち物順（D-60）。
-                    D-98：見出しを動かすと、中の持ち物ごとグループの順番が変わる */}
+                    D-98：見出しを動かすと、中の持ち物ごとグループの順番が変わる。
+                    D-101：全部チェック済みで隠したグループは出さず、並べ替えの相手にもしない */}
                 <SortableContext
-                  items={groups.map((group) => sectionId(group.id))}
+                  items={visibleGroups.map((group) => sectionId(group.id))}
                   strategy={verticalListSortingStrategy}
                 >
-                  {groups.map((group) => renderSection(group.id, group.name))}
+                  {visibleGroups.map((group) =>
+                    renderSection(group.id, group.name),
+                  )}
                 </SortableContext>
                 {renderSection(null, "未分類")}
               </>

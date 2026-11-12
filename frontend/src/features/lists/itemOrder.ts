@@ -1,5 +1,25 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import type { PackingListItem } from "@/types/api";
+import type { PackingListGroup, PackingListItem } from "@/types/api";
+
+// 表示中のものが占める位置だけを入れ替え、隠れているものの位置は動かさずに全体を返す
+function reorderWithinVisible<T extends { id: number }>(
+  all: T[],
+  visible: T[],
+  activeId: number,
+  overId: number,
+): T[] {
+  const movedVisible = arrayMove(
+    visible,
+    visible.findIndex((entry) => entry.id === activeId),
+    visible.findIndex((entry) => entry.id === overId),
+  );
+  const visibleIds = new Set(visible.map((entry) => entry.id));
+
+  let next = 0;
+  return all.map((entry) =>
+    visibleIds.has(entry.id) ? movedVisible[next++] : entry,
+  );
+}
 
 /**
  * D-95：表示中の持ち物だけを並べ替え、全体の順番を返す。
@@ -15,17 +35,22 @@ export function reorderVisibleItems(
   activeId: number,
   overId: number,
 ): PackingListItem[] {
-  const movedVisible = arrayMove(
-    visible,
-    visible.findIndex((item) => item.id === activeId),
-    visible.findIndex((item) => item.id === overId),
+  return reorderWithinVisible(all, visible, activeId, overId).map(
+    (item, index) => ({ ...item, sort_order: index + 1 }),
   );
-  const visibleIds = new Set(visible.map((item) => item.id));
+}
 
-  let next = 0;
-  return all
-    .map((item) => (visibleIds.has(item.id) ? movedVisible[next++] : item))
-    .map((item, index) => ({ ...item, sort_order: index + 1 }));
+/**
+ * D-101：表示中のグループだけを並べ替え、全グループの順番を返す。
+ * 全部チェック済みで隠したグループの位置は動かさない。API-36 は全グループのIDが必要なので全体を返す。
+ */
+export function reorderVisibleGroups(
+  all: PackingListGroup[],
+  visible: PackingListGroup[],
+  activeId: number,
+  overId: number,
+): PackingListGroup[] {
+  return reorderWithinVisible(all, visible, activeId, overId);
 }
 
 /**
