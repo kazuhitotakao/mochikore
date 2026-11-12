@@ -39,6 +39,31 @@ export type PackingListSummary = {
   updated_at: string;
 };
 
+// API-15。公開一覧では作成者・件数・本人のチェックを扱わない（D-63）
+export type PublicPackingListSummary = {
+  id: number;
+  title: string;
+  description: string | null;
+  category: CategorySummary;
+  created_at: string;
+};
+
+export type PaginatedResponse<T> = {
+  data: T[];
+  links: {
+    first: string;
+    last: string;
+    prev: string | null;
+    next: string | null;
+  };
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
 // リスト本体。API-06・08 の応答（D-67）
 export type PackingList = {
   id: number;

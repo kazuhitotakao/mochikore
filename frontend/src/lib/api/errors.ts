@@ -31,7 +31,10 @@ export class ApiError extends Error {
 /**
  * 成功なら data を返し、失敗なら ApiError を投げる。画面は code で判定する（D-53）。
  */
-export async function parseApiResponse<T>(res: Response): Promise<T> {
+export async function parseApiResponse<T>(
+  res: Response,
+  { includePagination = false }: { includePagination?: boolean } = {},
+): Promise<T> {
   // D-62：204は本文がないので JSON を読まない
   if (res.status === 204) return undefined as T;
 
@@ -53,5 +56,6 @@ export async function parseApiResponse<T>(res: Response): Promise<T> {
     );
   }
 
-  return (body as { data: T }).data;
+  // D-53：ページ分割するAPI-15ではdataだけにせず、metaとlinksもそのまま読む
+  return includePagination ? (body as T) : (body as { data: T }).data;
 }

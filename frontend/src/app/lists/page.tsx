@@ -77,6 +77,9 @@ export default async function ListsPage(props: PageProps<"/lists">) {
         </ul>
       )}
 
+      <Link href="/public/lists" prefetch={false} className="underline">
+        公開リストを見る
+      </Link>
       <Link href="/account" prefetch={false} className="underline">
         アカウント設定
       </Link>

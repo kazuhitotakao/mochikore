@@ -17,6 +17,10 @@ return [
     'no_changes' => '変更する項目を入力してください。',
     'undefined_field' => 'この項目は送信できません。',
 
+    'public_search' => [
+        'page' => 'ページ番号が正しくありません。',
+    ],
+
     // V-14：グループ整理（API-30）。グループ名の表示名と、構造の違反（ID・キー・所属）で出す文
     'grouping' => [
         'name_attribute' => 'グループ名',
@@ -194,6 +198,7 @@ return [
         'title' => 'リスト名',
         'description' => '説明文',
         'name' => '持ち物名',
+        'keyword' => 'キーワード',
     ],
 
 ];
