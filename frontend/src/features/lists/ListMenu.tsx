@@ -8,10 +8,17 @@ import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import type { PackingList } from "@/types/api";
+import { PUBLISH_MESSAGE, visibilityErrorMessage } from "./visibility";
 
 type Props = {
   listId: number;
   title: string;
+  isPublic: boolean;
+  moderated: boolean;
+  onVisibilityChanged: (isPublic: boolean) => void;
+  onVisibilityError: (message: string | null) => void;
+  onModerated: () => void;
   // D-94：チェック済みの表示切替。画面の中の表示だけを変え、通信しない
   showChecked: boolean;
   checkedCount: number;
@@ -29,12 +36,17 @@ type Props = {
 // チェックで最後の行が隠れたときに、カーソルを移す先（SC-07-7）
 export const LIST_MENU_BUTTON_ID = "list-menu-button";
 
-type Confirming = "grouping" | "reset-checks" | "delete" | null;
+type Confirming = "grouping" | "reset-checks" | "delete" | "publish" | null;
 
 // SC-07-4「…」メニュー
 export function ListMenu({
   listId,
   title,
+  isPublic,
+  moderated,
+  onVisibilityChanged,
+  onVisibilityError,
+  onModerated,
   showChecked,
   checkedCount,
   onToggleChecked,
@@ -125,6 +137,37 @@ export function ListMenu({
     }
   }
 
+  async function handleVisibilityChange(isPublic: boolean) {
+    if (saving || sending) return;
+    setMenuOpen(false);
+    setSending(true);
+    setError(null);
+    onVisibilityError(null);
+
+    try {
+      const saved = await clientApi<Pick<PackingList, "is_public">>(
+        `/lists/${listId}/visibility`,
+        { method: "PATCH", body: { is_public: isPublic } },
+      );
+      // D-28：画面を移動せず、削除した持ち物やチェック済みの表示を保つ
+      onVisibilityChanged(saved.is_public);
+      setConfirming(null);
+    } catch (failure) {
+      if (handleMovingError(failure)) return;
+
+      if (failure instanceof ApiError && failure.code === "list_moderated") {
+        onModerated();
+        setConfirming(null);
+      } else if (isPublic) {
+        setError(visibilityErrorMessage(failure));
+      } else {
+        onVisibilityError(visibilityErrorMessage(failure));
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div ref={menuContainer} className="relative">
       <button
@@ -133,8 +176,9 @@ export function ListMenu({
         aria-label="リストの操作"
         aria-expanded={menuOpen}
         aria-controls={menuId}
+        disabled={sending}
         onClick={() => setMenuOpen((open) => !open)}
-        className="rounded border border-zinc-300 px-3 py-1"
+        className="rounded border border-zinc-300 px-3 py-1 disabled:opacity-50"
       >
         …
       </button>
@@ -152,6 +196,20 @@ export function ListMenu({
             >
               リストを編集
             </Link>
+          </li>
+          <li>
+            <button
+              type="button"
+              disabled={saving || sending || moderated}
+              aria-describedby={moderated ? "list-moderated-notice" : undefined}
+              onClick={() => {
+                if (isPublic) void handleVisibilityChange(false);
+                else openConfirm("publish");
+              }}
+              className="block w-full px-4 py-2 text-left disabled:opacity-50"
+            >
+              {isPublic ? "非公開にする" : "公開にする"}
+            </button>
           </li>
           <li>
             {/* 利用者の指示で、説明文と一覧の間からこのメニューの中へ移した。0件でも出す */}
@@ -210,6 +268,17 @@ export function ListMenu({
           </li>
         </ul>
       )}
+
+      <ConfirmDialog
+        open={confirming === "publish"}
+        message={PUBLISH_MESSAGE}
+        confirmLabel="公開する"
+        cancelLabel="やめる"
+        busy={sending}
+        error={error}
+        onConfirm={() => void handleVisibilityChange(true)}
+        onCancel={() => setConfirming(null)}
+      />
 
       {/* SC-07-16・D-61：整理画面は別の画面なので、移ると削除した持ち物の候補は消える */}
       <ConfirmDialog

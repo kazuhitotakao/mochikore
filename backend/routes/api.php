@@ -19,6 +19,7 @@ use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\RestorePackingListItemController;
 use App\Http\Controllers\SavedGroupController;
 use App\Http\Controllers\SavedItemController;
+use App\Http\Controllers\UpdateListVisibilityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
 use App\Http\Middleware\EnsureEmailIsVerified;
@@ -47,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/lists/{list}', [PackingListController::class, 'show']);
         Route::patch('/lists/{list}', [PackingListController::class, 'update']);
         Route::delete('/lists/{list}', [PackingListController::class, 'destroy']);
+        Route::patch('/lists/{list}/visibility', UpdateListVisibilityController::class);
 
         Route::post('/lists/{list}/reset-checks', ResetChecksController::class);
         Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);
