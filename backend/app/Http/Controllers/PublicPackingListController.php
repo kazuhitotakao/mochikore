@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\IndexPublicListsRequest;
+use App\Http\Resources\PublicPackingListDetailResource;
 use App\Http\Resources\PublicPackingListSummaryResource;
 use App\Models\PackingList;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -10,6 +11,17 @@ use Illuminate\Support\Arr;
 
 class PublicPackingListController extends Controller
 {
+    public function show(PackingList $list): PublicPackingListDetailResource
+    {
+        $list->load([
+            'category',
+            'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+            'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+        ]);
+
+        return new PublicPackingListDetailResource($list);
+    }
+
     public function index(IndexPublicListsRequest $request): AnonymousResourceCollection
     {
         $filters = $request->validated();

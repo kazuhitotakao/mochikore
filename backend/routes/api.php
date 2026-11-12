@@ -6,6 +6,7 @@ use App\Http\Controllers\BulkDeleteItemsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\ListReportController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\LogoutController;
 use App\Http\Controllers\PackingListController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\UpdateListVisibilityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
 use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsurePackingListIsPublic;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', RegisterController::class)->middleware('throttle:register');
@@ -81,3 +83,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::get('/categories', CategoryController::class);
 // D-01：公開一覧はログイン・メール認証なしで利用できる
 Route::get('/public/lists', [PublicPackingListController::class, 'index']);
+Route::middleware(EnsurePackingListIsPublic::class)->group(function () {
+    Route::get('/public/lists/{list}', [PublicPackingListController::class, 'show']);
+    Route::post('/public/lists/{list}/reports', [ListReportController::class, 'store'])->middleware('throttle:list-reports');
+});

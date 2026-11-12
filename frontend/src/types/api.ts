@@ -90,6 +90,12 @@ export type PackingListItem = {
   is_checked: boolean;
 };
 
+// API-16：チェック状態を型にも含めず、公開画面から編集操作へ渡さない
+export type PublicPackingListDetail = PublicPackingListSummary & {
+  groups: PackingListGroup[];
+  items: Omit<PackingListItem, "is_checked">[];
+};
+
 // よく使う項目1件。API-31・32 で同じ形（D-66・D-72）
 export type SavedItem = {
   id: number;

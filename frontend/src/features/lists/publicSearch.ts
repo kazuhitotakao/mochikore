@@ -1,4 +1,5 @@
 import { trimLikeLaravel } from "@/features/auth/validation";
+import { safeNextPath } from "@/features/auth/nextPath";
 
 export const PUBLIC_LISTS_PATH = "/public/lists";
 export const KEYWORD_MAX_LENGTH = 50;
@@ -36,4 +37,22 @@ export function validateKeyword(value: string): string | undefined {
   return [...trimLikeLaravel(value)].length > KEYWORD_MAX_LENGTH
     ? "キーワードは50文字以内で入力してください。"
     : undefined;
+}
+
+export function publicListDetailHref(
+  id: number,
+  query: URLSearchParams,
+): string {
+  // D-81：詳細から戻るときも、検索条件・ページを変えずに一覧へ戻す
+  const from = PUBLIC_LISTS_PATH + (query.size ? `?${query}` : "");
+  return `${PUBLIC_LISTS_PATH}/${id}?${new URLSearchParams({ from })}`;
+}
+
+export function publicListBackHref(
+  from: string | string[] | undefined,
+): string {
+  const path = safeNextPath(from);
+  return path === PUBLIC_LISTS_PATH || path?.startsWith(`${PUBLIC_LISTS_PATH}?`)
+    ? path
+    : PUBLIC_LISTS_PATH;
 }
