@@ -10,6 +10,54 @@ use Illuminate\Support\Facades\DB;
 
 class PackingListService
 {
+    public function copyPublic(User $user, PackingList $source): PackingList
+    {
+        return DB::transaction(function () use ($user, $source) {
+            // C-05・D-50：通常の新規作成と同じ本人のロックで、同時操作でも100件に収める
+            User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $original = PackingList::whereKey($source->id)->lockForUpdate()->firstOrFail();
+            abort_unless($original->is_public && $original->moderated_at === null, 404);
+
+            if ($user->packingLists()->count() >= PackingList::MAX_PER_USER) {
+                throw new ApiException(ApiErrorCode::ListLimitReached, 'リストは100件までです。');
+            }
+
+            // D-61：親をロックしてから読むことで、分類の保存途中をコピーしない
+            $original->load([
+                'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+                'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
+            ]);
+            $copy = $user->packingLists()->make([
+                'title' => $original->title,
+                'description' => $original->description,
+                'category_id' => $original->category_id,
+            ]);
+            $copy->source_list_id = $original->id;
+            $copy->save();
+
+            $groupIds = [];
+            foreach ($original->groups as $group) {
+                $groupIds[$group->id] = $copy->groups()->create([
+                    'name' => $group->name,
+                    'sort_order' => $group->sort_order,
+                ])->id;
+            }
+
+            foreach ($original->items as $item) {
+                $newItem = $copy->items()->make([
+                    'name' => $item->name,
+                    'sort_order' => $item->sort_order,
+                    'is_checked' => false,
+                ]);
+                $newItem->group_id = $item->group_id === null ? null : $groupIds[$item->group_id];
+                $newItem->save();
+            }
+
+            // API-17：非公開・moderated_at=null・revision=0は新規作成時の既定値を使う
+            return $copy->refresh();
+        });
+    }
+
     public function updateVisibility(PackingList $list, bool $isPublic): PackingList
     {
         return DB::transaction(function () use ($list, $isPublic) {

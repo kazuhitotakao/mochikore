@@ -8,6 +8,14 @@ use Illuminate\Auth\Access\Response;
 
 class PackingListPolicy
 {
+    public function copy(User $user, PackingList $list): Response
+    {
+        // D-10・43・48：自分のリストでも、公開されているものだけをコピーできる
+        return $list->is_public && $list->moderated_at === null
+            ? Response::allow()
+            : Response::denyAsNotFound();
+    }
+
     /**
      * 自分のリストの内容を見る（API-07）。
      */

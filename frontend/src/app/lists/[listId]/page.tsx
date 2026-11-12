@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { readAsUser } from "@/features/auth/requireUser";
+import { CopyPublicListNotice } from "@/features/lists/CopyPublicListNotice";
 import { serverApi } from "@/lib/api/server";
 import { ListDetail } from "@/features/lists/ListDetail";
 import type { Category, PackingListDetail } from "@/types/api";
@@ -19,10 +20,12 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
   );
   // SC-07-17：よく使う項目に保存するときに選ぶカテゴリー（API-18、ログイン不要）
   const categories = await serverApi<Category[]>("/categories");
+  const searchParams = await props.searchParams;
 
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href="/lists" />
+      {searchParams.copied === "1" && <CopyPublicListNotice key={list.id} />}
       {/* 操作が404になって読み直したとき（ほかの画面で持ち物が消えていたなど）は、
           画面の状態を最新の内容で作り直す。持ち物の構造が変わると revision が増える（D-59） */}
       <ListDetail

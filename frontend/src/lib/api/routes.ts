@@ -13,6 +13,7 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "GET", path: /^\/public\/lists$/ },
   { method: "GET", path: /^\/public\/lists\/\d+$/ },
   { method: "POST", path: /^\/public\/lists\/\d+\/reports$/ },
+  { method: "POST", path: /^\/public\/lists\/\d+\/copy$/ },
   // API-20：登録の有無にかかわらず、正しい入力なら204
   { method: "POST", path: /^\/forgot-password$/ },
   // API-23：リンクの値の正しさ（署名・期限・本人）は Laravel が確かめ、不正なら422 link_invalid を返す
