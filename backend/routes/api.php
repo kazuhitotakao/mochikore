@@ -11,6 +11,7 @@ use App\Http\Controllers\LogoutController;
 use App\Http\Controllers\PackingListController;
 use App\Http\Controllers\PackingListGroupingController;
 use App\Http\Controllers\PackingListItemController;
+use App\Http\Controllers\PublicPackingListController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\ReorderGroupsController;
 use App\Http\Controllers\ReorderPackingListItemsController;
@@ -78,3 +79,5 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::get('/categories', CategoryController::class);
+// D-01：公開一覧はログイン・メール認証なしで利用できる
+Route::get('/public/lists', [PublicPackingListController::class, 'index']);

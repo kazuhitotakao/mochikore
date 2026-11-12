@@ -9,6 +9,8 @@ type AllowedRoute = {
 // 会員登録・ログイン・ログアウト・本人情報・パスワードの保存（API-21）はトークンを扱うので、
 // 専用の Route Handler にある
 export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
+  // API-15。画面を開くときはServer Componentから読み取る
+  { method: "GET", path: /^\/public\/lists$/ },
   // API-20：登録の有無にかかわらず、正しい入力なら204
   { method: "POST", path: /^\/forgot-password$/ },
   // API-23：リンクの値の正しさ（署名・期限・本人）は Laravel が確かめ、不正なら422 link_invalid を返す

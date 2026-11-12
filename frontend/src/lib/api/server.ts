@@ -9,7 +9,10 @@ import { callLaravel } from "./forward";
  */
 export async function serverApi<T>(
   path: string,
-  { userActivity = false }: { userActivity?: boolean } = {},
+  {
+    userActivity = false,
+    includePagination = false,
+  }: { userActivity?: boolean; includePagination?: boolean } = {},
 ): Promise<T> {
   const laravel = await callLaravel("GET", path, {
     token: await getAuthToken(),
@@ -17,5 +20,5 @@ export async function serverApi<T>(
   });
   if (!laravel) throw new ApiError(502, "server_error", NETWORK_ERROR_MESSAGE);
 
-  return parseApiResponse<T>(laravel);
+  return parseApiResponse<T>(laravel, { includePagination });
 }
