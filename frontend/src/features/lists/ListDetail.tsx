@@ -738,7 +738,17 @@ export function ListDetail({ list, categories }: Props) {
           </DndContext>
         )}
 
-        <DeletedItems deletedItems={deletedItems} onRestored={handleRestored} />
+        <DeletedItems
+          deletedItems={deletedItems}
+          onRestored={handleRestored}
+          // D-103：確定は画面の候補から消すだけで、APIは呼ばない（持ち物は定期処理で完全に消える、D-35）
+          onConfirm={(itemId) =>
+            setDeletedItems((current) =>
+              current.filter((deleted) => deleted.item.id !== itemId),
+            )
+          }
+          onConfirmAll={() => setDeletedItems([])}
+        />
 
         {panelOpen && (
           <SavedItemPanel
