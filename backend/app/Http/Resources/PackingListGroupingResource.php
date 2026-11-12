@@ -8,7 +8,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * API-29 グループ整理用の最新状態（06_API一覧「グループ整理のAPI仕様」）。
- * groups・items を表示順で読み込んでから使う。削除済みの持ち物は含まない。
+ * category・groups・items を（groups・items は表示順で）読み込んでから使う。削除済みの持ち物は含まない。
  */
 class PackingListGroupingResource extends JsonResource
 {
@@ -21,6 +21,11 @@ class PackingListGroupingResource extends JsonResource
     {
         return [
             'grouping_revision' => $this->grouping_revision,
+            // D-102：SC-09 がこのリストのカテゴリーのよく使うグループ（API-39）を読むときに使う
+            'category' => [
+                'id' => $this->category->id,
+                'name' => $this->category->name,
+            ],
             'groups' => $this->groups->map(fn (PackingListGroup $group) => [
                 'id' => $group->id,
                 'name' => $group->name,

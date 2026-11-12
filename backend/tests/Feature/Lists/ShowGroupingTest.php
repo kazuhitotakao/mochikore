@@ -12,10 +12,13 @@ use App\Models\User;
  */
 class ShowGroupingTest extends ListApiTestCase
 {
-    public function test_revision・グループ・削除していない持ち物を表示順で返す(): void
+    public function test_revision・カテゴリー・グループ・削除していない持ち物を表示順で返す(): void
     {
         $user = User::factory()->create();
-        $list = PackingList::factory()->for($user)->create(['grouping_revision' => 7]);
+        $list = PackingList::factory()->for($user)->create([
+            'grouping_revision' => 7,
+            'category_id' => $this->categoryId('買い物'),
+        ]);
         $second = PackingListGroup::factory()->for($list)->create(['name' => '薬局', 'sort_order' => 1]);
         $first = PackingListGroup::factory()->for($list)->create(['name' => 'スーパー', 'sort_order' => 0]);
         $egg = PackingListItem::factory()->for($list)->create(['name' => '卵', 'sort_order' => 4, 'group_id' => $first->id, 'is_checked' => true]);
@@ -27,6 +30,8 @@ class ShowGroupingTest extends ListApiTestCase
             ->assertExactJson([
                 'data' => [
                     'grouping_revision' => 7,
+                    // D-102：SC-09 がこのカテゴリーのよく使うグループを読むのに使う
+                    'category' => ['id' => $this->categoryId('買い物'), 'name' => '買い物'],
                     'groups' => [
                         ['id' => $first->id, 'name' => 'スーパー', 'sort_order' => 0],
                         ['id' => $second->id, 'name' => '薬局', 'sort_order' => 1],

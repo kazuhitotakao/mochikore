@@ -46,11 +46,12 @@ class PackingListGroupingController extends Controller
     }
 
     /**
-     * グループ・削除していない持ち物を、どちらも sort_order ASC、id ASC で読む。
+     * カテゴリーと、グループ・削除していない持ち物を（どちらも sort_order ASC、id ASC で）読む。
      */
     private function loadGrouping(PackingList $list): PackingList
     {
         return $list->load([
+            'category',
             'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ]);

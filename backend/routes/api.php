@@ -17,6 +17,7 @@ use App\Http\Controllers\ReorderPackingListItemsController;
 use App\Http\Controllers\ResetChecksController;
 use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\RestorePackingListItemController;
+use App\Http\Controllers\SavedGroupController;
 use App\Http\Controllers\SavedItemController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
@@ -66,6 +67,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/saved-items', [SavedItemController::class, 'index']);
         Route::post('/saved-items', [SavedItemController::class, 'store']);
         Route::delete('/saved-items/{savedItem}', [SavedItemController::class, 'destroy']);
+
+        // F-28：よく使うグループも、メール認証が済んでから使える
+        Route::get('/saved-groups', [SavedGroupController::class, 'index']);
+        Route::post('/saved-groups', [SavedGroupController::class, 'store']);
+        Route::delete('/saved-groups/{savedGroup}', [SavedGroupController::class, 'destroy']);
     });
 });
 

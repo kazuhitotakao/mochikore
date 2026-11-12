@@ -37,12 +37,20 @@ import type {
   GroupingSaveResult,
   GroupingState,
   PackingListItem,
+  SavedGroup,
 } from "@/types/api";
 import { GroupNameDialog } from "./GroupNameDialog";
+import {
+  SavedGroupCandidates,
+  type CandidatesState,
+} from "./SavedGroupCandidates";
 import { MAX_GROUPS } from "./validation";
 
 // V-13：分類の保存（API-30）の競合
 const CONFLICT_MESSAGE = "リストが変更されています。読み直してください。";
+
+// 02_画面配置 共通4：結果の通知は数秒で消す
+const NOTICE_DURATION_MS = 5000;
 
 // 未分類の欄を表す、ドラッグの置き場所のID
 const UNGROUPED_DROP_ID = "ungrouped";
@@ -217,6 +225,21 @@ export function GroupingEditor({
   const sensors = useDragSensors(groupingKeyboardCoordinates, isCircleId);
   // 動かしている持ち物のID、または丸のID
   const [draggingId, setDraggingId] = useState<UniqueIdentifier | null>(null);
+  // SC-09-11・D-102：このリストのカテゴリーのよく使うグループ。どの読み込みの結果かを key で区別し、
+  // 古い結果を表示しない
+  const [candidateLoadCount, setCandidateLoadCount] = useState(0);
+  const [candidates, setCandidates] = useState<
+    ({ key: string } & CandidatesState) | null
+  >(null);
+  const [savingFavorite, setSavingFavorite] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+
+  const categoryId = state.category.id;
+  const candidateKey = `${categoryId}-${candidateLoadCount}`;
+  // 今の読み込みが終わるまでは null（読み込み中）
+  const currentCandidates =
+    candidates?.key === candidateKey ? candidates : null;
 
   const dirty = !sameDraft(draft, savedDraft);
   const busy = saving || reloading;
@@ -240,6 +263,73 @@ export function GroupingEditor({
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [dirty]);
+
+  // SC-09-1：開いたときに、このリストのカテゴリーのよく使うグループを読む（API-39）。
+  // 読めなくても整理は始められ、候補の欄にだけ通信失敗を出す（D-102）
+  useEffect(() => {
+    let ignore = false;
+    clientApi<SavedGroup[]>(`/saved-groups?category_id=${categoryId}`)
+      .then((savedGroups) => {
+        if (!ignore) setCandidates({ key: candidateKey, savedGroups });
+      })
+      .catch((failure: unknown) => {
+        if (ignore || redirectIfAuthError(failure)) return;
+        setCandidates({ key: candidateKey, error: NETWORK_ERROR_MESSAGE });
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [categoryId, candidateKey, redirectIfAuthError]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  // SC-09-5「よく使うグループに保存」：丸の今の名前を、このリストのカテゴリーでその場で保存する（API-40）。
+  // 下書きの OK は待たない。同じ名前がすでにあれば、既存の候補が返る（D-102）
+  async function saveAsFavorite(name: string) {
+    if (savingFavorite) return;
+
+    setSavingFavorite(true);
+    setNotice(null);
+    setFavoriteError(null);
+    try {
+      const saved = await clientApi<SavedGroup>("/saved-groups", {
+        method: "POST",
+        body: { name, category_id: categoryId },
+      });
+      // 新しく保存した候補は、候補のいちばん上に足す（新しく保存した順）
+      setCandidates((previous) =>
+        previous &&
+        "savedGroups" in previous &&
+        !previous.savedGroups.some((savedGroup) => savedGroup.id === saved.id)
+          ? { ...previous, savedGroups: [saved, ...previous.savedGroups] }
+          : previous,
+      );
+      setNotice("保存しました");
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      setFavoriteError(favoriteErrorMessage(failure));
+    } finally {
+      setSavingFavorite(false);
+    }
+  }
+
+  // SC-09-12：削除した候補を外す
+  function removeCandidate(savedGroupId: number) {
+    setCandidates((previous) =>
+      previous && "savedGroups" in previous
+        ? {
+            ...previous,
+            savedGroups: previous.savedGroups.filter(
+              (savedGroup) => savedGroup.id !== savedGroupId,
+            ),
+          }
+        : previous,
+    );
+  }
 
   function itemsIn(key: string | null): PackingListItem[] {
     // D-60：丸の中も、全体の持ち物順をグループごとに絞って表示する。件数も出している持ち物だけ数える（D-95）
@@ -552,6 +642,8 @@ export function GroupingEditor({
                     }
                     onMoveUp={() => moveGroup(group.key, -1)}
                     onMoveDown={() => moveGroup(group.key, 1)}
+                    favoriteDisabled={savingFavorite}
+                    onSaveAsFavorite={() => void saveAsFavorite(group.name)}
                     onDelete={() => deleteGroup(group.key)}
                   />
                 ))}
@@ -580,6 +672,17 @@ export function GroupingEditor({
       {/* SC-09-9：「キャンセル」「OK」は画面下に固定する */}
       <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
         <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
+          {/* SC-09-5：よく使うグループに保存した結果 */}
+          {notice && (
+            <p role="status" className="text-sm">
+              {notice}
+            </p>
+          )}
+          {favoriteError && (
+            <p role="alert" className="text-sm text-red-700">
+              {favoriteError}
+            </p>
+          )}
           <div className="flex justify-end gap-3">
             <button
               type="button"
@@ -609,7 +712,17 @@ export function GroupingEditor({
           otherNames={otherNames(null)}
           onSubmit={addGroup}
           onCancel={() => setNameDialog(null)}
-        />
+        >
+          {/* SC-09-11：押すと、名前を入力して確定したときと同じく丸を下書きに足す（D-102） */}
+          <SavedGroupCandidates
+            candidates={currentCandidates}
+            takenNames={otherNames(null)}
+            full={draft.groups.length >= MAX_GROUPS}
+            onPick={addGroup}
+            onRemoved={removeCandidate}
+            onRetry={() => setCandidateLoadCount((count) => count + 1)}
+          />
+        </GroupNameDialog>
       )}
       {renaming && (
         <GroupNameDialog
@@ -657,9 +770,12 @@ type GroupCircleProps = {
   canMoveUp: boolean;
   canMoveDown: boolean;
   disabled: boolean;
+  // よく使うグループの保存中は押せない（D-102）
+  favoriteDisabled: boolean;
   onRename: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onSaveAsFavorite: () => void;
   onDelete: () => void;
 };
 
@@ -672,9 +788,11 @@ function GroupCircle({
   canMoveUp,
   canMoveDown,
   disabled,
+  favoriteDisabled,
   onRename,
   onMoveUp,
   onMoveDown,
+  onSaveAsFavorite,
   onDelete,
 }: GroupCircleProps) {
   const menuContainer = useRef<HTMLDivElement>(null);
@@ -740,7 +858,7 @@ function GroupCircle({
             …
           </button>
           {menuOpen && (
-            <ul className="absolute right-0 z-10 mt-1 w-32 rounded border border-zinc-300 bg-background py-1 shadow">
+            <ul className="absolute right-0 z-10 mt-1 w-48 rounded border border-zinc-300 bg-background py-1 shadow">
               <li>
                 <button
                   type="button"
@@ -772,6 +890,17 @@ function GroupCircle({
                   </button>
                 </li>
               )}
+              <li>
+                {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの OK は待たない） */}
+                <button
+                  type="button"
+                  onClick={() => choose(onSaveAsFavorite)}
+                  disabled={favoriteDisabled}
+                  className="block w-full px-4 py-2 text-left disabled:opacity-50"
+                >
+                  よく使うグループに保存
+                </button>
+              </li>
               <li>
                 <button
                   type="button"
@@ -867,4 +996,18 @@ function ItemChip({
       </button>
     </li>
   );
+}
+
+// V-21・D-102：よく使うグループの保存（API-40）で出す文。理由は code で見分ける（D-53）
+function favoriteErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === "saved_group_limit_reached") {
+      return "保存できるのは100件までです。";
+    }
+    if (error.code === "validation_error") {
+      return Object.values(error.errors).flat()[0] ?? error.message;
+    }
+  }
+
+  return NETWORK_ERROR_MESSAGE;
 }

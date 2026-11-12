@@ -78,6 +78,7 @@ class UpdateGroupingTest extends ListApiTestCase
         $response->assertOk()->assertExactJson([
             'data' => [
                 'grouping_revision' => 6,
+                'category' => ['id' => $this->list->category->id, 'name' => $this->list->category->name],
                 'groups' => [
                     ['id' => $supermarket->id, 'name' => 'スーパー', 'sort_order' => 0],
                     ['id' => $pharmacy->id, 'name' => '薬局', 'sort_order' => 1],

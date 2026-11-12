@@ -72,9 +72,18 @@ export type SavedItem = {
   category: CategorySummary;
 };
 
-// API-29 グループ整理用の最新状態。よく使う項目の選択（SC-08）では grouping_revision を使う
+// よく使うグループ1件。API-39・40 で同じ形（D-102）
+export type SavedGroup = {
+  id: number;
+  name: string;
+  category: CategorySummary;
+};
+
+// API-29 グループ整理用の最新状態。よく使う項目の選択（SC-08）では grouping_revision を使う。
+// category は、グループ整理（SC-09）がこのリストのカテゴリーのよく使うグループを読むときに使う（D-102）
 export type GroupingState = {
   grouping_revision: number;
+  category: CategorySummary;
   groups: PackingListGroup[];
   items: PackingListItem[];
 };
@@ -102,7 +111,7 @@ export type PackingListDetail = PackingList & {
   items: PackingListItem[];
 };
 
-// 06_API一覧「エラーコード一覧」の15種類と、Next.js の窓口だけが返す origin_not_allowed
+// 06_API一覧「エラーコード一覧」のうち Laravel が返す16種類と、Next.js の窓口だけが返す origin_not_allowed
 export type ApiErrorCode =
   | "validation_error"
   | "email_already_registered"
@@ -110,6 +119,7 @@ export type ApiErrorCode =
   | "invalid_password"
   | "list_limit_reached"
   | "saved_item_limit_reached"
+  | "saved_group_limit_reached"
   | "list_has_no_items"
   | "link_invalid"
   | "unauthenticated"
