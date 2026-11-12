@@ -142,6 +142,8 @@ export function ListDetail({ list, categories }: Props) {
     undefined,
   );
   const [isPublic, setIsPublic] = useState(list.is_public);
+  const [moderated, setModerated] = useState(Boolean(list.moderated_at));
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // SC-07-12：この画面で削除した持ち物の候補（D-28）
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
@@ -644,6 +646,22 @@ export function ListDetail({ list, categories }: Props) {
             <ListMenu
               listId={list.id}
               title={list.title}
+              isPublic={isPublic}
+              moderated={moderated}
+              onVisibilityChanged={(value) => {
+                setIsPublic(value);
+                setNotice(
+                  value
+                    ? "リストを公開しました。"
+                    : "リストを非公開にしました。",
+                );
+              }}
+              onVisibilityError={setVisibilityError}
+              onModerated={() => {
+                setModerated(true);
+                setIsPublic(false);
+                setVisibilityError(null);
+              }}
               showChecked={showChecked}
               checkedCount={checkedCount}
               onToggleChecked={() => setShowChecked((shown) => !shown)}
@@ -655,6 +673,24 @@ export function ListDetail({ list, categories }: Props) {
             />
           )}
         </header>
+
+        {visibilityError && (
+          <p role="alert" className="text-red-700">
+            {visibilityError}
+          </p>
+        )}
+        {moderated && (
+          <p
+            id="list-moderated-notice"
+            role="alert"
+            className="text-sm text-zinc-700"
+          >
+            このリストは運営により非公開になっています。 お問い合わせ：
+            <a href="mailto:simasyam@gmail.com" className="underline">
+              simasyam@gmail.com
+            </a>
+          </p>
+        )}
 
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
         {list.description && (

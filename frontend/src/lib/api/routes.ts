@@ -20,6 +20,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   // API-08・09
   { method: "PATCH", path: /^\/lists\/\d+$/ },
   { method: "DELETE", path: /^\/lists\/\d+$/ },
+  // API-14
+  { method: "PATCH", path: /^\/lists\/\d+\/visibility$/ },
   // API-13
   { method: "POST", path: /^\/lists\/\d+\/reset-checks$/ },
   // API-10・11・12

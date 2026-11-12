@@ -5,7 +5,7 @@ import { ListForm } from "@/features/lists/ListForm";
 import { serverApi } from "@/lib/api/server";
 import type { Category, PackingListDetail } from "@/types/api";
 
-// SC-06 リスト作成・編集（編集）。公開の切り替え（SC-06-7〜9、API-14）は手順書第16章で足す
+// SC-06 リスト作成・編集（編集）。公開の切り替えは API-14 で保存する
 export default async function EditListPage(
   props: PageProps<"/lists/[listId]/edit">,
 ) {
@@ -26,15 +26,7 @@ export default async function EditListPage(
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={`/lists/${list.id}`} />
       <h1 className="text-2xl font-bold">リストを編集</h1>
-      <ListForm
-        categories={categories}
-        list={{
-          id: list.id,
-          title: list.title,
-          description: list.description,
-          category: list.category,
-        }}
-      />
+      <ListForm categories={categories} list={list} />
     </main>
   );
 }
