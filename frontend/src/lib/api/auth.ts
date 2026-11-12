@@ -97,3 +97,16 @@ export async function fetchMe(request: NextRequest): Promise<Response> {
 
   return sendToLaravel(request, "/me");
 }
+
+/**
+ * API-22：退会を確定できたときにCookieを消す。失敗時は本人がやり直せるよう残す。
+ */
+export async function deleteAccount(request: NextRequest): Promise<Response> {
+  const rejected = rejectCrossOrigin(request);
+  if (rejected) return rejected;
+
+  const response = await sendToLaravel(request, "/me");
+  if (response.status === 204) await deleteAuthToken();
+
+  return response;
+}
