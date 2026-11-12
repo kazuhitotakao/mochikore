@@ -4,6 +4,7 @@ use App\Http\Controllers\BulkAddItemsController;
 use App\Http\Controllers\BulkCheckItemsController;
 use App\Http\Controllers\BulkDeleteItemsController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CopyPublicPackingListController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\ListReportController;
@@ -46,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // D-19：自分のリストは、メール認証が済んでから使える
     Route::middleware(EnsureEmailIsVerified::class)->group(function () {
+        Route::post('/public/lists/{list}/copy', CopyPublicPackingListController::class)
+            ->middleware(EnsurePackingListIsPublic::class);
         Route::get('/lists', [PackingListController::class, 'index']);
         Route::post('/lists', [PackingListController::class, 'store']);
         Route::get('/lists/{list}', [PackingListController::class, 'show']);

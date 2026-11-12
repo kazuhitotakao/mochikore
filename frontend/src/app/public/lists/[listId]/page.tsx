@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { PublicHeader } from "@/components/PublicHeader";
 import { optionalUser } from "@/features/auth/optionalUser";
+import { CopyPublicListButton } from "@/features/lists/CopyPublicListButton";
 import { publicListBackHref } from "@/features/lists/publicSearch";
 import { ReportListDialog } from "@/features/lists/ReportListDialog";
 import { ApiError } from "@/lib/api/errors";
@@ -28,7 +29,7 @@ export default async function PublicListPage(
   return (
     <>
       <PublicHeader user={user} />
-      <main className="flex flex-col gap-6 py-4">
+      <main className="flex flex-col gap-6 pt-4 pb-40">
         <BackLink href={publicListBackHref(params.from)} />
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold wrap-break-word">{list.title}</h1>
@@ -68,6 +69,11 @@ export default async function PublicListPage(
         )}
         <ReportListDialog listId={list.id} />
       </main>
+      <CopyPublicListButton
+        listId={list.id}
+        loggedIn={user !== null}
+        emailVerified={Boolean(user?.email_verified_at)}
+      />
     </>
   );
 }
