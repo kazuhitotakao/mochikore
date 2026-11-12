@@ -38,6 +38,8 @@ Route::post('/reset-password', ResetPasswordController::class);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', LogoutController::class);
     Route::get('/me', [UserController::class, 'show']);
+    // F-14：メール未認証でも、ログイン本人は退会できる
+    Route::delete('/me', [UserController::class, 'destroy']);
 
     // D-72：Next.jsが別のホストで送るので、署名はホストを含めずに確かめる（signed:relative）
     Route::get('/email/verify/{id}/{hash}', VerifyEmailController::class)

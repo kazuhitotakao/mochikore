@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { DeleteAccountDialog } from "@/features/auth/DeleteAccountDialog";
 import { LogoutButton } from "@/features/auth/LogoutButton";
 import { requireUser } from "@/features/auth/requireUser";
 
-// SC-12 アカウント設定。今はメールアドレスの表示・パスワードの変更・ログアウトだけ置く
+// SC-12 アカウント設定
 export default async function AccountPage() {
   const user = await requireUser("/account");
 
@@ -22,6 +23,7 @@ export default async function AccountPage() {
       </Link>
 
       <LogoutButton />
+      <DeleteAccountDialog />
     </main>
   );
 }
