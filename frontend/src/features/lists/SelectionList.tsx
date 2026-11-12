@@ -4,6 +4,8 @@ import type { PackingListGroup, PackingListItem } from "@/types/api";
 
 type Props = {
   groups: PackingListGroup[];
+  // D-101：全部チェック済みで隠しているグループ。選ぶ表示にも出さない
+  hiddenGroupIds: ReadonlySet<number | null>;
   // 画面に出している持ち物（チェック済みを隠しているときは含まない、D-95）
   visibleItems: PackingListItem[];
   selectedItemIds: ReadonlySet<number>;
@@ -20,6 +22,7 @@ type Props = {
  */
 export function SelectionList({
   groups,
+  hiddenGroupIds,
   visibleItems,
   selectedItemIds,
   selectedGroupIds,
@@ -62,34 +65,38 @@ export function SelectionList({
 
   return (
     <div className="flex flex-col gap-6">
-      {groups.map((group) => {
-        const rows = visibleItems.filter((item) => item.group_id === group.id);
-        const selected = selectedGroupIds.has(group.id);
-        return (
-          <section
-            key={group.id}
-            aria-label={group.name}
-            className="flex flex-col gap-1"
-          >
-            <h2 className="font-medium wrap-break-word">
-              <button
-                type="button"
-                aria-pressed={selected}
-                aria-label={`${group.name}（グループごと選ぶ）`}
-                disabled={disabled}
-                onClick={() => onToggleGroup(group.id)}
-                className="flex w-full items-center gap-2 text-left"
-              >
-                <SelectMark selected={selected} />
-                <span className="min-w-0 flex-1">
-                  {group.name}（{rows.length}件）
-                </span>
-              </button>
-            </h2>
-            {renderRows(rows, true)}
-          </section>
-        );
-      })}
+      {groups
+        .filter((group) => !hiddenGroupIds.has(group.id))
+        .map((group) => {
+          const rows = visibleItems.filter(
+            (item) => item.group_id === group.id,
+          );
+          const selected = selectedGroupIds.has(group.id);
+          return (
+            <section
+              key={group.id}
+              aria-label={group.name}
+              className="flex flex-col gap-1"
+            >
+              <h2 className="font-medium wrap-break-word">
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`${group.name}（グループごと選ぶ）`}
+                  disabled={disabled}
+                  onClick={() => onToggleGroup(group.id)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <SelectMark selected={selected} />
+                  <span className="min-w-0 flex-1">
+                    {group.name}（{rows.length}件）
+                  </span>
+                </button>
+              </h2>
+              {renderRows(rows, true)}
+            </section>
+          );
+        })}
       {/* 未分類はグループではないので、見出しは選べない。中の持ち物は1件ずつ選ぶ */}
       {ungrouped.length > 0 && (
         <section aria-label="未分類" className="flex flex-col gap-1">
