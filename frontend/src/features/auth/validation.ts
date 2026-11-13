@@ -100,7 +100,8 @@ export function firstErrors<K extends string>(
 export function focusFirstError<K extends string>(
   errors: FieldErrors<K>,
   fields: readonly K[],
+  idPrefix = "",
 ): void {
   const first = fields.find((field) => errors[field]);
-  if (first) document.getElementById(first)?.focus();
+  if (first) document.getElementById(`${idPrefix}${first}`)?.focus();
 }

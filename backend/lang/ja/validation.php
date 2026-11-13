@@ -17,6 +17,10 @@ return [
     'no_changes' => '変更する項目を入力してください。',
     'undefined_field' => 'この項目は送信できません。',
 
+    'email_change' => [
+        'same' => '現在とは別のメールアドレスを入力してください。',
+    ],
+
     'public_search' => [
         'page' => 'ページ番号が正しくありません。',
     ],
@@ -197,6 +201,7 @@ return [
     ],
 
     'attributes' => [
+        'pending_email' => 'メールアドレス',
         'email' => 'メールアドレス',
         'password' => 'パスワード',
         'title' => 'リスト名',

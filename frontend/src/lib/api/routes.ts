@@ -20,6 +20,9 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "GET", path: /^\/email\/verify\/[^/]+\/[^/]+$/ },
   // API-24
   { method: "POST", path: /^\/email\/verification-notification$/ },
+  // API-27・28：確認リンクはクエリで渡し、更新系のOrigin確認を共通の窓口で行う
+  { method: "POST", path: /^\/me\/email-change$/ },
+  { method: "POST", path: /^\/me\/email-change\/confirm$/ },
   // API-06。一覧（API-05）・内容（API-07）・カテゴリー（API-18）の読み取りは Server Component から送る
   { method: "POST", path: /^\/lists$/ },
   // API-08・09
