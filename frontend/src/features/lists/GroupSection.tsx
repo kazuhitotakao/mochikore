@@ -12,8 +12,6 @@ type Props = {
   title: string;
   // SC-07-6：画面に出している持ち物の数（D-95）
   count: number;
-  // 持ち物を別のグループからここへ動かしているとき（D-98）
-  highlighted: boolean;
   // 並べ替えの保存中は動かさない
   sortDisabled: boolean;
   allChecked: boolean;
@@ -23,8 +21,6 @@ type Props = {
   children: ReactNode;
 };
 
-// 持ち物を別のグループから動かしてきたときは、色だけでなく枠でも示す
-const HIGHLIGHT = "outline-2 outline-offset-2 outline-zinc-900";
 const HEADING = "font-medium wrap-break-word";
 
 /**
@@ -44,7 +40,6 @@ function SortableGroupSection({
   groupId,
   title,
   count,
-  highlighted,
   sortDisabled,
   allChecked,
   checkDisabled,
@@ -71,7 +66,7 @@ function SortableGroupSection({
       ref={setNodeRef}
       aria-label={title}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex flex-col gap-1 rounded bg-background ${highlighted ? HIGHLIGHT : ""} ${isDragging ? "relative z-10 shadow-md" : ""}`}
+      className={`flex flex-col gap-1 rounded bg-background ${isDragging ? "relative z-10 shadow-md" : ""}`}
     >
       <div className="flex items-center gap-2">
         <GroupCheckbox
@@ -100,7 +95,6 @@ function SortableGroupSection({
 function UngroupedSection({
   title,
   count,
-  highlighted,
   allChecked,
   checkDisabled,
   onToggleCheck,
@@ -115,7 +109,7 @@ function UngroupedSection({
     <section
       ref={setNodeRef}
       aria-label={title}
-      className={`flex flex-col gap-1 rounded ${highlighted ? HIGHLIGHT : ""}`}
+      className="flex flex-col gap-1 rounded"
     >
       {/* 利用者の指示で、表示する持ち物がない間は見出しを隠し、入力行だけ残す。 */}
       {count > 0 && (
