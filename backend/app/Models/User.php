@@ -20,6 +20,8 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const UNVERIFIED_LIFETIME_DAYS = 7;
+
     /**
      * Get the attributes that should be cast.
      *
