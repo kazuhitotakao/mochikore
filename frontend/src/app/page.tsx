@@ -30,6 +30,9 @@ export default async function Home() {
       <Link href="/public/lists" prefetch={false} className="underline">
         公開リストを見る
       </Link>
+      <Link href="/privacy" prefetch={false} className="underline">
+        プライバシーポリシー・お問い合わせ
+      </Link>
     </main>
   );
 }
