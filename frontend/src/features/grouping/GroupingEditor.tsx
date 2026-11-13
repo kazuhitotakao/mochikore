@@ -620,14 +620,14 @@ export function GroupingEditor({
           onDragEnd={handleDragEnd}
           onDragCancel={() => setDraggingId(null)}
         >
-          {/* SC-09-4：丸のグループ。画面幅に合わせて折り返して並べる。位置は保存しない。
+          {/* SC-09-4：丸のグループ。スマホは1列、幅がある画面は同じ幅の2列で並べる（D-73）。位置は保存しない。
               D-98：丸を長押しして動かすと、グループの順番を変えられる */}
           {draft.groups.length > 0 && (
             <SortableContext
               items={draft.groups.map((group) => circleId(group.key))}
               strategy={rectSortingStrategy}
             >
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {draft.groups.map((group, index) => (
                   <GroupCircle
                     key={group.key}
@@ -654,18 +654,16 @@ export function GroupingEditor({
           {/* SC-09-6：未分類の欄 */}
           <UnclassifiedArea items={unclassified} disabled={busy} />
 
-          {/* SC-09-8：ドラッグ中は、指やマウスの下に持ち物（または丸）の名前を出す */}
-          <DragOverlay>
-            {draggingItem ? (
-              <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-zinc-900 bg-background px-3 py-1 shadow-md">
-                {draggingItem.name}
-              </span>
-            ) : draggingGroup ? (
-              <span className="flex cursor-grabbing items-center rounded-4xl border-2 border-zinc-900 bg-background px-4 py-3 font-medium shadow-md">
-                {draggingGroup.name}
-              </span>
-            ) : null}
-          </DragOverlay>
+          {/* グループは枠そのものを動かし、持ち物だけ名前を重ねて表示する（SC-09-8、利用者の指示）。 */}
+          {!draggingGroup && (
+            <DragOverlay>
+              {draggingItem ? (
+                <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-zinc-900 bg-background px-3 py-1 shadow-md">
+                  {draggingItem.name}
+                </span>
+              ) : null}
+            </DragOverlay>
+          )}
         </DndContext>
       </div>
 
@@ -838,13 +836,16 @@ function GroupCircle({
       {...listeners}
       aria-label={name}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex min-w-36 flex-1 cursor-grab touch-manipulation flex-col gap-2 rounded-4xl border-2 bg-background px-4 py-3 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${dropAreaBorder(
+      className={`flex min-w-0 touch-manipulation flex-col gap-2 rounded-4xl border-2 bg-background px-4 py-3 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${dropAreaBorder(
         isOver && isItemDrag(active),
-      )} ${isDragging ? "opacity-40" : ""}`}
+      )} ${isDragging ? "relative z-10 cursor-grabbing shadow-md" : "cursor-grab"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 font-medium wrap-break-word">
-          {name}（{items.length}件）
+          {name}
+          <span className="inline-block whitespace-nowrap">
+            （{items.length}件）
+          </span>
         </h2>
         <div ref={menuContainer} data-no-drag className="relative shrink-0">
           <button
@@ -942,7 +943,12 @@ function UnclassifiedArea({
         isOver && isItemDrag(active),
       )}`}
     >
-      <h2 className="font-medium">未分類（{items.length}件）</h2>
+      <h2 className="font-medium">
+        未分類
+        <span className="inline-block whitespace-nowrap">
+          （{items.length}件）
+        </span>
+      </h2>
       <ItemChips items={items} disabled={disabled} />
     </section>
   );
@@ -981,7 +987,7 @@ function ItemChip({
   });
 
   return (
-    <li className={isDragging ? "opacity-40" : undefined}>
+    <li className={`min-w-0 max-w-full ${isDragging ? "opacity-40" : ""}`}>
       {/* D-58（利用者の指示で変更）：持ち手を出さず、名前のどこからでも動かせる。
           キーボードでも、このボタンから持ち上げて移動できる */}
       <button
@@ -990,7 +996,7 @@ function ItemChip({
         {...attributes}
         {...listeners}
         disabled={disabled}
-        className="cursor-grab touch-manipulation rounded-full border border-zinc-400 px-3 py-1 text-left wrap-break-word select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-50"
+        className="max-w-full cursor-grab touch-manipulation rounded-full border border-zinc-400 px-3 py-1 text-left wrap-break-word select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-50"
       >
         {item.name}
       </button>
