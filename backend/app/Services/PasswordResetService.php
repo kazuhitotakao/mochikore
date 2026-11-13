@@ -31,17 +31,24 @@ class PasswordResetService
      */
     public function reset(string $token, string $email, string $password): void
     {
-        $status = DB::transaction(fn () => Password::reset(
-            ['token' => $token, 'email' => $email, 'password' => $password],
-            function (User $user, string $password): void {
-                // password は hashed の型変換で保存時にハッシュ化される
-                $user->forceFill(['password' => $password])->save();
-                // 開発規約2-8：再設定では本人のトークンをすべて消す。外部キーがないのでコードで消す
-                $user->tokens()->delete();
+        $status = DB::transaction(function () use ($token, $email, $password) {
+            // F-18・D-49：メール変更で旧アドレスの再設定情報が消える処理と、照合から保存までを直列にする
+            if (! User::where('email', $email)->lockForUpdate()->first()) {
+                return Password::INVALID_USER;
+            }
 
-                event(new PasswordReset($user));
-            },
-        ));
+            return Password::reset(
+                ['token' => $token, 'email' => $email, 'password' => $password],
+                function (User $user, string $password): void {
+                    // password は hashed の型変換で保存時にハッシュ化される
+                    $user->forceFill(['password' => $password])->save();
+                    // 開発規約2-8：再設定では本人のトークンをすべて消す。外部キーがないのでコードで消す
+                    $user->tokens()->delete();
+
+                    event(new PasswordReset($user));
+                },
+            );
+        }, 3);
 
         // 未登録のメールと、違う・期限切れ・使用済みのtokenを同じ応答にし、登録の有無を知らせない
         if ($status !== Password::PASSWORD_RESET) {

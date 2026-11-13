@@ -43,6 +43,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('forgot-password', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
         // D-46：リストや理由を変えても、同じIPからの通報を合わせて1時間10回までにする
         RateLimiter::for('list-reports', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
+        // D-49：端末やIPを変えても、本人ごとにメール変更の依頼を1時間10回までにする
+        RateLimiter::for('email-change', fn (Request $request) => Limit::perHour(10)->by((string) $request->user()->getAuthIdentifier()));
 
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
