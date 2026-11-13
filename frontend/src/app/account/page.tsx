@@ -22,6 +22,10 @@ export default async function AccountPage() {
         パスワードを変更
       </Link>
 
+      <Link href="/privacy" prefetch={false} className="underline">
+        プライバシーポリシー・お問い合わせ
+      </Link>
+
       <LogoutButton />
       <DeleteAccountDialog />
     </main>
