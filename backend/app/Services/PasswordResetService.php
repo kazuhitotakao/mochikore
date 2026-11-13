@@ -6,6 +6,7 @@ use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Events\PasswordResetLinkSent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 
@@ -23,7 +24,27 @@ class PasswordResetService
         // 登録済みのときだけ token のbcrypt化とメールの作成・送信が走り、標準の時間そろえ（200ms）を超えて
         // 応答が遅くなる。応答を返してから送ると、応答までの処理に登録の有無が入らず、時間からも分からない。
         // 送信の結果は利用者に知らせない（D-93）ので、戻り値は使わない
-        defer(fn () => Password::sendResetLink(['email' => $email]));
+        defer(function () use ($email) {
+            $notification = DB::transaction(function () use ($email) {
+                // D-49・D-52：退会・定期削除・メール変更と同じロックを使い、古いアドレスの再設定情報を残さない。
+                if (! User::where('email', $email)->lockForUpdate()->first()) {
+                    return null;
+                }
+
+                $notification = null;
+                Password::sendResetLink(['email' => $email], function (User $user, string $token) use (&$notification) {
+                    $notification = ['user' => $user, 'token' => $token];
+                });
+
+                return $notification;
+            }, 3);
+
+            // メールの応答待ちでは本人のロックを保持しない。標準の通知・送信イベントは引き続き使う。
+            if ($notification !== null) {
+                $notification['user']->sendPasswordResetNotification($notification['token']);
+                event(new PasswordResetLinkSent($notification['user']));
+            }
+        });
     }
 
     /**

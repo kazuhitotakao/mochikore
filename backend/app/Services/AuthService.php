@@ -90,20 +90,28 @@ class AuthService
      */
     public function issueToken(User $user): string
     {
-        $plainTextToken = $user->generateTokenString();
-        $now = now();
+        return DB::transaction(function () use ($user) {
+            // D-44・D-52：削除と発行を同じ本人のロックで直列にし、外部キーのない情報を後から残さない。
+            $account = User::whereKey($user->id)->lockForUpdate()->first();
+            if (! $account || $account->email !== $user->email || ! hash_equals($account->password, $user->password)) {
+                throw new ApiException(ApiErrorCode::InvalidCredentials, 'メールアドレスまたはパスワードが正しくありません。');
+            }
 
-        // first_login_at・last_activity_at はNOT NULLなので、標準の createToken() で作ってから
-        // 書き足すことはできない。createToken() と同じ形で、2つの日時を最初から入れて作る
-        $token = $user->tokens()->forceCreate([
-            'name' => 'auth',
-            'token' => hash('sha256', $plainTextToken),
-            'abilities' => ['*'],
-            'first_login_at' => $now,
-            'last_activity_at' => $now,
-        ]);
+            $plainTextToken = $account->generateTokenString();
+            $now = now();
 
-        return $token->getKey().'|'.$plainTextToken;
+            // first_login_at・last_activity_at はNOT NULLなので、標準の createToken() で作ってから
+            // 書き足すことはできない。createToken() と同じ形で、2つの日時を最初から入れて作る
+            $token = $account->tokens()->forceCreate([
+                'name' => 'auth',
+                'token' => hash('sha256', $plainTextToken),
+                'abilities' => ['*'],
+                'first_login_at' => $now,
+                'last_activity_at' => $now,
+            ]);
+
+            return $token->getKey().'|'.$plainTextToken;
+        }, 3);
     }
 
     private function emailAlreadyRegistered(): ApiException

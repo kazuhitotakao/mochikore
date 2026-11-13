@@ -18,6 +18,8 @@ class PackingListItem extends Model
     /** @use HasFactory<PackingListItemFactory> */
     use HasFactory, SoftDeletes;
 
+    public const TRASH_RETENTION_DAYS = 7;
+
     /**
      * @return array<string, string>
      */

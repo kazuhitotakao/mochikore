@@ -7,6 +7,7 @@ use App\Exceptions\ApiException;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 
@@ -50,18 +51,24 @@ class EmailVerification
      */
     public function verify(User $user, string $id, string $hash): void
     {
-        // 別の利用者のリンクも、不正なリンクと同じ応答にする
-        if (! hash_equals((string) $user->getKey(), $id)
-            || ! hash_equals(sha1($user->getEmailForVerification()), $hash)) {
-            throw new ApiException(ApiErrorCode::LinkInvalid, 'リンクの有効期限が切れているか、無効です。');
-        }
+        DB::transaction(function () use ($user, $id, $hash) {
+            // D-44：定期削除との前後を確定させ、削除済みの本人を認証成功として返さない。
+            $account = User::whereKey($user->id)->lockForUpdate()->first()
+                ?? throw new ApiException(ApiErrorCode::Unauthenticated, 'ログインしてください。');
 
-        if ($user->hasVerifiedEmail()) {
-            return;
-        }
+            // 別の利用者のリンクも、不正なリンクと同じ応答にする
+            if (! hash_equals((string) $account->getKey(), $id)
+                || ! hash_equals(sha1($account->getEmailForVerification()), $hash)) {
+                throw new ApiException(ApiErrorCode::LinkInvalid, 'リンクの有効期限が切れているか、無効です。');
+            }
 
-        $user->markEmailAsVerified();
-        event(new Verified($user));
+            if ($account->hasVerifiedEmail()) {
+                return;
+            }
+
+            $account->markEmailAsVerified();
+            event(new Verified($account));
+        }, 3);
     }
 
     /**
