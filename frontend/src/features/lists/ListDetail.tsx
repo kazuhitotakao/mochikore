@@ -2,6 +2,7 @@
 
 import {
   DndContext,
+  DragOverlay,
   MeasuringStrategy,
   closestCenter,
   pointerWithin,
@@ -9,6 +10,7 @@ import {
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
+  type DragStartEvent,
   type Over,
 } from "@dnd-kit/core";
 import {
@@ -40,6 +42,7 @@ import {
   reorderVisibleItems,
 } from "./itemOrder";
 import { useDelayedHide } from "./useDelayedHide";
+import { applyItemDragPreview, type ItemDragPreview } from "./itemDragPreview";
 import {
   groupIdOfSection,
   isSectionId,
@@ -94,6 +97,8 @@ const detectSortTarget: CollisionDetection = (args) => {
         : [section];
     }
   }
+  // 指がリストの外に出たときは、仮表示の位置へ勝手に保存しない。
+  if (args.pointerCoordinates) return [];
   return closestCenter({ ...args, droppableContainers: itemTargets });
 };
 
@@ -134,10 +139,9 @@ export function ListDetail({ list, categories }: Props) {
   const [items, setItems] = useState(list.items);
   // D-98：グループの順番は見出しを動かして変えるので、画面の状態として持つ
   const [groups, setGroups] = useState(list.groups);
-  // 持ち物を別のグループへ動かそうとしているときの、移す先（undefined は別のグループの上にいない）
-  const [dropGroupId, setDropGroupId] = useState<number | null | undefined>(
-    undefined,
-  );
+  const [draggingItemId, setDraggingItemId] = useState<number | null>(null);
+  const [itemPreview, setItemPreview] = useState<ItemDragPreview | null>(null);
+  const itemPreviewRef = useRef<ItemDragPreview | null>(null);
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
@@ -182,6 +186,13 @@ export function ListDetail({ list, categories }: Props) {
   const visibleItems = showChecked
     ? items
     : items.filter((item) => !item.is_checked || delayedIds.has(item.id));
+  const previewItems = applyItemDragPreview(items, itemPreview);
+  const sortableItems = showChecked
+    ? previewItems
+    : previewItems.filter(
+        (item) => !item.is_checked || delayedIds.has(item.id),
+      );
+  const draggingItem = items.find((item) => item.id === draggingItemId);
   const checkedCount = items.filter((item) => item.is_checked).length;
   // D-101：チェック済みを隠しているときは、中の全有効持ち物がチェック済みのグループ（未分類を含む）を
   // 見出しごと隠す。1秒おいて隠す持ち物（delayedIds）が残っている間は、まだ出しておく。0件のグループは隠さない
@@ -316,65 +327,117 @@ export function ListDetail({ list, categories }: Props) {
     }
   }
 
-  // D-98：持ち物を別のグループの上へ動かしている間は、移す先のグループを枠で示す
+  function handleDragStart({ active }: DragStartEvent) {
+    if (isSectionId(active.id)) return;
+    setDraggingItemId(Number(active.id));
+  }
+
+  // F-24・D-98：別グループへ入った時点で空行を移し、その中では通常の並べ替えで周りをずらす。
+  // API-19、09_バリデーション16・32行Jメモ（V-10・V-17）と38〜45行Jメモ（C-01〜08）を確認。
   function handleDragOver({ active, over }: DragOverEvent) {
-    if (isSectionId(active.id) || !over) {
-      setDropGroupId(undefined);
-      return;
-    }
-    const from = (active.data.current as ItemSortData | undefined)?.groupId;
-    const to = targetGroupOf(over);
-    setDropGroupId(to !== undefined && to !== from ? to : undefined);
+    if (isSectionId(active.id) || !over) return;
+    const current = applyItemDragPreview(items, itemPreviewRef.current);
+    const activeItem = current.find((item) => item.id === active.id);
+    if (!activeItem) return;
+
+    const to =
+      active.id === over.id ? activeItem.group_id : targetGroupOf(over);
+    if (to === undefined || to === activeItem.group_id) return;
+
+    const overItem = current.find((item) => item.id === over.id);
+    const moved = moveItemToGroup(
+      current,
+      activeItem.id,
+      to,
+      overItem ? { id: overItem.id, before: dropsBefore(active, over) } : null,
+    );
+    const preview = {
+      itemId: activeItem.id,
+      groupId: to,
+      itemIds: moved.map((item) => item.id),
+    };
+    itemPreviewRef.current = preview;
+    setItemPreview(preview);
   }
 
   function clearDragState() {
-    setDropGroupId(undefined);
+    itemPreviewRef.current = null;
+    setItemPreview(null);
+    setDraggingItemId(null);
   }
 
-  // SC-07-9・F-15：離したら自動で保存する（API-19）。動かした順に先に表示し、失敗したら元の順に戻す
+  // 仮表示は保存済みitemsと分け、Esc・対象外へのドロップでは通信せず元へ戻す。
   async function handleDragEnd({ active, over }: DragEndEvent) {
+    const current = applyItemDragPreview(items, itemPreviewRef.current);
     clearDragState();
-    if (!over || active.id === over.id) return;
+    if (!over) return;
 
     if (isSectionId(active.id)) {
-      await saveGroupOrder(active.id, over.id);
+      if (active.id !== over.id) await saveGroupOrder(active.id, over.id);
       return;
     }
 
-    const activeItem = items.find((item) => item.id === active.id);
-    if (!activeItem) return;
-    const targetGroupId = targetGroupOf(over);
+    const original = items.find((item) => item.id === active.id);
+    const activeItem = current.find((item) => item.id === active.id);
+    if (!original || !activeItem) return;
+    const targetGroupId =
+      active.id === over.id ? activeItem.group_id : targetGroupOf(over);
     if (targetGroupId === undefined) return;
-    const overItem = isSectionId(over.id)
-      ? undefined
-      : items.find((item) => item.id === over.id);
+    const overItem = current.find((item) => item.id === over.id);
 
-    if (targetGroupId === activeItem.group_id) {
-      // 同じグループの見出しで離したときは動かさない
-      if (!overItem) return;
-      // D-95：そのグループで表示中の持ち物が占める位置だけを入れ替え、ほかのグループと
-      // 隠れているチェック済みの位置は保つ。API-19 には全有効IDを送る
-      const moved = reorderVisibleItems(
-        items,
-        visibleItems.filter((item) => item.group_id === activeItem.group_id),
+    let moved = current;
+    if (targetGroupId !== activeItem.group_id) {
+      moved = moveItemToGroup(
+        current,
+        activeItem.id,
+        targetGroupId,
+        overItem
+          ? { id: overItem.id, before: dropsBefore(active, over) }
+          : null,
+      );
+    } else if (overItem && active.id !== over.id) {
+      moved = reorderVisibleItems(
+        current,
+        current.filter(
+          (item) =>
+            item.group_id === targetGroupId &&
+            (showChecked || !item.is_checked || delayedIds.has(item.id)),
+        ),
         activeItem.id,
         overItem.id,
       );
-      await saveItemOrder(moved);
-      return;
     }
 
-    // D-98：別のグループ（または未分類）へ動かしたときは、所属と全体の順番を一緒に保存する
-    const moved = moveItemToGroup(
-      items,
-      activeItem.id,
-      targetGroupId,
-      overItem ? { id: overItem.id, before: dropsBefore(active, over) } : null,
+    const changedGroup = original.group_id !== targetGroupId;
+    if (!changedGroup) {
+      // D-95：別グループから戻った場合も、隠れた持ち物と他グループの位置は元のままにする。
+      const inGroup = visibleItems.filter(
+        (item) => item.group_id === targetGroupId,
+      );
+      const previewGroup = moved.filter(
+        (item) =>
+          item.group_id === targetGroupId &&
+          (showChecked || !item.is_checked || delayedIds.has(item.id)),
+      );
+      const newIndex = previewGroup.findIndex(
+        (item) => item.id === activeItem.id,
+      );
+      const anchor = inGroup[newIndex];
+      if (!anchor) return;
+      moved = reorderVisibleItems(items, inGroup, activeItem.id, anchor.id);
+    }
+    if (
+      !changedGroup &&
+      moved.every((item, index) => item.id === items[index]?.id)
+    ) {
+      return;
+    }
+    await saveItemOrder(
+      moved.map((item, index) => ({ ...item, sort_order: index + 1 })),
+      changedGroup
+        ? { item_id: activeItem.id, group_id: targetGroupId }
+        : undefined,
     );
-    await saveItemOrder(moved, {
-      item_id: activeItem.id,
-      group_id: targetGroupId,
-    });
   }
 
   // D-98：グループの見出しを動かして、中の持ち物ごとグループの順番を変える（API-36）。
@@ -610,7 +673,7 @@ export function ListDetail({ list, categories }: Props) {
   }
 
   function renderSection(groupId: number | null, title: string) {
-    const sectionItems = visibleItems.filter(
+    const sectionItems = sortableItems.filter(
       (item) => item.group_id === groupId,
     );
     const groupItems = items.filter((item) => item.group_id === groupId);
@@ -626,7 +689,6 @@ export function ListDetail({ list, categories }: Props) {
         groupId={groupId}
         title={title}
         count={sectionItems.length}
-        highlighted={dropGroupId === groupId}
         sortDisabled={reordering}
         allChecked={allChecked}
         // 全件チェック済みでも持ち物と同じ色を保ち、猶予中は取り消せる（利用者の指示）。
@@ -765,9 +827,10 @@ export function ListDetail({ list, categories }: Props) {
             measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
             modifiers={[restrictToVerticalAxis]}
             accessibility={{
-              announcements: itemSortAnnouncements(visibleItems, groups),
+              announcements: itemSortAnnouncements(sortableItems, groups),
               screenReaderInstructions,
             }}
+            onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={(event) => void handleDragEnd(event)}
             onDragCancel={clearDragState}
@@ -782,6 +845,26 @@ export function ListDetail({ list, categories }: Props) {
               )}
             </SortableContext>
             {renderSection(null, "未分類")}
+            <DragOverlay adjustScale={false}>
+              {draggingItem && (
+                <div
+                  aria-hidden="true"
+                  className="flex items-center gap-2 border-b border-zinc-200 bg-background py-2 shadow-md"
+                >
+                  <input
+                    type="checkbox"
+                    checked={draggingItem.is_checked}
+                    readOnly
+                    tabIndex={-1}
+                    className="size-5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 wrap-break-word">
+                    {draggingItem.name}
+                  </span>
+                  <span className="rounded px-2 py-1">…</span>
+                </div>
+              )}
+            </DragOverlay>
           </DndContext>
         </div>
 

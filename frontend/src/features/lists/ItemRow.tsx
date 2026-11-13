@@ -183,7 +183,7 @@ export function ItemRow({
       {...attributes}
       {...listeners}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex cursor-grab touch-manipulation flex-col gap-1 border-b border-zinc-200 bg-background py-2 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? "relative z-10 shadow-md" : ""}`}
+      className={`flex cursor-grab touch-manipulation flex-col gap-1 border-b border-zinc-200 bg-background py-2 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? "opacity-0" : ""}`}
     >
       <div className="flex items-center gap-2">
         <input
