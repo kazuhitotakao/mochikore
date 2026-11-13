@@ -26,9 +26,14 @@ export function useDelayedHide(onHide: (itemId: number) => void) {
     return () => pending.forEach((timer) => clearTimeout(timer));
   }, []);
 
-  function forget(itemId: number) {
+  // 取り消しの通信中も行を残すため、表示は変えずにタイマーだけを止める。
+  function pauseHide(itemId: number) {
     clearTimeout(timers.current.get(itemId));
     timers.current.delete(itemId);
+  }
+
+  function forget(itemId: number) {
+    pauseHide(itemId);
     setDelayedIds((current) => {
       if (!current.has(itemId)) return current;
       const next = new Set(current);
@@ -50,5 +55,12 @@ export function useDelayedHide(onHide: (itemId: number) => void) {
     );
   }
 
-  return { delayedIds, hideLater, cancelHide: forget };
+  return {
+    delayedIds,
+    hideLater,
+    pauseHide,
+    cancelHide: forget,
+    // stateの描画待ちの間も、1秒の猶予が終わったかを正しく判定する。
+    isWaitingToHide: (itemId: number) => timers.current.has(itemId),
+  };
 }

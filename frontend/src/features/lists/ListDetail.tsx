@@ -9,7 +9,6 @@ import {
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
-  type DragStartEvent,
   type Over,
 } from "@dnd-kit/core";
 import {
@@ -30,7 +29,7 @@ import type {
   PackingListDetail,
   PackingListItem,
 } from "@/types/api";
-import { AddItemForm } from "./AddItemForm";
+import { AddItemRow } from "./AddItemRow";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
 import { ItemRow, itemCheckboxId } from "./ItemRow";
@@ -135,8 +134,6 @@ export function ListDetail({ list, categories }: Props) {
   const [items, setItems] = useState(list.items);
   // D-98：グループの順番は見出しを動かして変えるので、画面の状態として持つ
   const [groups, setGroups] = useState(list.groups);
-  // 持ち物を動かしている間は、空の未分類も置き場所として見せる
-  const [draggingItemId, setDraggingItemId] = useState<number | null>(null);
   // 持ち物を別のグループへ動かそうとしているときの、移す先（undefined は別のグループの上にいない）
   const [dropGroupId, setDropGroupId] = useState<number | null | undefined>(
     undefined,
@@ -154,6 +151,9 @@ export function ListDetail({ list, categories }: Props) {
     undefined,
   );
   const [groupCheckError, setGroupCheckError] = useState<string | null>(null);
+  const groupCheckInFlight = useRef(false);
+  // 猶予中の取り消しでは、その操作で新しくチェックした持ち物だけを戻す（利用者の指示）。
+  const groupCheckUndo = useRef(new Map<number | null, ReadonlySet<number>>());
   // SC-07-18・D-100：「選んで削除」の選ぶ表示。選んだ持ち物とグループは、この画面の中だけに持つ
   const [selecting, setSelecting] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<number>>(
@@ -174,7 +174,7 @@ export function ListDetail({ list, categories }: Props) {
   const [panelOpen, setPanelOpen] = useState(false);
   // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
   const pendingFocusId = useRef<string | null>(null);
-  const { delayedIds, hideLater, cancelHide } =
+  const { delayedIds, hideLater, pauseHide, cancelHide, isWaitingToHide } =
     useDelayedHide(handleHideDelayEnd);
 
   // D-95：画面は隠れたチェック済みも含む全件（items）を持ち、表示だけを絞る。
@@ -262,6 +262,9 @@ export function ListDetail({ list, categories }: Props) {
   // API-11 の成功後に呼ばれる。保存できた値で更新するので、隠す・戻すのも保存できてから（D-94）
   function handleChanged(item: PackingListItem) {
     const before = items.find((existing) => existing.id === item.id);
+    if (before && before.is_checked !== item.is_checked) {
+      groupCheckUndo.current.delete(item.group_id);
+    }
     if (!showChecked && item.is_checked && before && !before.is_checked) {
       hideLater(item.id);
     }
@@ -274,6 +277,7 @@ export function ListDetail({ list, categories }: Props) {
 
   // API-13：このリストのチェックを全部外した。持ち物・順番はそのまま
   function handleChecksReset() {
+    groupCheckUndo.current.clear();
     setItems((current) =>
       current.map((item) => ({ ...item, is_checked: false })),
     );
@@ -312,10 +316,6 @@ export function ListDetail({ list, categories }: Props) {
     }
   }
 
-  function handleDragStart({ active }: DragStartEvent) {
-    if (!isSectionId(active.id)) setDraggingItemId(Number(active.id));
-  }
-
   // D-98：持ち物を別のグループの上へ動かしている間は、移す先のグループを枠で示す
   function handleDragOver({ active, over }: DragOverEvent) {
     if (isSectionId(active.id) || !over) {
@@ -328,7 +328,6 @@ export function ListDetail({ list, categories }: Props) {
   }
 
   function clearDragState() {
-    setDraggingItemId(null);
     setDropGroupId(undefined);
   }
 
@@ -471,25 +470,47 @@ export function ListDetail({ list, categories }: Props) {
     );
   }
 
-  // F-25・D-99：見出しのチェックで、そのグループの全有効持ち物（隠れたチェック済みも含む）を
-  // まとめてチェックする。全部チェック済みなら全部外す（API-37）。成功してから表示を変える
+  // F-25・D-99：全件チェック後、隠れるまでの1秒間だけ直前の状態へ戻せる（利用者の指示）。
+  // API-37、09_バリデーション15・34行Jメモ（V-09・V-19）と38〜45行Jメモ（C-01〜08）を確認。
   async function handleGroupCheck(groupId: number | null) {
-    const targets = items.filter((item) => item.group_id === groupId);
-    if (targets.length === 0 || groupChecking !== undefined) return;
+    const groupItems = items.filter((item) => item.group_id === groupId);
+    if (groupItems.length === 0 || groupCheckInFlight.current) return;
 
-    const checked = !targets.every((item) => item.is_checked);
+    const allChecked = groupItems.every((item) => item.is_checked);
+    const previousIds = groupCheckUndo.current.get(groupId);
+    const undoItems = groupItems.filter(
+      (item) => previousIds?.has(item.id) && isWaitingToHide(item.id),
+    );
+    const undoing = allChecked && undoItems.length > 0;
+    // チェック済みを再表示した後など、猶予を過ぎてからの一括解除はしない。
+    if (allChecked && !undoing) return;
+
+    const targets = undoing ? undoItems : groupItems;
     const targetIds = new Set(targets.map((item) => item.id));
+    const checked = !undoing;
+    const changedItems = targets.filter((item) => item.is_checked !== checked);
+    groupCheckInFlight.current = true;
     setGroupChecking(groupId);
     setGroupCheckError(null);
+    if (undoing) {
+      for (const item of targets) pauseHide(item.id);
+    }
     try {
       await clientApi<void>(`/lists/${list.id}/items/checks`, {
         method: "PATCH",
         body: { item_ids: [...targetIds], is_checked: checked },
       });
-      // D-94：隠している間は、新しくチェックを付けた持ち物を1秒おいて隠す。外したものは隠さない
-      for (const item of targets) {
-        if (checked && !item.is_checked && !showChecked) hideLater(item.id);
-        if (!checked) cancelHide(item.id);
+      if (undoing) {
+        groupCheckUndo.current.delete(groupId);
+        for (const item of targets) cancelHide(item.id);
+      } else if (!showChecked) {
+        groupCheckUndo.current.set(
+          groupId,
+          new Set(changedItems.map((item) => item.id)),
+        );
+        for (const item of changedItems) hideLater(item.id);
+      } else {
+        groupCheckUndo.current.delete(groupId);
       }
       setItems((current) =>
         current.map((item) =>
@@ -502,9 +523,13 @@ export function ListDetail({ list, categories }: Props) {
         router.refresh();
         return;
       }
-      // 失敗したときは、チェックも表示も元のまま
+      // 取り消しに失敗したらチェック済みのまま待ち直す。通信は自動再送しない。
+      if (undoing) {
+        for (const item of targets) hideLater(item.id);
+      }
       setGroupCheckError(groupCheckErrorMessage(failure));
     } finally {
+      groupCheckInFlight.current = false;
       setGroupChecking(undefined);
     }
   }
@@ -590,23 +615,8 @@ export function ListDetail({ list, categories }: Props) {
     );
     const groupItems = items.filter((item) => item.group_id === groupId);
     const total = groupItems.length;
-    // SC-07-6：未分類は、全有効件数が0なら見出しごと出さない。全部チェック済みで隠しているときも出さない（D-101）。
-    // D-98：ただし持ち物を動かしている間は、未分類へ移せるよう出す
-    if (
-      groupId === null &&
-      (total === 0 || hiddenSectionIds.has(null)) &&
-      draggingItemId === null
-    ) {
-      return null;
-    }
-    // D-99：隠れたチェック済みも含めて、全部・一部・なしを判定する
-    const checkedInGroup = groupItems.filter((item) => item.is_checked).length;
-    const checkState =
-      total > 0 && checkedInGroup === total
-        ? "all"
-        : checkedInGroup > 0
-          ? "some"
-          : "none";
+    // 隠れたチェック済みも含め、全件チェック済みのときだけ印を付ける（利用者の指示、D-99を変更）。
+    const allChecked = total > 0 && groupItems.every((item) => item.is_checked);
 
     return (
       // SC-07-6：件数は画面に出している持ち物だけを数え、チェック済みを隠しているときは含めない
@@ -618,19 +628,30 @@ export function ListDetail({ list, categories }: Props) {
         count={sectionItems.length}
         highlighted={dropGroupId === groupId}
         sortDisabled={reordering}
-        checkState={checkState}
+        allChecked={allChecked}
+        // 全件チェック済みでも持ち物と同じ色を保ち、猶予中は取り消せる（利用者の指示）。
         checkDisabled={total === 0 || groupChecking !== undefined || reordering}
         onToggleCheck={() => void handleGroupCheck(groupId)}
       >
         {renderItems(sectionItems, true)}
+        {groupId === null && (
+          // 利用者の指示で、空の未分類にも入力行を残す。未保存の行は件数に含めない。
+          <div className="pl-7">
+            <AddItemRow listId={list.id} onAdded={handleAdded} />
+          </div>
+        )}
       </GroupSection>
     );
   }
 
+  const footerVisible = selecting || notice || reorderError || groupCheckError;
+
   return (
     <>
-      {/* 画面下に固定した追加欄に、最後の持ち物が隠れないよう余白をとる */}
-      <div className="flex flex-col gap-6 pb-40">
+      {/* 選ぶ表示の操作や通知を出している間は、最後の行が固定表示に隠れないよう余白をとる。 */}
+      <div
+        className={`flex flex-col gap-6 ${footerVisible ? "pb-40" : "pb-8"}`}
+      >
         {/* SC-07-2・4 */}
         <header className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
@@ -708,10 +729,7 @@ export function ListDetail({ list, categories }: Props) {
           </button>
         )}
 
-        {/* SC-07-11：持ち物0件と、全部チェック済みで隠しているときを分ける。
-            グループがあるときは、全部チェック済みのグループを見出しごと隠し、表示するグループ・未分類が
-            1つも残らないときだけ案内を出す。0件のグループが残っていれば出さない（利用者の指示、D-101） */}
-        {selecting ? (
+        {selecting && (
           // SC-07-18：「選んで削除」の選ぶ表示。隠したグループは出さない（D-101）
           <SelectionList
             groups={groups}
@@ -727,52 +745,45 @@ export function ListDetail({ list, categories }: Props) {
               setSelectedGroupIds((current) => toggleInSet(current, groupId))
             }
           />
-        ) : items.length === 0 ? (
-          <p>持ち物はまだありません。</p>
-        ) : visibleItems.length === 0 && visibleGroups.length === 0 ? (
-          <p>
-            すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
-          </p>
-        ) : (
+        )}
+
+        {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
+        <div className={selecting ? "hidden" : "flex flex-col gap-6"}>
+          {/* SC-07-11：保存済みの持ち物が0件の場合と、すべてチェック済みの場合を分ける。 */}
+          {items.length === 0 ? (
+            <p>持ち物はまだありません。</p>
+          ) : visibleItems.length === 0 && visibleGroups.length === 0 ? (
+            <p>
+              すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
+            </p>
+          ) : null}
           <DndContext
             id={dndId}
             sensors={sensors}
             collisionDetection={detectSortTarget}
-            // 持ち物を動かし始めてから出す空の未分類も、置き場所として測る
+            // 表示件数が変わった未分類も、持ち物の移動先として測り直す（D-98）。
             measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
             modifiers={[restrictToVerticalAxis]}
             accessibility={{
               announcements: itemSortAnnouncements(visibleItems, groups),
               screenReaderInstructions,
             }}
-            onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={(event) => void handleDragEnd(event)}
             onDragCancel={clearDragState}
           >
-            {groups.length === 0 ? (
-              // SC-07-6：グループがなければ見出しのない1本のリスト
-              <section className="flex flex-col gap-1">
-                {renderItems(visibleItems)}
-              </section>
-            ) : (
-              <>
-                {/* SC-07-6・F-20：グループ順に見出しを付け、未分類を最後に置く。各グループの中は全体の持ち物順（D-60）。
-                    D-98：見出しを動かすと、中の持ち物ごとグループの順番が変わる。
-                    D-101：全部チェック済みで隠したグループは出さず、並べ替えの相手にもしない */}
-                <SortableContext
-                  items={visibleGroups.map((group) => sectionId(group.id))}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {visibleGroups.map((group) =>
-                    renderSection(group.id, group.name),
-                  )}
-                </SortableContext>
-                {renderSection(null, "未分類")}
-              </>
-            )}
+            {/* D-98・D-101：表示中のグループだけを並べ替え、未分類は最後に置く。 */}
+            <SortableContext
+              items={visibleGroups.map((group) => sectionId(group.id))}
+              strategy={verticalListSortingStrategy}
+            >
+              {visibleGroups.map((group) =>
+                renderSection(group.id, group.name),
+              )}
+            </SortableContext>
+            {renderSection(null, "未分類")}
           </DndContext>
-        )}
+        </div>
 
         <DeletedItems
           deletedItems={deletedItems}
@@ -820,63 +831,62 @@ export function ListDetail({ list, categories }: Props) {
         )}
       </div>
 
-      {/* SC-07-13：持ち物の追加欄は画面下に固定する（D-73） */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
-        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
-          {notice && (
-            <p role="status" className="text-sm">
-              {notice}
-            </p>
-          )}
-          {reorderError && (
-            <p role="alert" className="text-sm text-red-700">
-              {reorderError}
-            </p>
-          )}
-          {groupCheckError && (
-            <p role="alert" className="text-sm text-red-700">
-              {groupCheckError}
-            </p>
-          )}
-          {selecting ? (
-            // SC-07-18：選ぶ表示の間は、追加欄の代わりに選んだ件数と「削除」「やめる」を出す
-            <div className="flex items-center justify-between gap-3">
-              <p role="status">
-                {deleteTargetIds.length}件選択中
-                {selectedGroupIds.size > 0 &&
-                  `（グループ${selectedGroupIds.size}件）`}
+      {footerVisible && (
+        <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
+          <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
+            {notice && (
+              <p role="status" className="text-sm">
+                {notice}
               </p>
-              <div className="flex shrink-0 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectingMode(false)}
-                  disabled={bulkDeleting}
-                  className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
-                >
-                  やめる
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBulkDeleteError(null);
-                    setConfirmingDelete(true);
-                  }}
-                  disabled={
-                    bulkDeleting ||
-                    (deleteTargetIds.length === 0 &&
-                      selectedGroupIds.size === 0)
-                  }
-                  className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
-                >
-                  削除
-                </button>
+            )}
+            {reorderError && (
+              <p role="alert" className="text-sm text-red-700">
+                {reorderError}
+              </p>
+            )}
+            {groupCheckError && (
+              <p role="alert" className="text-sm text-red-700">
+                {groupCheckError}
+              </p>
+            )}
+            {selecting ? (
+              // SC-07-18：選ぶ表示の間は、追加欄の代わりに選んだ件数と「削除」「やめる」を出す
+              <div className="flex items-center justify-between gap-3">
+                <p role="status">
+                  {deleteTargetIds.length}件選択中
+                  {selectedGroupIds.size > 0 &&
+                    `（グループ${selectedGroupIds.size}件）`}
+                </p>
+                <div className="flex shrink-0 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectingMode(false)}
+                    disabled={bulkDeleting}
+                    className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+                  >
+                    やめる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkDeleteError(null);
+                      setConfirmingDelete(true);
+                    }}
+                    disabled={
+                      bulkDeleting ||
+                      (deleteTargetIds.length === 0 &&
+                        selectedGroupIds.size === 0)
+                    }
+                    className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <AddItemForm listId={list.id} onAdded={handleAdded} />
-          )}
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* SC-07-19：まとめて削除の確認。元に戻せないことを伝える（D-100） */}
       <ConfirmDialog

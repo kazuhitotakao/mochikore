@@ -3,11 +3,8 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { sectionId } from "./itemSorting";
-
-// D-99：グループの持ち物が全部チェック済み・一部だけ・ひとつもない
-export type GroupCheckState = "all" | "some" | "none";
 
 type Props = {
   // null は未分類
@@ -19,8 +16,8 @@ type Props = {
   highlighted: boolean;
   // 並べ替えの保存中は動かさない
   sortDisabled: boolean;
-  checkState: GroupCheckState;
-  // 中の持ち物が0件のとき・送信中は押せない
+  allChecked: boolean;
+  // 中の持ち物が0件・送信中は押せない
   checkDisabled: boolean;
   onToggleCheck: () => void;
   children: ReactNode;
@@ -33,7 +30,7 @@ const HEADING = "font-medium wrap-break-word";
 /**
  * SC-07-6：グループの見出しと、その中の持ち物。
  * グループは見出しをつかんで動かし、中の持ち物ごと順番を変える（D-98）。未分類は最後のまま動かさない。
- * 見出しの左のチェックで、中の持ち物をまとめてチェック・解除する（D-99）。
+ * 利用者の指示で、一部チェックの横線は出さず、全件チェック直後の猶予中だけ元に戻せる（D-99を変更）。
  */
 export function GroupSection(props: Props) {
   return props.groupId === null ? (
@@ -49,7 +46,7 @@ function SortableGroupSection({
   count,
   highlighted,
   sortDisabled,
-  checkState,
+  allChecked,
   checkDisabled,
   onToggleCheck,
   children,
@@ -79,7 +76,7 @@ function SortableGroupSection({
       <div className="flex items-center gap-2">
         <GroupCheckbox
           title={title}
-          state={checkState}
+          checked={allChecked}
           disabled={checkDisabled}
           onToggle={onToggleCheck}
         />
@@ -104,7 +101,7 @@ function UngroupedSection({
   title,
   count,
   highlighted,
-  checkState,
+  allChecked,
   checkDisabled,
   onToggleCheck,
   children,
@@ -120,46 +117,40 @@ function UngroupedSection({
       aria-label={title}
       className={`flex flex-col gap-1 rounded ${highlighted ? HIGHLIGHT : ""}`}
     >
-      <div className="flex items-center gap-2">
-        <GroupCheckbox
-          title={title}
-          state={checkState}
-          disabled={checkDisabled}
-          onToggle={onToggleCheck}
-        />
-        <h2 className={`min-w-0 flex-1 ${HEADING}`}>
-          {title}（{count}件）
-        </h2>
-      </div>
+      {/* 利用者の指示で、表示する持ち物がない間は見出しを隠し、入力行だけ残す。 */}
+      {count > 0 && (
+        <div className="flex items-center gap-2">
+          <GroupCheckbox
+            title={title}
+            checked={allChecked}
+            disabled={checkDisabled}
+            onToggle={onToggleCheck}
+          />
+          <h2 className={`min-w-0 flex-1 ${HEADING}`}>
+            {title}（{count}件）
+          </h2>
+        </div>
+      )}
       {children}
     </section>
   );
 }
 
-// D-99：一部だけチェック済みのときは、チェック欄の「一部」の形（横線）で示す。読み上げでも「一部」と伝わる
 function GroupCheckbox({
   title,
-  state,
+  checked,
   disabled,
   onToggle,
 }: {
   title: string;
-  state: GroupCheckState;
+  checked: boolean;
   disabled: boolean;
   onToggle: () => void;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
-
-  // indeterminate は HTML の属性で指定できないので、要素に直接設定する
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = state === "some";
-  }, [state]);
-
   return (
     <input
-      ref={ref}
       type="checkbox"
-      checked={state === "all"}
+      checked={checked}
       disabled={disabled}
       aria-label={`${title}の持ち物をまとめてチェック`}
       onChange={onToggle}
