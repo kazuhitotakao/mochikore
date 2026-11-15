@@ -113,7 +113,7 @@ export function DeleteAccountDialog() {
       <button
         type="button"
         onClick={start}
-        className="text-sm text-red-700 underline"
+        className="text-sm text-red-700 underline tap-target"
       >
         アカウントを削除
       </button>

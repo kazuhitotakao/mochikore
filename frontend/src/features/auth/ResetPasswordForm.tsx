@@ -79,7 +79,7 @@ export function ResetPasswordForm({ token, email }: Props) {
         // SC-15-5：422 link_invalid のときだけ、メールの送り直しを案内する
         <div role="alert" className="text-red-700">
           <p>リンクの有効期限が切れているか、すでに使われています。</p>
-          <Link href="/forgot-password" className="underline">
+          <Link href="/forgot-password" className="underline tap-target">
             再設定メールを送り直す
           </Link>
         </div>

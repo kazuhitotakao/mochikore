@@ -18,7 +18,7 @@ export default async function ForgotPasswordPage(
 
       <ForgotPasswordForm />
 
-      <Link href="/login" className="underline">
+      <Link href="/login" className="self-start underline tap-target">
         ログイン画面へ戻る
       </Link>
     </main>

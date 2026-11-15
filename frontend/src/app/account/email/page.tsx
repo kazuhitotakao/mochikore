@@ -28,7 +28,11 @@ export default async function EmailChangePage(
         currentPath={currentPath}
         initialWaitSeconds={searchParams.sent === "1" ? 60 : 0}
       />
-      <Link href="/account" prefetch={false} className="underline">
+      <Link
+        href="/account"
+        prefetch={false}
+        className="self-start underline tap-target"
+      >
         アカウント設定へ戻る
       </Link>
     </main>

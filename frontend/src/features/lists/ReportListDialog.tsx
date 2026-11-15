@@ -107,7 +107,11 @@ export function ReportListDialog({ listId }: { listId: number }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" onClick={start} className="self-start underline">
+      <button
+        type="button"
+        onClick={start}
+        className="self-start underline tap-target"
+      >
         通報する
       </button>
       {/* 結果の表示場所を確保し、ほかの操作に重ならないようにする */}
