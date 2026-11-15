@@ -13,6 +13,7 @@ import {
   type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
+  type KeyboardCodes,
   type KeyboardCoordinateGetter,
   type ScreenReaderInstructions,
   type UniqueIdentifier,
@@ -40,6 +41,7 @@ import type {
   SavedGroup,
 } from "@/types/api";
 import { GroupNameDialog } from "./GroupNameDialog";
+import { MoveItemDialog } from "./MoveItemDialog";
 import {
   SavedGroupCandidates,
   type CandidatesState,
@@ -77,8 +79,35 @@ function isItemDrag(active: Active | null): boolean {
 // 画面読み上げで伝える文。dnd-kit の既定は英語なので、日本語にする
 const screenReaderInstructions: ScreenReaderInstructions = {
   draggable:
-    "持ち物をグループへ移すときは、スペースキーで持ち上げ、矢印キーで移す先の丸を選び、スペースキーで置きます。丸を動かすときは、丸でスペースキーを押して持ち上げ、矢印キーで動かします。Escキーでやめます。",
+    "持ち物でEnterキーを押すと、移し先を一覧から選べます。持ち物をグループへ移すときは、スペースキーで持ち上げ、矢印キーで移す先の丸を選び、スペースキーで置くこともできます。丸を動かすときは、丸でスペースキーを押して持ち上げ、矢印キーで動かします。Escキーでやめます。",
 };
+
+// SC-09-7（利用者の指示）：持ち物の Enter キーは移し先を選ぶのに使うので、キーボードで持ち上げるのはスペースキーだけにする
+const KEYBOARD_CODES: KeyboardCodes = {
+  start: ["Space"],
+  cancel: ["Escape"],
+  end: ["Space", "Enter", "Tab"],
+};
+
+// スマホで0.1秒より長く押すとドラッグが始まり、押した操作（click）が届かない。
+// 動かさずに離したときは、短く押したときと同じく移し先を選べるようにする（利用者の指示）。値は指のぶれの許容と同じ
+const TAP_TOLERANCE_PX = 5;
+
+function isTouchTap(event: DragEndEvent): boolean {
+  return (
+    "touches" in event.activatorEvent &&
+    Math.hypot(event.delta.x, event.delta.y) < TAP_TOLERANCE_PX
+  );
+}
+
+// 移し先を選んだ後・やめた後に、その持ち物へカーソルを戻す。移した持ち物は別の丸で作り直されるため、場所を探して戻す
+function focusItemChip(itemId: number) {
+  requestAnimationFrame(() => {
+    document
+      .querySelector<HTMLElement>(`[data-item-chip="${itemId}"]`)
+      ?.focus();
+  });
+}
 
 // 持ち物は、指・マウスなら離した位置にある丸（または未分類の欄）へ、キーボードなら重なっている丸へ移す。
 // 丸を動かしているときは、ほかの丸のうちいちばん近いものと入れ替える（D-98）
@@ -222,9 +251,15 @@ export function GroupingEditor({
   const dndId = useId();
   // D-58（利用者の指示で変更）：SC-07 の並べ替えと同じく、持ち物のどこをつかんでも動かせる。
   // 丸は中の持ち物と分けるため、0.3秒押してから動かす（D-98）
-  const sensors = useDragSensors(groupingKeyboardCoordinates, isCircleId);
+  const sensors = useDragSensors(
+    groupingKeyboardCoordinates,
+    isCircleId,
+    KEYBOARD_CODES,
+  );
   // 動かしている持ち物のID、または丸のID
   const [draggingId, setDraggingId] = useState<UniqueIdentifier | null>(null);
+  // SC-09-7：移し先を選んでいる持ち物のID（利用者の指示）
+  const [movingItemId, setMovingItemId] = useState<number | null>(null);
   // SC-09-11・D-102：このリストのカテゴリーのよく使うグループ。どの読み込みの結果かを key で区別し、
   // 古い結果を表示しない
   const [candidateLoadCount, setCandidateLoadCount] = useState(0);
@@ -249,6 +284,7 @@ export function GroupingEditor({
     : state.items.filter((item) => !item.is_checked);
   const hiddenCheckedCount = state.items.length - shownItems.length;
   const draggingItem = shownItems.find((item) => item.id === draggingId);
+  const movingItem = shownItems.find((item) => item.id === movingItemId);
   const draggingGroup = draft.groups.find(
     (group) => circleId(group.key) === draggingId,
   );
@@ -371,6 +407,10 @@ export function GroupingEditor({
   // 丸の外に置いたとき・Escキーでやめたときは移さず、元の所属・順番のままにする（D-58）
   function handleDragEnd(event: DragEndEvent) {
     setDraggingId(null);
+    if (!isCircleId(event.active.id) && isTouchTap(event)) {
+      openMoveDialog(Number(event.active.id));
+      return;
+    }
     const target = event.over?.data.current as DropData | undefined;
     if (!target) return;
 
@@ -405,6 +445,17 @@ export function GroupingEditor({
     },
     onDragCancel: ({ active }) => `${nameOf(active.id)}の移動をやめました。`,
   };
+
+  // SC-09-7：持ち物を押したら、移し先を選ぶ（利用者の指示）。保存中は選べない
+  function openMoveDialog(itemId: number) {
+    if (busy) return;
+    setMovingItemId(itemId);
+  }
+
+  function closeMoveDialog(itemId: number) {
+    setMovingItemId(null);
+    focusItemChip(itemId);
+  }
 
   function addGroup(name: string) {
     newGroupCount.current += 1;
@@ -622,43 +673,56 @@ export function GroupingEditor({
         >
           {/* SC-09-4：丸のグループ。スマホは1列、幅がある画面は同じ幅の2列で並べる（D-73）。位置は保存しない。
               D-98：丸を長押しして動かすと、グループの順番を変えられる */}
-          {draft.groups.length > 0 && (
-            <SortableContext
-              items={draft.groups.map((group) => circleId(group.key))}
-              strategy={rectSortingStrategy}
-            >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {draft.groups.map((group, index) => (
-                  <GroupCircle
-                    key={group.key}
-                    dropKey={group.key}
-                    name={group.name}
-                    items={itemsIn(group.key)}
-                    canMoveUp={index > 0}
-                    canMoveDown={index < draft.groups.length - 1}
-                    disabled={busy}
-                    onRename={() =>
-                      setNameDialog({ mode: "rename", key: group.key })
-                    }
-                    onMoveUp={() => moveGroup(group.key, -1)}
-                    onMoveDown={() => moveGroup(group.key, 1)}
-                    favoriteDisabled={savingFavorite}
-                    onSaveAsFavorite={() => void saveAsFavorite(group.name)}
-                    onDelete={() => deleteGroup(group.key)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          )}
+          <SortableContext
+            items={draft.groups.map((group) => circleId(group.key))}
+            strategy={rectSortingStrategy}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {draft.groups.map((group, index) => (
+                <GroupCircle
+                  key={group.key}
+                  dropKey={group.key}
+                  name={group.name}
+                  items={itemsIn(group.key)}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < draft.groups.length - 1}
+                  disabled={busy}
+                  onRename={() =>
+                    setNameDialog({ mode: "rename", key: group.key })
+                  }
+                  onMoveUp={() => moveGroup(group.key, -1)}
+                  onMoveDown={() => moveGroup(group.key, 1)}
+                  favoriteDisabled={savingFavorite}
+                  onSaveAsFavorite={() => void saveAsFavorite(group.name)}
+                  onDelete={() => deleteGroup(group.key)}
+                  onSelectItem={openMoveDialog}
+                />
+              ))}
+              {/* SC-09-3（利用者の指示）：作ったグループが出る場所の近くでも追加できるよう、並びの最後にも置く。
+                  動きは上の「グループを追加」と同じ。20件のときは押せない */}
+              <button
+                type="button"
+                onClick={() => setNameDialog({ mode: "add" })}
+                disabled={busy || draft.groups.length >= MAX_GROUPS}
+                className="min-h-16 rounded-4xl border-2 border-dashed border-zinc-300 px-4 py-3 disabled:opacity-50"
+              >
+                <span aria-hidden="true">＋ </span>グループを追加
+              </button>
+            </div>
+          </SortableContext>
 
           {/* SC-09-6：未分類の欄 */}
-          <UnclassifiedArea items={unclassified} disabled={busy} />
+          <UnclassifiedArea
+            items={unclassified}
+            disabled={busy}
+            onSelectItem={openMoveDialog}
+          />
 
           {/* グループは枠そのものを動かし、持ち物だけ名前を重ねて表示する（SC-09-8、利用者の指示）。 */}
           {!draggingGroup && (
             <DragOverlay>
               {draggingItem ? (
-                <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-zinc-900 bg-background px-3 py-1 shadow-md">
+                <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-zinc-900 bg-background px-4 py-2 shadow-md">
                   {draggingItem.name}
                 </span>
               ) : null}
@@ -722,6 +786,24 @@ export function GroupingEditor({
           />
         </GroupNameDialog>
       )}
+      {movingItem && (
+        <MoveItemDialog
+          itemName={movingItem.name}
+          currentKey={draft.assignment[movingItem.id] ?? null}
+          targets={[
+            ...draft.groups.map((group) => ({
+              key: group.key,
+              name: group.name,
+            })),
+            { key: null, name: "未分類" },
+          ]}
+          onMove={(key) => {
+            moveItemTo(movingItem.id, key);
+            closeMoveDialog(movingItem.id);
+          }}
+          onCancel={() => closeMoveDialog(movingItem.id)}
+        />
+      )}
       {renaming && (
         <GroupNameDialog
           title="名前を変更"
@@ -775,6 +857,8 @@ type GroupCircleProps = {
   onMoveDown: () => void;
   onSaveAsFavorite: () => void;
   onDelete: () => void;
+  // 中の持ち物を押したとき（移し先を選ぶ）
+  onSelectItem: (itemId: number) => void;
 };
 
 // SC-09-4・5：丸の中にグループ名と件数、中の持ち物。ドラッグして丸の上で離すと移す（D-58）。
@@ -792,6 +876,7 @@ function GroupCircle({
   onMoveDown,
   onSaveAsFavorite,
   onDelete,
+  onSelectItem,
 }: GroupCircleProps) {
   const menuContainer = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -915,7 +1000,7 @@ function GroupCircle({
           )}
         </div>
       </div>
-      <ItemChips items={items} disabled={disabled} />
+      <ItemChips items={items} disabled={disabled} onSelect={onSelectItem} />
     </section>
   );
 }
@@ -924,9 +1009,11 @@ function GroupCircle({
 function UnclassifiedArea({
   items,
   disabled,
+  onSelectItem,
 }: {
   items: PackingListItem[];
   disabled: boolean;
+  onSelectItem: (itemId: number) => void;
 }) {
   const dropData: DropData = { groupKey: null, label: "未分類" };
   const { active, setNodeRef, isOver } = useDroppable({
@@ -949,25 +1036,33 @@ function UnclassifiedArea({
           （{items.length}件）
         </span>
       </h2>
-      <ItemChips items={items} disabled={disabled} />
+      <ItemChips items={items} disabled={disabled} onSelect={onSelectItem} />
     </section>
   );
 }
 
-// SC-09-7：チェックの印は出さず、持ち物を直接ドラッグして移す
+// SC-09-7：チェックの印は出さず、持ち物を直接ドラッグして移す。押すと移し先を選べる（利用者の指示）
 function ItemChips({
   items,
   disabled,
+  onSelect,
 }: {
   items: PackingListItem[];
   disabled: boolean;
+  onSelect: (itemId: number) => void;
 }) {
   if (items.length === 0) return null;
 
+  // 利用者の指示：スマホの指でつかみやすいよう、持ち物の間をあける
   return (
-    <ul className="flex flex-wrap gap-2">
+    <ul className="flex flex-wrap gap-3">
       {items.map((item) => (
-        <ItemChip key={item.id} item={item} disabled={disabled} />
+        <ItemChip
+          key={item.id}
+          item={item}
+          disabled={disabled}
+          onSelect={() => onSelect(item.id)}
+        />
       ))}
     </ul>
   );
@@ -976,9 +1071,11 @@ function ItemChips({
 function ItemChip({
   item,
   disabled,
+  onSelect,
 }: {
   item: PackingListItem;
   disabled: boolean;
+  onSelect: () => void;
 }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: item.id,
@@ -989,14 +1086,17 @@ function ItemChip({
   return (
     <li className={`min-w-0 max-w-full ${isDragging ? "opacity-40" : ""}`}>
       {/* D-58（利用者の指示で変更）：持ち手を出さず、名前のどこからでも動かせる。
-          キーボードでも、このボタンから持ち上げて移動できる */}
+          キーボードでも、このボタンから持ち上げて移動できる。
+          押す（Enter キー）と移し先を選べる。ドラッグが始まった後は dnd-kit が click を止めるので、両方は起きない */}
       <button
         ref={setNodeRef}
         type="button"
         {...attributes}
         {...listeners}
+        onClick={onSelect}
+        data-item-chip={item.id}
         disabled={disabled}
-        className="max-w-full cursor-grab touch-manipulation rounded-full border border-zinc-400 px-3 py-1 text-left wrap-break-word select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-50"
+        className="max-w-full cursor-grab touch-manipulation rounded-full border border-zinc-400 px-4 py-2 text-left wrap-break-word select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-50"
       >
         {item.name}
       </button>
