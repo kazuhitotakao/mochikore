@@ -23,6 +23,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   // API-27・28：確認リンクはクエリで渡し、更新系のOrigin確認を共通の窓口で行う
   { method: "POST", path: /^\/me\/email-change$/ },
   { method: "POST", path: /^\/me\/email-change\/confirm$/ },
+  // API-43：確認中の変更を取り消す（D-107）
+  { method: "DELETE", path: /^\/me\/email-change$/ },
   // API-06。一覧（API-05）・内容（API-07）・カテゴリー（API-18）の読み取りは Server Component から送る
   { method: "POST", path: /^\/lists$/ },
   // API-08・09

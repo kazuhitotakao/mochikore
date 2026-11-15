@@ -106,6 +106,16 @@ class EmailChangeService
         ));
     }
 
+    public function cancel(User $user): void
+    {
+        DB::transaction(function () use ($user): void {
+            // D-107：確定（API-28）と同じ本人のロックで直列にし、取り消した後のリンクで確定させない
+            $account = $this->lockedAccount($user);
+            // D-49・72：依頼日時は残し、再送の60秒と、同じ秒の依頼での古いリンクの使い回し防止を保つ
+            $account->forceFill(['pending_email' => null])->save();
+        }, 3);
+    }
+
     public function confirmationUrl(User $account): string
     {
         // D-72：トークンは入れず、Next.jsから別ホストへPOSTしても確かめられる相対署名を使う

@@ -69,6 +69,10 @@ export function EmailChangeResult({
           リンクの有効期限が切れているか、無効です。
         </p>
       )}
+      {/* SC-13-5・D-107：期限切れ・取り消し後は確認中がなく、ここから送り直せない */}
+      {status === "invalid" && !pendingEmail && (
+        <p>アカウント設定から、もう一度変更してください。</p>
+      )}
       {status === "failed" && (
         <div className="flex flex-col gap-3">
           <p role="alert" className="text-red-700">

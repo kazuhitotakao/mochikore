@@ -52,6 +52,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // D-19：自分のリストは、メール認証が済んでから使える
     Route::middleware(EnsureEmailIsVerified::class)->group(function () {
         Route::post('/me/email-change', [EmailChangeController::class, 'store'])->middleware('throttle:email-change');
+        // API-43・D-107：確認中の変更を取り消す。メールを送らないので、回数制限は付けない
+        Route::delete('/me/email-change', [EmailChangeController::class, 'destroy']);
         Route::post('/me/email-change/confirm', [EmailChangeController::class, 'confirm'])
             ->middleware('signed:relative')->name('email-change.confirm');
 
