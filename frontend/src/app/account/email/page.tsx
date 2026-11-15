@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { BackLink } from "@/components/BackLink";
 import { EmailChangeResult } from "@/features/auth/EmailChangeResult";
 import { readEmailChangeLink } from "@/features/auth/emailChangeLink";
 import { requireUser } from "@/features/auth/requireUser";
@@ -15,6 +16,8 @@ export default async function EmailChangePage(
 
   return (
     <main className="flex flex-col gap-6 py-8">
+      {/* 共通2：SC-13はSC-12から進む画面なので、SC-12へ戻る */}
+      <BackLink href="/account" />
       <h1 className="text-2xl font-bold">メールを確認してください</h1>
       <EmailChangeResult
         key={currentPath}

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
-import { PublicHeader } from "@/components/PublicHeader";
 import { optionalUser } from "@/features/auth/optionalUser";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { PublicListSearch } from "@/features/lists/PublicListSearch";
@@ -64,8 +63,7 @@ export default async function PublicListsPage(
 
   return (
     <>
-      <PublicHeader user={user} listIndex />
-      <main className="flex flex-col gap-6 py-4">
+      <main className="flex flex-col gap-6 py-8">
         <BackLink href={user ? "/lists" : "/"} />
         <h1 className="text-2xl font-bold">公開リスト</h1>
         <PublicListSearch
