@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BackLink } from "@/components/BackLink";
+import { fromPath, pathWithFrom, withFrom } from "@/lib/backPath";
 
 export const metadata: Metadata = {
   title: "プライバシーポリシー・お問い合わせ | もちこれ",
@@ -8,10 +10,17 @@ export const metadata: Metadata = {
 };
 
 // F-16・SC-16・D-45：ログインせず読める案内として、本人情報を取得せずに表示する
-export default function PrivacyPage() {
+export default async function PrivacyPage(props: PageProps<"/privacy">) {
+  const { from } = await props.searchParams;
+  // 共通2：SC-03・SC-12から来たときはその画面へ、それ以外はSC-01へ戻る（利用者の指示）
+  const back = fromPath(from, ["/register", "/account"]);
+  // SC-03・SC-12から戻ったときも、「←」の戻り先を保つ
+  const currentPath = pathWithFrom("/privacy", back);
+
   return (
     <main className="flex flex-col gap-10 py-8 text-base leading-8 sm:py-12">
       <header className="flex flex-col gap-4 border-b border-zinc-200 pb-8 dark:border-zinc-800">
+        <BackLink href={back ?? "/"} />
         <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
           もちこれ
         </p>
@@ -208,7 +217,7 @@ export default function PrivacyPage() {
           <h3 className="font-bold">退会の方法</h3>
           <p>
             <Link
-              href="/account"
+              href={withFrom("/account", currentPath)}
               prefetch={false}
               className="underline underline-offset-4"
             >
@@ -260,7 +269,11 @@ export default function PrivacyPage() {
         <Link href="/" prefetch={false} className="underline">
           トップへ戻る
         </Link>
-        <Link href="/register" prefetch={false} className="underline">
+        <Link
+          href={withFrom("/register", currentPath)}
+          prefetch={false}
+          className="underline"
+        >
           新規会員登録
         </Link>
       </nav>

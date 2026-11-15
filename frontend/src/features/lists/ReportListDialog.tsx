@@ -95,7 +95,7 @@ export function ReportListDialog({ listId }: { listId: number }) {
         router.refresh();
       } else {
         setFormError(NETWORK_ERROR_MESSAGE);
-        // D-80：公開画面では移動せず、期限切れCookieを消した後のヘッダーも読み直す
+        // D-80：公開画面では移動せず、期限切れCookieを消した後の表示（コピーのボタン）も読み直す
         if (error instanceof ApiError && error.code === "unauthenticated")
           router.refresh();
       }

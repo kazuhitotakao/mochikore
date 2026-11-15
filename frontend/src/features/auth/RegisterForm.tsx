@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { withFrom } from "@/lib/backPath";
 import { PasswordInput } from "./PasswordInput";
 import { useFieldErrors } from "./useFieldErrors";
 import { firstErrors, validateEmail, validatePassword } from "./validation";
@@ -14,7 +15,8 @@ import { firstErrors, validateEmail, validatePassword } from "./validation";
 const FIELDS = ["email", "password"] as const;
 
 // SC-03 新規会員登録
-export function RegisterForm() {
+// currentPath：SC-02・SC-14の「←」でこの画面へ戻すためのパス（共通2）
+export function RegisterForm({ currentPath }: { currentPath: string }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const fieldErrors = useFieldErrors(FIELDS);
@@ -66,7 +68,9 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-      {formError && <RegisterError error={formError} />}
+      {formError && (
+        <RegisterError error={formError} currentPath={currentPath} />
+      )}
 
       <div>
         <label htmlFor="email" className="block font-medium">
@@ -116,7 +120,13 @@ export function RegisterForm() {
 }
 
 // 02_画面配置 SC-03-4：画面は code で文言を決める
-function RegisterError({ error }: { error: Error }) {
+function RegisterError({
+  error,
+  currentPath,
+}: {
+  error: Error;
+  currentPath: string;
+}) {
   const code = error instanceof ApiError ? error.code : null;
 
   if (code === "email_already_registered") {
@@ -126,10 +136,13 @@ function RegisterError({ error }: { error: Error }) {
           このメールアドレスはすでに登録されています。ログインするか、パスワードを再設定してください。
         </p>
         <div className="flex gap-4">
-          <Link href="/login" className="underline">
+          <Link href={withFrom("/login", currentPath)} className="underline">
             ログイン
           </Link>
-          <Link href="/forgot-password" className="underline">
+          <Link
+            href={withFrom("/forgot-password", currentPath)}
+            className="underline"
+          >
             パスワードを再設定
           </Link>
         </div>
