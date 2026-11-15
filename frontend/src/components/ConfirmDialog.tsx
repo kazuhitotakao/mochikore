@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { useBackdropDismiss } from "./useBackdropDismiss";
 
 type Props = {
   open: boolean;
@@ -17,7 +18,8 @@ type Props = {
 };
 
 // 02_画面配置 共通5：確認文と2つのボタン。
-// ブラウザの dialog を使い、開いている間は後ろの画面を操作できないようにする。Esc は「やめる」と同じ
+// ブラウザの dialog を使い、開いている間は後ろの画面を操作できないようにする。
+// Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
 export function ConfirmDialog({
   open,
   message,
@@ -31,6 +33,11 @@ export function ConfirmDialog({
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const messageId = useId();
+
+  function cancelIfIdle() {
+    if (!busy) onCancel();
+  }
+  const backdrop = useBackdropDismiss(cancelIfIdle);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -46,8 +53,9 @@ export function ConfirmDialog({
       aria-describedby={messageId}
       onCancel={(event) => {
         event.preventDefault();
-        if (!busy) onCancel();
+        cancelIfIdle();
       }}
+      {...backdrop}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <p id={messageId}>{message}</p>

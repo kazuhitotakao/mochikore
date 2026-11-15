@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { FieldError } from "@/components/FieldError";
+import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { validateGroupName } from "./validation";
 
@@ -19,6 +20,7 @@ type Props = {
   // 同じリストのほかのグループの名前。同名を確かめる（D-57）
   otherNames: readonly string[];
   onSubmit: (name: string) => void;
+  // 「やめる」・Esc・外枠を押したとき（外枠は利用者の指示）
   onCancel: () => void;
   // SC-09-11：「グループを追加」のときだけ、入力欄の下によく使うグループの候補を出す（D-102）
   children?: ReactNode;
@@ -41,6 +43,7 @@ export function GroupNameDialog({
   const errorId = useId();
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
+  const backdrop = useBackdropDismiss(onCancel);
 
   useEffect(() => {
     ref.current?.showModal();
@@ -65,6 +68,7 @@ export function GroupNameDialog({
         event.preventDefault();
         onCancel();
       }}
+      {...backdrop}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">

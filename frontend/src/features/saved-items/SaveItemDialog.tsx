@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
+import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { useFieldErrors } from "@/features/auth/useFieldErrors";
 import { firstErrors } from "@/features/auth/validation";
@@ -48,6 +49,12 @@ export function SaveItemDialog({
     ref.current?.showModal();
   }, []);
 
+  // Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
+  function closeIfIdle() {
+    if (!submitting) onClose();
+  }
+  const backdrop = useBackdropDismiss(closeIfIdle);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -93,10 +100,10 @@ export function SaveItemDialog({
       ref={ref}
       aria-labelledby="save-item-heading"
       onCancel={(event) => {
-        // Esc は「やめる」と同じ。送信中は閉じない
         event.preventDefault();
-        if (!submitting) onClose();
+        closeIfIdle();
       }}
+      {...backdrop}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">

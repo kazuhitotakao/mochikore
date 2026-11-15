@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
+import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { PasswordInput } from "./PasswordInput";
@@ -26,6 +27,12 @@ export function DeleteAccountDialog() {
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   const fields = useFieldErrors(FIELDS);
+  // Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
+  const backdrop = useBackdropDismiss(closeIfIdle);
+
+  function closeIfIdle() {
+    if (!busy.current) setOpen(false);
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -116,8 +123,9 @@ export function DeleteAccountDialog() {
         aria-describedby={descriptionId}
         onCancel={(event) => {
           event.preventDefault();
-          if (!busy.current) setOpen(false);
+          closeIfIdle();
         }}
+        {...backdrop}
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded bg-background p-6 text-foreground backdrop:bg-black/40"
       >
         {/* 閉じるたびに入力と表示切替を作り直し、パスワードを残さない */}

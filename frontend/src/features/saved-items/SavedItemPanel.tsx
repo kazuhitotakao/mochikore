@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -74,6 +75,12 @@ export function SavedItemPanel({
   useEffect(() => {
     ref.current?.showModal();
   }, []);
+
+  // Esc・外枠を押したときは「閉じる」と同じ。削除の確認を開いているとき・追加の送信中は閉じない
+  function closeIfIdle() {
+    if (!deleteTarget && !adding) onClose();
+  }
+  const backdrop = useBackdropDismiss(closeIfIdle);
 
   // SC-08-1・3：開いたとき・カテゴリーを切り替えたときに、そのカテゴリーの候補を読む（API-31）
   useEffect(() => {
@@ -221,10 +228,10 @@ export function SavedItemPanel({
       ref={ref}
       aria-labelledby="saved-item-panel-heading"
       onCancel={(event) => {
-        // Esc は「閉じる」と同じ。削除の確認を開いているとき・追加の送信中は閉じない
         event.preventDefault();
-        if (!deleteTarget && !adding) onClose();
+        closeIfIdle();
       }}
+      {...backdrop}
       className="mx-auto mt-auto mb-0 w-full max-w-[640px] rounded-t bg-background p-0 text-foreground backdrop:bg-black/40"
     >
       <div className="flex max-h-[80vh] flex-col gap-4 px-4 py-4">
