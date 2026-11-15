@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { CategoryPicker } from "@/components/CategoryPicker";
 import { FieldError } from "@/components/FieldError";
 import {
   firstErrors,
@@ -90,33 +91,31 @@ export function PublicListSearch({
         <FieldError id="keyword-error" message={errors.keyword} />
       </div>
       <div>
-        <label htmlFor="category_id" className="block font-medium">
-          カテゴリー
-        </label>
-        <select
+        {/* SC-10-4：「すべて」と10種類。id は errors の項目名と同じにし、入力エラーのときにこの枠へカーソルを移す（C-04） */}
+        <CategoryPicker
           id="category_id"
+          label="カテゴリー"
+          options={[
+            { value: "", label: "すべて" },
+            // 通信失敗でも、送信前に選んでいたカテゴリーを失わないようにする（C-04）
+            ...(categoryId !== "" &&
+            !categories.some((entry) => String(entry.id) === categoryId)
+              ? [{ value: categoryId, label: "選択中のカテゴリー" }]
+              : []),
+            ...categories.map((category) => ({
+              value: String(category.id),
+              label: category.name,
+            })),
+          ]}
           value={categoryId}
           disabled={pending}
-          aria-describedby="category_id-error"
-          aria-invalid={Boolean(errors.category_id)}
-          onChange={(event) => {
-            setCategoryId(event.target.value);
+          describedBy="category_id-error"
+          invalid={Boolean(errors.category_id)}
+          onChange={(next) => {
+            setCategoryId(next);
             setErrors((current) => ({ ...current, category_id: undefined }));
           }}
-          className="w-full rounded border border-zinc-400 px-3 py-2"
-        >
-          <option value="">すべて</option>
-          {/* 通信失敗でも、送信前に選んでいたカテゴリーを失わないようにする（C-04） */}
-          {categoryId !== "" &&
-            !categories.some((entry) => String(entry.id) === categoryId) && (
-              <option value={categoryId}>選択中のカテゴリー</option>
-            )}
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
+        />
         <FieldError id="category_id-error" message={errors.category_id} />
       </div>
       <button

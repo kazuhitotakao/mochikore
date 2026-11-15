@@ -249,7 +249,8 @@ export function ItemRow({
             aria-controls={menuId}
             disabled={busy}
             onClick={() => setMenuOpen((open) => !open)}
-            className="rounded px-2 py-1 disabled:opacity-50"
+            // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
+            className="flex min-h-11 min-w-11 items-center justify-center rounded px-2 disabled:opacity-50"
           >
             …
           </button>

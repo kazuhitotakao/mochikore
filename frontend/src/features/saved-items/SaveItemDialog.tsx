@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { CategoryPicker } from "@/components/CategoryPicker";
 import { FieldError } from "@/components/FieldError";
 import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
@@ -107,7 +108,7 @@ export function SaveItemDialog({
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <h2 id="save-item-heading" className="font-bold">
+        <h2 id="save-item-heading" className="text-lg font-bold">
           よく使う項目に保存
         </h2>
 
@@ -137,28 +138,23 @@ export function SaveItemDialog({
         </div>
 
         <div>
-          <label htmlFor="category_id" className="block font-medium">
-            カテゴリー
-          </label>
-          <select
+          {/* id は Laravel の errors の項目名と同じにし、入力エラーのときにこの枠へカーソルを移す（C-04） */}
+          <CategoryPicker<number | null>
             id="category_id"
-            value={categoryId ?? ""}
-            aria-describedby="category_id-error"
-            aria-invalid={Boolean(fieldErrors.errors.category_id)}
-            onChange={(event) => {
-              setCategoryId(
-                event.target.value === "" ? null : Number(event.target.value),
-              );
+            label="カテゴリー"
+            options={categories.map((category) => ({
+              value: category.id,
+              label: category.name,
+            }))}
+            value={categoryId}
+            placeholder="選んでください"
+            describedBy="category_id-error"
+            invalid={Boolean(fieldErrors.errors.category_id)}
+            onChange={(next) => {
+              setCategoryId(next);
               fieldErrors.clear("category_id");
             }}
-            className="w-full rounded border border-zinc-400 px-3 py-2"
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+          />
           <FieldError
             id="category_id-error"
             message={fieldErrors.errors.category_id}

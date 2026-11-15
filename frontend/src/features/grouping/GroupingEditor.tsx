@@ -617,7 +617,8 @@ export function GroupingEditor({
           type="button"
           aria-label="戻る"
           onClick={handleCancel}
-          className="self-start rounded px-2 py-1 text-xl"
+          // 共通2の「←」と同じく、押せる範囲を44px四方以上にする（利用者の指示）
+          className="flex min-h-11 min-w-11 items-center justify-center self-start rounded px-2 text-xl"
         >
           ←
         </button>
@@ -939,7 +940,8 @@ function GroupCircle({
             aria-expanded={menuOpen}
             disabled={disabled}
             onClick={() => setMenuOpen((open) => !open)}
-            className="rounded px-2 disabled:opacity-50"
+            // 指で押しやすいよう、押せる範囲を44px四方以上にする。丸の見出しが高くなりすぎないよう、上と右の余白に重ねる
+            className="-mt-2 -mr-2 flex min-h-11 min-w-11 items-center justify-center rounded px-2 disabled:opacity-50"
           >
             …
           </button>

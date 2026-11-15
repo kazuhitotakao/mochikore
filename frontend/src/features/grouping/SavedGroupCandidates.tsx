@@ -98,13 +98,14 @@ export function SavedGroupCandidates({
             return (
               <li
                 key={savedGroup.id}
-                className="flex items-center gap-3 border-b border-zinc-200 py-1"
+                className="flex items-center gap-3 border-b border-zinc-200"
               >
+                {/* 指で押しやすいよう、候補と「削除」は高さ44px以上にする（利用者の指示） */}
                 <button
                   type="button"
                   onClick={() => onPick(savedGroup.name)}
                   disabled={taken || full}
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left disabled:opacity-50"
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1 wrap-break-word">
                     {savedGroup.name}
@@ -119,7 +120,7 @@ export function SavedGroupCandidates({
                     setDeleteError(null);
                     setDeleteTarget(savedGroup);
                   }}
-                  className="shrink-0 rounded px-2 py-1 text-sm text-red-700"
+                  className="min-h-11 shrink-0 rounded px-3 text-sm text-red-700"
                 >
                   削除
                 </button>

@@ -178,7 +178,8 @@ export function ListMenu({
         aria-controls={menuId}
         disabled={sending}
         onClick={() => setMenuOpen((open) => !open)}
-        className="rounded border border-zinc-300 px-3 py-1 disabled:opacity-50"
+        // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
+        className="flex min-h-11 min-w-11 items-center justify-center rounded border border-zinc-300 px-3 disabled:opacity-50"
       >
         …
       </button>

@@ -12,7 +12,8 @@ export function BackLink({ href }: Props) {
       href={href}
       prefetch={false}
       aria-label="戻る"
-      className="self-start rounded px-2 py-1 text-xl"
+      // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
+      className="flex min-h-11 min-w-11 items-center justify-center self-start rounded px-2 text-xl"
     >
       ←
     </Link>
