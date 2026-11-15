@@ -104,6 +104,7 @@ export function ListMenu({
 
   // SC-07-14・D-17：チェックだけ外し、持ち物は残す（API-13）
   async function handleResetChecks() {
+    if (saving) return;
     setSending(true);
     setError(null);
 
@@ -253,7 +254,8 @@ export function ListMenu({
             <button
               type="button"
               onClick={() => openConfirm("reset-checks")}
-              className="block w-full px-4 py-2 text-left"
+              disabled={saving}
+              className="block w-full px-4 py-2 text-left disabled:opacity-50"
             >
               チェックを全部外す
             </button>

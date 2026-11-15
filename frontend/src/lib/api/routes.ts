@@ -45,6 +45,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/lists\/\d+\/groups\/order$/ },
   // API-37
   { method: "PATCH", path: /^\/lists\/\d+\/items\/checks$/ },
+  // API-42：持ち物0件のグループのチェック保存
+  { method: "PATCH", path: /^\/groups\/\d+\/check$/ },
   // API-38
   { method: "POST", path: /^\/lists\/\d+\/items\/bulk-delete$/ },
   { method: "PATCH", path: /^\/items\/\d+$/ },

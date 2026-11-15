@@ -78,18 +78,21 @@ export function SelectionList({
               aria-label={group.name}
               className="flex flex-col gap-1"
             >
-              <h2 className="font-medium wrap-break-word">
+              <h2 className="-mx-2 rounded-lg bg-zinc-100 font-semibold wrap-break-word">
                 <button
                   type="button"
                   aria-pressed={selected}
                   aria-label={`${group.name}（グループごと選ぶ）`}
                   disabled={disabled}
                   onClick={() => onToggleGroup(group.id)}
-                  className="flex w-full items-center gap-2 text-left"
+                  className="flex min-h-15 w-full items-center gap-2 px-2 py-2 text-left"
                 >
                   <SelectMark selected={selected} />
                   <span className="min-w-0 flex-1">
-                    {group.name}（{rows.length}件）
+                    {group.name}
+                    <span className="text-sm font-normal whitespace-nowrap text-zinc-600">
+                      （{rows.length}件）
+                    </span>
                   </span>
                 </button>
               </h2>
