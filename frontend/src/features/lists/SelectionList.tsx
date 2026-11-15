@@ -97,13 +97,13 @@ export function SelectionList({
             </section>
           );
         })}
-      {/* 未分類はグループではないので、見出しは選べない。中の持ち物は1件ずつ選ぶ */}
+      {/* グループに入っていない持ち物は、見出しを置かず1件ずつ選ぶ */}
       {ungrouped.length > 0 && (
-        <section aria-label="未分類" className="flex flex-col gap-1">
-          <h2 className="font-medium wrap-break-word">
-            未分類（{ungrouped.length}件）
-          </h2>
-          {renderRows(ungrouped, true)}
+        <section
+          aria-label="グループに入っていない持ち物"
+          className="flex flex-col gap-1"
+        >
+          {renderRows(ungrouped, false)}
         </section>
       )}
     </div>

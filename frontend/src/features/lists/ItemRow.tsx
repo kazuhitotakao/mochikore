@@ -26,6 +26,8 @@ type Props = {
   onSaveAsFavorite: (item: PackingListItem) => void;
   // 並べ替えの保存中は、続けて動かせないようにする
   sortDisabled: boolean;
+  // ドラッグ中のすき間は、実際に置けるときだけ示す。
+  dropAllowed?: boolean;
 };
 
 // 行が隠れたときに、次の行のチェック欄へカーソルを移すためのID（SC-07-7）
@@ -40,6 +42,7 @@ export function ItemRow({
   onDeleted,
   onSaveAsFavorite,
   sortDisabled,
+  dropAllowed = false,
 }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -183,9 +186,19 @@ export function ItemRow({
       {...attributes}
       {...listeners}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex cursor-grab touch-manipulation flex-col gap-1 border-b border-zinc-200 bg-background py-2 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? "opacity-0" : ""}`}
+      className={`flex cursor-grab touch-manipulation flex-col gap-1 border-b border-zinc-200 bg-background py-2 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""}`}
     >
-      <div className="flex items-center gap-2">
+      {isDragging && dropAllowed && (
+        // D-98：すき間の寸法と移動先の判定を変えず、収まる場所を枠の形でも示す。
+        <div
+          aria-hidden="true"
+          data-drag-insertion
+          className="pointer-events-none absolute inset-x-0 inset-y-1 z-10 rounded-lg border-2 border-dashed border-sky-400 bg-sky-50"
+        />
+      )}
+      <div
+        className={`flex items-center gap-2 ${isDragging ? "opacity-0" : ""}`}
+      >
         <input
           type="checkbox"
           id={itemCheckboxId(item.id)}
@@ -273,7 +286,11 @@ export function ItemRow({
       </div>
 
       {error && (
-        <p id={errorId} role="alert" className="text-sm text-red-700">
+        <p
+          id={errorId}
+          role="alert"
+          className={`text-sm text-red-700 ${isDragging ? "opacity-0" : ""}`}
+        >
           {error}
         </p>
       )}
