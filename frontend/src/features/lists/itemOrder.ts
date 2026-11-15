@@ -44,12 +44,12 @@ export function reorderVisibleItems(
  * D-101：表示中のグループだけを並べ替え、全グループの順番を返す。
  * 全部チェック済みで隠したグループの位置は動かさない。API-36 は全グループのIDが必要なので全体を返す。
  */
-export function reorderVisibleGroups(
-  all: PackingListGroup[],
-  visible: PackingListGroup[],
+export function reorderVisibleGroups<T extends PackingListGroup>(
+  all: T[],
+  visible: T[],
   activeId: number,
   overId: number,
-): PackingListGroup[] {
+): T[] {
   return reorderWithinVisible(all, visible, activeId, overId);
 }
 

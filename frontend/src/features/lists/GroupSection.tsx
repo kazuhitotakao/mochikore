@@ -15,13 +15,13 @@ type Props = {
   // 並べ替えの保存中は動かさない
   sortDisabled: boolean;
   allChecked: boolean;
-  // 中の持ち物が0件・送信中は押せない
+  // D-106：空のグループも押せる。送信中は押せない
   checkDisabled: boolean;
   onToggleCheck: () => void;
   children: ReactNode;
 };
 
-const HEADING = "font-medium wrap-break-word";
+const HEADING = "font-semibold wrap-break-word";
 
 /**
  * SC-07-6：グループの見出しと、その中の持ち物。
@@ -64,11 +64,13 @@ function SortableGroupSection({
   return (
     <section
       ref={setNodeRef}
+      id={sectionId(groupId)}
       aria-label={title}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`flex flex-col gap-1 rounded bg-background ${isDragging ? "relative z-10 shadow-md" : ""}`}
     >
-      <div className="flex items-center gap-2">
+      {/* 見出しだけを薄く塗り、持ち物の行と見分けられるようにする（利用者の指示）。 */}
+      <div className="-mx-2 flex min-h-15 items-center gap-2 rounded-lg bg-zinc-100 px-2 py-2">
         <GroupCheckbox
           title={title}
           checked={allChecked}
@@ -83,7 +85,10 @@ function SortableGroupSection({
           aria-level={2}
           className={`min-w-0 flex-1 cursor-grab touch-manipulation select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${HEADING}`}
         >
-          {title}（{count}件）
+          {title}
+          <span className="text-sm font-normal whitespace-nowrap text-zinc-600">
+            （{count}件）
+          </span>
         </h2>
       </div>
       {children}

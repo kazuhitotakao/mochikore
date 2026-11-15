@@ -47,8 +47,8 @@ class ShowPackingListTest extends ListApiTestCase
                     'updated_at' => $list->updated_at->toJSON(),
                     'grouping_revision' => 3,
                     'groups' => [
-                        ['id' => $first->id, 'name' => '洗面', 'sort_order' => 0],
-                        ['id' => $later->id, 'name' => '服', 'sort_order' => 1],
+                        ['id' => $first->id, 'name' => '洗面', 'sort_order' => 0, 'is_checked' => false],
+                        ['id' => $later->id, 'name' => '服', 'sort_order' => 1, 'is_checked' => false],
                     ],
                     'items' => [
                         ['id' => $a->id, 'name' => 'A', 'group_id' => null, 'sort_order' => 1, 'is_checked' => true],

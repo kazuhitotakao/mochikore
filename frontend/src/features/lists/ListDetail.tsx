@@ -190,6 +190,8 @@ export function ListDetail({ list, categories }: Props) {
   );
   const [groupCheckError, setGroupCheckError] = useState<string | null>(null);
   const groupCheckInFlight = useRef(false);
+  // D-106：復元や移動の後に、遅れて届いた空グループの応答を反映しない。
+  const emptyGroupCheckVersions = useRef(new Map<number, number>());
   // 猶予中の取り消しでは、その操作で新しくチェックした持ち物だけを戻す（利用者の指示）。
   const groupCheckUndo = useRef(new Map<number | null, ReadonlySet<number>>());
   // SC-07-18・D-100：「選んで削除」の選ぶ表示。選んだ持ち物とグループは、この画面の中だけに持つ
@@ -214,6 +216,13 @@ export function ListDetail({ list, categories }: Props) {
   const pendingFocusId = useRef<string | null>(null);
   const { delayedIds, hideLater, pauseHide, cancelHide, isWaitingToHide } =
     useDelayedHide(handleHideDelayEnd);
+  const {
+    delayedIds: delayedGroupIds,
+    hideLater: hideGroupLater,
+    pauseHide: pauseGroupHide,
+    cancelHide: cancelGroupHide,
+    isWaitingToHide: isGroupWaitingToHide,
+  } = useDelayedHide(handleEmptyGroupHideEnd);
 
   // D-95：画面は隠れたチェック済みも含む全件（items）を持ち、表示だけを絞る。
   // 隠している間にチェックを付けた持ち物は、少しの間だけ表示に残す（delayedIds）
@@ -229,14 +238,18 @@ export function ListDetail({ list, categories }: Props) {
   const draggingItem = items.find((item) => item.id === draggingItemId);
   const checkedCount = items.filter((item) => item.is_checked).length;
   // D-101：チェック済みを隠しているときは、中の全有効持ち物がチェック済みのグループ（未分類を含む）を
-  // 見出しごと隠す。1秒おいて隠す持ち物（delayedIds）が残っている間は、まだ出しておく。0件のグループは隠さない
+  // 見出しごと隠す。D-106：0件のグループは保存したチェックを使い、同じ1秒の猶予を保つ。
   const hiddenSectionIds = new Set<number | null>(
     showChecked
       ? []
-      : [...groups.map((group) => group.id), null].filter(
-          (groupId) =>
-            items.some((item) => item.group_id === groupId) &&
-            !visibleItems.some((item) => item.group_id === groupId),
+      : [...groups.map((group) => group.id), null].filter((groupId) =>
+          items.some((item) => item.group_id === groupId)
+            ? !visibleItems.some((item) => item.group_id === groupId)
+            : groupId !== null &&
+              groups.some(
+                (group) => group.id === groupId && group.is_checked,
+              ) &&
+              !delayedGroupIds.has(groupId),
         ),
   );
   const visibleGroups = groups.filter(
@@ -255,7 +268,22 @@ export function ListDetail({ list, categories }: Props) {
     if (!targetId) return;
     pendingFocusId.current = null;
     document.getElementById(targetId)?.focus();
-  }, [items, delayedIds]);
+  }, [items, delayedIds, groups, delayedGroupIds]);
+
+  // D-106：空の見出しが隠れるときだけ、その中のカーソルをメニューへ移す。
+  function handleEmptyGroupHideEnd(groupId: number) {
+    if (
+      showChecked ||
+      !groups.some((group) => group.id === groupId && group.is_checked)
+    )
+      return;
+    if (items.some((item) => item.group_id === groupId)) return;
+    const section = document.getElementById(sectionId(groupId));
+    const active = document.activeElement;
+    // 送信中のdisabledでカーソルが外れた場合も、既存の持ち物と同じ移動先に戻す。
+    if (!active || active === document.body || section?.contains(active))
+      pendingFocusId.current = LIST_MENU_BUTTON_ID;
+  }
 
   // 少し待った後、チェック済みの行が表示から外れる直前に呼ばれる
   function handleHideDelayEnd(itemId: number) {
@@ -323,6 +351,16 @@ export function ListDetail({ list, categories }: Props) {
   // API-13：このリストのチェックを全部外した。持ち物・順番はそのまま
   function handleChecksReset() {
     groupCheckUndo.current.clear();
+    for (const group of groups) {
+      cancelGroupHide(group.id);
+      emptyGroupCheckVersions.current.set(
+        group.id,
+        (emptyGroupCheckVersions.current.get(group.id) ?? 0) + 1,
+      );
+    }
+    setGroups((current) =>
+      current.map((group) => ({ ...group, is_checked: false })),
+    );
     setItems((current) =>
       current.map((item) => ({ ...item, is_checked: false })),
     );
@@ -347,6 +385,7 @@ export function ListDetail({ list, categories }: Props) {
 
   // API-25：戻した持ち物だけを候補から外し、番号の位置に入れる（D-28・D-31）
   function handleRestored(item: PackingListItem) {
+    clearEmptyGroupCheck(item.group_id);
     setItems((current) =>
       [...current.filter((existing) => existing.id !== item.id), item].sort(
         byListOrder,
@@ -553,6 +592,7 @@ export function ListDetail({ list, categories }: Props) {
         method: "PATCH",
         body: { item_ids: moved.map((item) => item.id), ...(move && { move }) },
       });
+      if (move) clearEmptyGroupCheck(move.group_id);
       // D-31：並べ替えた後は、削除した持ち物を戻すと一番下に入る
       setDeletedItems((current) =>
         current.map((deleted) => ({ ...deleted, movesToBottom: true })),
@@ -595,24 +635,86 @@ export function ListDetail({ list, categories }: Props) {
     );
   }
 
+  // D-106：持ち物が入ったグループに、空だったときのチェックを残さない。
+  function clearEmptyGroupCheck(groupId: number | null) {
+    if (groupId === null) return;
+    emptyGroupCheckVersions.current.set(
+      groupId,
+      (emptyGroupCheckVersions.current.get(groupId) ?? 0) + 1,
+    );
+    cancelGroupHide(groupId);
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId ? { ...group, is_checked: false } : group,
+      ),
+    );
+  }
+
+  // API-42・V-23（46行Jメモ）・C-01〜08。取り消し中は非表示を止める。
+  async function handleEmptyGroupCheck(groupId: number) {
+    const group = groups.find((existing) => existing.id === groupId);
+    if (!group || groupCheckInFlight.current) return;
+    const checked = !group.is_checked;
+    const version = emptyGroupCheckVersions.current.get(groupId) ?? 0;
+    const undoing = group.is_checked && isGroupWaitingToHide(groupId);
+    if (group.is_checked && !showChecked && !undoing) return;
+    groupCheckInFlight.current = true;
+    setGroupChecking(groupId);
+    setGroupCheckError(null);
+    if (undoing) pauseGroupHide(groupId);
+    try {
+      await clientApi<void>(`/groups/${groupId}/check`, {
+        method: "PATCH",
+        body: { is_checked: checked },
+      });
+      if ((emptyGroupCheckVersions.current.get(groupId) ?? 0) !== version)
+        return;
+      if (!checked) cancelGroupHide(groupId);
+      else if (!showChecked) hideGroupLater(groupId);
+      setGroups((current) =>
+        current.map((existing) =>
+          existing.id === groupId
+            ? { ...existing, is_checked: checked }
+            : existing,
+        ),
+      );
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      if (undoing) hideGroupLater(groupId);
+      setGroupCheckError(groupCheckErrorMessage(failure));
+    } finally {
+      groupCheckInFlight.current = false;
+      setGroupChecking(undefined);
+    }
+  }
+
   // F-25・D-99：全件チェック後、隠れるまでの1秒間だけ直前の状態へ戻せる（利用者の指示）。
   // API-37、09_バリデーション15・34行Jメモ（V-09・V-19）と38〜45行Jメモ（C-01〜08）を確認。
   async function handleGroupCheck(groupId: number | null) {
     const groupItems = items.filter((item) => item.group_id === groupId);
-    if (groupItems.length === 0 || groupCheckInFlight.current) return;
+    if (groupItems.length === 0) {
+      if (groupId !== null) await handleEmptyGroupCheck(groupId);
+      return;
+    }
+    if (groupCheckInFlight.current) return;
 
     const allChecked = groupItems.every((item) => item.is_checked);
     const previousIds = groupCheckUndo.current.get(groupId);
     const undoItems = groupItems.filter(
       (item) => previousIds?.has(item.id) && isWaitingToHide(item.id),
     );
-    const undoing = allChecked && undoItems.length > 0;
-    // チェック済みを再表示した後など、猶予を過ぎてからの一括解除はしない。
-    if (allChecked && !undoing) return;
+    const undoing = !showChecked && allChecked && undoItems.length > 0;
+    // D-99：表示中は全件解除し、非表示中は猶予内の取り消しだけにする。
+    const uncheckingAll = allChecked && !undoing && showChecked;
+    if (allChecked && !undoing && !uncheckingAll) return;
 
     const targets = undoing ? undoItems : groupItems;
     const targetIds = new Set(targets.map((item) => item.id));
-    const checked = !undoing;
+    const checked = !undoing && !uncheckingAll;
     const changedItems = targets.filter((item) => item.is_checked !== checked);
     groupCheckInFlight.current = true;
     setGroupChecking(groupId);
@@ -741,7 +843,10 @@ export function ListDetail({ list, categories }: Props) {
     const groupItems = items.filter((item) => item.group_id === groupId);
     const total = groupItems.length;
     // 隠れたチェック済みも含め、全件チェック済みのときだけ印を付ける（利用者の指示、D-99を変更）。
-    const allChecked = total > 0 && groupItems.every((item) => item.is_checked);
+    const allChecked =
+      total > 0
+        ? groupItems.every((item) => item.is_checked)
+        : groups.some((group) => group.id === groupId && group.is_checked);
 
     return (
       // SC-07-6：件数は画面に出している持ち物だけを数え、チェック済みを隠しているときは含めない
@@ -754,7 +859,7 @@ export function ListDetail({ list, categories }: Props) {
         sortDisabled={reordering}
         allChecked={allChecked}
         // 全件チェック済みでも持ち物と同じ色を保ち、猶予中は取り消せる（利用者の指示）。
-        checkDisabled={total === 0 || groupChecking !== undefined || reordering}
+        checkDisabled={groupChecking !== undefined || reordering}
         onToggleCheck={() => void handleGroupCheck(groupId)}
       >
         {renderItems(sectionItems, groupId !== null)}
@@ -873,9 +978,9 @@ export function ListDetail({ list, categories }: Props) {
 
         {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
         <div className={selecting ? "hidden" : "flex flex-col gap-6"}>
-          {/* SC-07-11：持ち物があるのに全部チェック済みで隠れたときだけ案内する。
-              持ち物が0件のときは、下の「持ち物を追加…」の行で空だと分かるので文を出さない（利用者の指示） */}
-          {items.length > 0 &&
+          {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
+              未チェックの空リストは追加行で分かるので、案内文を出さない。 */}
+          {(items.length > 0 || groups.some((group) => group.is_checked)) &&
             visibleItems.length === 0 &&
             visibleGroups.length === 0 && (
               <p>
@@ -1085,7 +1190,11 @@ function groupOrderErrorMessage(error: unknown): string {
 // V-19：まとめてチェックの送信が正しくないのは、ほかの画面で持ち物が増減したときなので、読み直しを案内する
 function groupCheckErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code === "validation_error") {
-    return "チェックする持ち物の情報が正しくありません。リストを読み直してください。";
+    // V-23：空グループに持ち物が入った場合は、確定した項目別の文言を保つ。
+    return (
+      error.errors.is_checked?.[0] ??
+      "チェックする持ち物の情報が正しくありません。リストを読み直してください。"
+    );
   }
 
   return NETWORK_ERROR_MESSAGE;

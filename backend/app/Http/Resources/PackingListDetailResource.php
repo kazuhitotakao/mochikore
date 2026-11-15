@@ -27,6 +27,7 @@ class PackingListDetailResource extends JsonResource
                 'id' => $group->id,
                 'name' => $group->name,
                 'sort_order' => $group->sort_order,
+                'is_checked' => $group->is_checked,
             ]),
             'items' => $this->items->map(fn (PackingListItem $item) => [
                 'id' => $item->id,

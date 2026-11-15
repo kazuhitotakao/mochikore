@@ -156,6 +156,10 @@ class PackingListItemService
                 $target->sort_order = (int) $locked->items()->max('sort_order') + 1;
             }
             $target->restore();
+            if ($target->group_id !== null) {
+                // D-106：持ち物が戻った後に、空だったときのチェックを復活させない。
+                $locked->groups()->whereKey($target->group_id)->update(['is_checked' => false]);
+            }
 
             // 構造が変わったので revision を増やす。updated_at も新しくなり一覧の上に戻る（D-24・D-59）。
             // 公開は自動で戻さない（D-51）
@@ -198,6 +202,10 @@ class PackingListItemService
                 }
                 // group_id は Fillable に入れていないので、クエリで直接変える
                 $locked->items()->whereKey($move['item_id'])->update(['group_id' => $move['group_id']]);
+                if ($move['group_id'] !== null) {
+                    // D-106：グループに入ったら、中の持ち物からチェックを決める。
+                    $locked->groups()->whereKey($move['group_id'])->update(['is_checked' => false]);
+                }
             }
 
             if ($itemIds !== []) {

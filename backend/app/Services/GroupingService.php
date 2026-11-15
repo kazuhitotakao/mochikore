@@ -72,6 +72,10 @@ class GroupingService
             }
             foreach ($moves as $target => $itemIds) {
                 $locked->items()->whereKey($itemIds)->update(['group_id' => $target === 0 ? null : $target]);
+                if ($target !== 0) {
+                    // D-106：空グループに持ち物が入ったら、保存していた印を外す。
+                    $locked->groups()->whereKey($target)->update(['is_checked' => false]);
+                }
             }
 
             // D-24・D-59：実際に変わったときだけ revision を1増やし、一覧の上に戻す（increment は updated_at も更新する）

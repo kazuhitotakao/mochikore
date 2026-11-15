@@ -138,7 +138,8 @@ export type ItemDeleteResult = {
 // API-07 自分のリストの内容。削除済みの持ち物は含まない
 export type PackingListDetail = PackingList & {
   grouping_revision: number;
-  groups: PackingListGroup[];
+  // D-106：空グループのチェックは本人用の取得にだけ含める。
+  groups: (PackingListGroup & { is_checked: boolean })[];
   items: PackingListItem[];
 };
 

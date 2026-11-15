@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * リスト内の任意の分類（D-56）。リストの用途であるカテゴリー（Category）とは別物。
  */
-#[Fillable(['name', 'sort_order'])]
+#[Fillable(['name', 'sort_order', 'is_checked'])]
 class PackingListGroup extends Model
 {
     /** @use HasFactory<PackingListGroupFactory> */
@@ -30,6 +30,7 @@ class PackingListGroup extends Model
     {
         return [
             'sort_order' => 'integer',
+            'is_checked' => 'boolean',
         ];
     }
 
