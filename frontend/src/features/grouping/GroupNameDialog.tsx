@@ -72,7 +72,7 @@ export function GroupNameDialog({
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-        <h2 id={titleId} className="font-bold">
+        <h2 id={titleId} className="text-lg font-bold">
           {title}
         </h2>
         <div>

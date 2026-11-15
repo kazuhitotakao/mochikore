@@ -926,7 +926,10 @@ export function ListDetail({ list, categories }: Props) {
                   <span className="min-w-0 flex-1 wrap-break-word">
                     {draggingItem.name}
                   </span>
-                  <span className="rounded px-2 py-1">…</span>
+                  {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
+                  <span className="flex min-h-11 min-w-11 items-center justify-center rounded px-2">
+                    …
+                  </span>
                 </div>
               )}
             </DragOverlay>

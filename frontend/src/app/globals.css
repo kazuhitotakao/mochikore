@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
+/*
+  D-73：配色が決まるまでは、端末のダークモードに関係なく明るい表示に固定する（利用者の指示）。
+  背景だけが暗くなると、黒いボタン・選択の印が背景に溶けて見えなくなるため。
+  dark: の指定は .dark を付けたときだけ効くようにし、端末の設定では切り替えない。
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* 入力欄・スクロールバーなどブラウザが描く部品も明るい表示にそろえる */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -10,13 +19,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

@@ -46,7 +46,7 @@ export function MoveItemDialog({
       className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <div className="flex flex-col gap-4">
-        <h2 id={titleId} className="font-bold wrap-break-word">
+        <h2 id={titleId} className="text-lg font-bold wrap-break-word">
           「{itemName}」の移し先
         </h2>
         <ul className="flex flex-col gap-2">

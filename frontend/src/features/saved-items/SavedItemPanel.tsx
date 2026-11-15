@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { CategoryPicker } from "@/components/CategoryPicker";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
-import { CategoryPicker } from "./CategoryPicker";
 import type {
   BulkAddResult,
   Category,
@@ -244,22 +244,38 @@ export function SavedItemPanel({
           <h2 id="saved-item-panel-heading" className="text-lg font-bold">
             よく使う項目から追加
           </h2>
+          {/* 利用者の指示：見出しの横をすっきりさせるため、文字ではなく右上の ✕ にする。読み上げでは「閉じる」 */}
           <button
             type="button"
+            aria-label="閉じる"
             onClick={onClose}
             disabled={adding}
-            className="rounded border border-zinc-400 px-3 py-1 disabled:opacity-50"
+            className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded disabled:opacity-50"
           >
-            閉じる
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="size-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </button>
         </div>
 
         {/* SC-08-3：候補のカテゴリーだけを切り替える。リスト自体のカテゴリーは変えない */}
         <CategoryPicker
-          categories={categories}
+          id="saved-item-category"
+          label="カテゴリー"
+          options={categories.map((category) => ({
+            value: category.id,
+            label: category.name,
+          }))}
           value={categoryId}
           onChange={setCategoryId}
-          open={categoryPickerOpen}
           onOpenChange={setCategoryPickerOpen}
         />
 
@@ -295,13 +311,14 @@ export function SavedItemPanel({
                 return (
                   <li
                     key={savedItem.id}
-                    className="flex items-center gap-3 border-b border-zinc-200 py-2"
+                    className="flex items-center gap-3 border-b border-zinc-200"
                   >
+                    {/* 行の余白も押せるよう、上下の余白はボタンの中に持たせ、高さを44px以上にする */}
                     <button
                       type="button"
                       aria-pressed={selected}
                       onClick={() => toggleSelected(savedItem.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      className="flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2 text-left"
                     >
                       <span
                         aria-hidden="true"
@@ -327,7 +344,7 @@ export function SavedItemPanel({
                         setDeleteError(null);
                         setDeleteTarget(savedItem);
                       }}
-                      className="shrink-0 rounded px-2 py-1 text-sm text-red-700"
+                      className="min-h-11 shrink-0 rounded px-3 text-sm text-red-700"
                     >
                       削除
                     </button>
