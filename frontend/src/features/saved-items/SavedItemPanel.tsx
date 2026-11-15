@@ -7,6 +7,7 @@ import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { CategoryPicker } from "./CategoryPicker";
 import type {
   BulkAddResult,
   Category,
@@ -50,6 +51,7 @@ export function SavedItemPanel({
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const [categoryId, setCategoryId] = useState(listCategoryId);
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [revisionLoadCount, setRevisionLoadCount] = useState(0);
@@ -232,7 +234,9 @@ export function SavedItemPanel({
         closeIfIdle();
       }}
       {...backdrop}
-      className="mx-auto mt-auto mb-0 w-full max-w-[640px] rounded-t bg-background p-0 text-foreground backdrop:bg-black/40"
+      // 利用者の指示：スマホ幅（640px未満）は親指で選びやすいよう画面の下から出し、
+      // 640px以上はほかのダイアログと同じく中央に出す（640pxはSC-09の2列と同じ境目、D-73）
+      className="mx-auto mt-auto mb-0 w-full max-w-[640px] rounded-t bg-background p-0 text-foreground backdrop:bg-black/40 sm:my-auto sm:max-w-lg sm:rounded"
     >
       <div className="flex max-h-[80vh] flex-col gap-4 px-4 py-4">
         {/* SC-08-2：閉じても追加しない */}
@@ -251,25 +255,18 @@ export function SavedItemPanel({
         </div>
 
         {/* SC-08-3：候補のカテゴリーだけを切り替える。リスト自体のカテゴリーは変えない */}
-        <div>
-          <label htmlFor="saved-item-category" className="block font-medium">
-            カテゴリー
-          </label>
-          <select
-            id="saved-item-category"
-            value={categoryId}
-            onChange={(event) => setCategoryId(Number(event.target.value))}
-            className="w-full rounded border border-zinc-400 px-3 py-2"
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <CategoryPicker
+          categories={categories}
+          value={categoryId}
+          onChange={setCategoryId}
+          open={categoryPickerOpen}
+          onOpenChange={setCategoryPickerOpen}
+        />
 
-        <div className="min-h-24 overflow-y-auto">
+        {/* カテゴリーを選んでいる間は、その一覧に場所を譲る。選んだ候補（選択件数）はそのまま残る */}
+        <div
+          className={categoryPickerOpen ? "hidden" : "min-h-24 overflow-y-auto"}
+        >
           {current === null ? (
             // 共通3：応答を待つ間だけ出す
             <p role="status">読み込み中…</p>

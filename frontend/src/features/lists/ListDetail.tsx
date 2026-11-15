@@ -873,14 +873,15 @@ export function ListDetail({ list, categories }: Props) {
 
         {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
         <div className={selecting ? "hidden" : "flex flex-col gap-6"}>
-          {/* SC-07-11：保存済みの持ち物が0件の場合と、すべてチェック済みの場合を分ける。 */}
-          {items.length === 0 ? (
-            <p>持ち物はまだありません。</p>
-          ) : visibleItems.length === 0 && visibleGroups.length === 0 ? (
-            <p>
-              すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
-            </p>
-          ) : null}
+          {/* SC-07-11：持ち物があるのに全部チェック済みで隠れたときだけ案内する。
+              持ち物が0件のときは、下の「持ち物を追加…」の行で空だと分かるので文を出さない（利用者の指示） */}
+          {items.length > 0 &&
+            visibleItems.length === 0 &&
+            visibleGroups.length === 0 && (
+              <p>
+                すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
+              </p>
+            )}
           <DndContext
             id={dndId}
             sensors={sensors}
