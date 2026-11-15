@@ -6,6 +6,7 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  type KeyboardCodes,
   type KeyboardCoordinateGetter,
   type MouseSensorOptions,
   type PointerActivationConstraint,
@@ -82,10 +83,12 @@ class ItemTouchSensor extends TouchSensor {
  * キーボードは、持ち物にカーソルを合わせてスペースキーで持ち上げ、矢印キーで動かす。
  * 矢印キーでどこへ動かすかは、画面ごとに coordinateGetter で決める。
  * longPressFor に当てはまるもの（SC-09 の丸）は、0.3秒押してから動かす（D-98）。
+ * keyboardCodes を省くと、dnd-kit の既定（スペース・Enter で持ち上げ）のまま。
  */
 export function useDragSensors(
   coordinateGetter: KeyboardCoordinateGetter,
   longPressFor?: (id: UniqueIdentifier) => boolean,
+  keyboardCodes?: KeyboardCodes,
 ) {
   return useSensors(
     useSensor(ItemMouseSensor, {
@@ -99,6 +102,6 @@ export function useDragSensors(
       },
       longPressFor,
     }),
-    useSensor(KeyboardSensor, { coordinateGetter }),
+    useSensor(KeyboardSensor, { coordinateGetter, keyboardCodes }),
   );
 }
