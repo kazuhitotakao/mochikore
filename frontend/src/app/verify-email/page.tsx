@@ -36,7 +36,11 @@ export default async function VerifyEmailPage(
 
       <ResendVerificationButton />
 
-      <Link href="/account" prefetch={false} className="underline">
+      <Link
+        href="/account"
+        prefetch={false}
+        className="self-start underline tap-target"
+      >
         アカウント設定
       </Link>
     </main>

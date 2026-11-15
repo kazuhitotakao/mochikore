@@ -21,6 +21,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+  D-73：文字だけのリンク・ボタンも、押せる範囲を44px四方以上にする（利用者の指示）。
+  見た目と並びを変えないよう、文字の中央に透明な押せる範囲（::after）を重ねる。
+*/
+@utility tap-target {
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

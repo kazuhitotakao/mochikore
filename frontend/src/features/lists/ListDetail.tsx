@@ -936,7 +936,10 @@ export function ListDetail({ list, categories }: Props) {
             className="text-sm text-zinc-700"
           >
             このリストは運営により非公開になっています。 お問い合わせ：
-            <a href="mailto:simasyam@gmail.com" className="underline">
+            <a
+              href="mailto:simasyam@gmail.com"
+              className="underline tap-target"
+            >
               simasyam@gmail.com
             </a>
           </p>

@@ -42,7 +42,11 @@ export default async function AccountPage(props: PageProps<"/account">) {
           </p>
           <EmailChangeForm currentEmail={user.email} />
           {user.pending_email && (
-            <Link href="/account/email" prefetch={false} className="underline">
+            <Link
+              href="/account/email"
+              prefetch={false}
+              className="self-start underline tap-target"
+            >
               確認メールの案内を開く
             </Link>
           )}
@@ -52,7 +56,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
       {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える */}
       <Link
         href={withFrom("/forgot-password", currentPath)}
-        className="underline"
+        className="self-start underline tap-target"
       >
         パスワードを変更
       </Link>
@@ -60,7 +64,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
       <Link
         href={withFrom("/privacy", currentPath)}
         prefetch={false}
-        className="underline"
+        className="self-start underline tap-target"
       >
         プライバシーポリシー・お問い合わせ
       </Link>

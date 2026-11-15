@@ -27,7 +27,10 @@ export default async function ResetPasswordPage(
         <div role="alert" className="flex flex-col gap-2 text-red-700">
           <p>再設定用のリンクを開き直してください。</p>
           {/* リンクが使えないときは、エラーの近くでメールの送り直しを案内する（利用者の指示、SC-15-5と同じ文言） */}
-          <Link href="/forgot-password" className="underline">
+          <Link
+            href="/forgot-password"
+            className="self-start underline tap-target"
+          >
             再設定メールを送り直す
           </Link>
         </div>

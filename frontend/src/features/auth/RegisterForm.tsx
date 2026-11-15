@@ -136,12 +136,15 @@ function RegisterError({
           このメールアドレスはすでに登録されています。ログインするか、パスワードを再設定してください。
         </p>
         <div className="flex gap-4">
-          <Link href={withFrom("/login", currentPath)} className="underline">
+          <Link
+            href={withFrom("/login", currentPath)}
+            className="underline tap-target"
+          >
             ログイン
           </Link>
           <Link
             href={withFrom("/forgot-password", currentPath)}
-            className="underline"
+            className="underline tap-target"
           >
             パスワードを再設定
           </Link>

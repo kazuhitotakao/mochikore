@@ -19,7 +19,7 @@ export default async function RegisterPage(props: PageProps<"/register">) {
         <Link
           href={withFrom("/privacy", currentPath)}
           prefetch={false}
-          className="underline"
+          className="underline tap-target"
         >
           プライバシーポリシー・お問い合わせ
         </Link>
@@ -28,7 +28,10 @@ export default async function RegisterPage(props: PageProps<"/register">) {
 
       <RegisterForm currentPath={currentPath} />
 
-      <Link href={withFrom("/login", currentPath)} className="underline">
+      <Link
+        href={withFrom("/login", currentPath)}
+        className="self-start underline tap-target"
+      >
         ログイン
       </Link>
     </main>

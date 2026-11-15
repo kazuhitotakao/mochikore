@@ -44,25 +44,31 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
           <li>
             <a
               href="#information-heading"
-              className="underline underline-offset-4"
+              className="underline underline-offset-4 tap-target"
             >
               お預かりする情報と利用目的
             </a>
           </li>
           <li>
-            <a href="#sharing-heading" className="underline underline-offset-4">
+            <a
+              href="#sharing-heading"
+              className="underline underline-offset-4 tap-target"
+            >
               リストの公開とコピー
             </a>
           </li>
           <li>
-            <a href="#cookie-heading" className="underline underline-offset-4">
+            <a
+              href="#cookie-heading"
+              className="underline underline-offset-4 tap-target"
+            >
               Cookieについて
             </a>
           </li>
           <li>
             <a
               href="#services-heading"
-              className="underline underline-offset-4"
+              className="underline underline-offset-4 tap-target"
             >
               利用するサービス
             </a>
@@ -70,13 +76,16 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
           <li>
             <a
               href="#deletion-heading"
-              className="underline underline-offset-4"
+              className="underline underline-offset-4 tap-target"
             >
               情報の削除・確認・訂正
             </a>
           </li>
           <li>
-            <a href="#contact-heading" className="underline underline-offset-4">
+            <a
+              href="#contact-heading"
+              className="underline underline-offset-4 tap-target"
+            >
               お問い合わせ
             </a>
           </li>
@@ -219,7 +228,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
             <Link
               href={withFrom("/account", currentPath)}
               prefetch={false}
-              className="underline underline-offset-4"
+              className="underline underline-offset-4 tap-target"
             >
               アカウント設定
             </Link>
@@ -256,7 +265,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
         <p>もちこれへのお問い合わせは、メールで受け付けています。</p>
         <a
           href="mailto:simasyam@gmail.com"
-          className="self-start break-all font-medium underline underline-offset-4"
+          className="self-start break-all font-medium underline underline-offset-4 tap-target"
         >
           simasyam@gmail.com
         </a>
@@ -266,13 +275,13 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
         aria-label="ページ移動"
         className="flex flex-wrap gap-x-6 gap-y-3 border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800"
       >
-        <Link href="/" prefetch={false} className="underline">
+        <Link href="/" prefetch={false} className="underline tap-target">
           トップへ戻る
         </Link>
         <Link
           href={withFrom("/register", currentPath)}
           prefetch={false}
-          className="underline"
+          className="underline tap-target"
         >
           新規会員登録
         </Link>

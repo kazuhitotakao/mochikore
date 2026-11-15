@@ -42,12 +42,15 @@ export default async function LoginPage(props: PageProps<"/login">) {
       {/* SC-02-6 */}
       <Link
         href={withFrom("/forgot-password", currentPath)}
-        className="underline"
+        className="self-start underline tap-target"
       >
         パスワードを忘れた方
       </Link>
 
-      <Link href={withFrom("/register", currentPath)} className="underline">
+      <Link
+        href={withFrom("/register", currentPath)}
+        className="self-start underline tap-target"
+      >
         新規会員登録
       </Link>
     </main>
