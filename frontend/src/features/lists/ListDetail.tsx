@@ -17,6 +17,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -67,7 +68,10 @@ type ItemSortData = { groupId: number | null };
  * そのグループに見えている持ち物がなければ（空のグループ・全部チェック済みで隠している未分類）、グループそのものを相手にする。
  * キーボードは指の位置がないので、いちばん近い持ち物を相手にする。
  */
-const detectSortTarget: CollisionDetection = (args) => {
+const detectSortTarget = (
+  args: Parameters<CollisionDetection>[0],
+  ungroupedStartLimit: number | null,
+): ReturnType<CollisionDetection> => {
   const sections = args.droppableContainers.filter((container) =>
     isSectionId(container.id),
   );
@@ -92,6 +96,23 @@ const detectSortTarget: CollisionDetection = (args) => {
           (container.data.current as ItemSortData | undefined)?.groupId ===
           groupId,
       );
+      // 元のグループが縮んでも、先頭を狙った指の位置を2番目として扱わない。
+      // ページ内の座標で比べ、ドラッグ中のスクロールにも追従する。
+      if (
+        groupId === null &&
+        ungroupedStartLimit !== null &&
+        args.pointerCoordinates.y + window.scrollY <= ungroupedStartLimit
+      ) {
+        const activeTarget = inSection.filter(
+          (container) => container.id === args.active.id,
+        );
+        if (activeTarget.length > 0) {
+          return closestCenter({
+            ...args,
+            droppableContainers: activeTarget,
+          });
+        }
+      }
       return inSection.length > 0
         ? closestCenter({ ...args, droppableContainers: inSection })
         : [section];
@@ -109,12 +130,21 @@ function targetGroupOf(over: Over): number | null | undefined {
 }
 
 // 動かした持ち物を、相手の持ち物の前に入れるか（指の位置が相手の真ん中より上なら前）
-function dropsBefore(active: Active, over: Over): boolean {
+function dropsBefore(
+  active: Active,
+  over: Over,
+  activatorEvent: Event,
+): boolean {
   const dragged = active.rect.current.translated;
   if (!dragged) return true;
-  return (
-    dragged.top + dragged.height / 2 < over.rect.top + over.rect.height / 2
-  );
+  const initial = active.rect.current.initial;
+  const pressedAt = getEventCoordinates(activatorEvent);
+  // 行の上端・下端をつかんだ場合も、指の位置で前後を選ぶ。キーボードは行の中央を使う。
+  const y =
+    initial && pressedAt
+      ? dragged.top + pressedAt.y - initial.top
+      : dragged.top + dragged.height / 2;
+  return y < over.rect.top + over.rect.height / 2;
 }
 
 // API-07 と同じ並び（全体の sort_order、同じならid の小さい順）
@@ -140,8 +170,12 @@ export function ListDetail({ list, categories }: Props) {
   // D-98：グループの順番は見出しを動かして変えるので、画面の状態として持つ
   const [groups, setGroups] = useState(list.groups);
   const [draggingItemId, setDraggingItemId] = useState<number | null>(null);
+  const [itemDropAllowed, setItemDropAllowed] = useState(false);
   const [itemPreview, setItemPreview] = useState<ItemDragPreview | null>(null);
   const itemPreviewRef = useRef<ItemDragPreview | null>(null);
+  const [ungroupedStartLimit, setUngroupedStartLimit] = useState<number | null>(
+    null,
+  );
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
@@ -330,26 +364,48 @@ export function ListDetail({ list, categories }: Props) {
   function handleDragStart({ active }: DragStartEvent) {
     if (isSectionId(active.id)) return;
     setDraggingItemId(Number(active.id));
+    setItemDropAllowed(true);
   }
 
   // F-24・D-98：別グループへ入った時点で空行を移し、その中では通常の並べ替えで周りをずらす。
   // API-19、09_バリデーション16・32行Jメモ（V-10・V-17）と38〜45行Jメモ（C-01〜08）を確認。
-  function handleDragOver({ active, over }: DragOverEvent) {
-    if (isSectionId(active.id) || !over) return;
+  function handleDragOver({ active, over, activatorEvent }: DragOverEvent) {
+    if (isSectionId(active.id)) return;
     const current = applyItemDragPreview(items, itemPreviewRef.current);
     const activeItem = current.find((item) => item.id === active.id);
-    if (!activeItem) return;
-
     const to =
-      active.id === over.id ? activeItem.group_id : targetGroupOf(over);
+      over && activeItem
+        ? active.id === over.id
+          ? activeItem.group_id
+          : targetGroupOf(over)
+        : undefined;
+    // 保存に使う移動先の判定を、そのまま点線枠の表示にも使う。
+    setItemDropAllowed(to !== undefined);
+    if (!over || !activeItem) return;
     if (to === undefined || to === activeItem.group_id) return;
 
     const overItem = current.find((item) => item.id === over.id);
+    const before = dropsBefore(active, over, activatorEvent);
+    const firstUngrouped = current.find(
+      (item) =>
+        item.group_id === null &&
+        item.id !== activeItem.id &&
+        (showChecked || !item.is_checked || delayedIds.has(item.id)),
+    );
+    setUngroupedStartLimit(
+      to === null &&
+        overItem !== undefined &&
+        firstUngrouped !== undefined &&
+        overItem.id === firstUngrouped.id &&
+        before
+        ? over.rect.top + over.rect.height / 2 + window.scrollY
+        : null,
+    );
     const moved = moveItemToGroup(
       current,
       activeItem.id,
       to,
-      overItem ? { id: overItem.id, before: dropsBefore(active, over) } : null,
+      overItem ? { id: overItem.id, before } : null,
     );
     const preview = {
       itemId: activeItem.id,
@@ -361,13 +417,15 @@ export function ListDetail({ list, categories }: Props) {
   }
 
   function clearDragState() {
+    setItemDropAllowed(false);
+    setUngroupedStartLimit(null);
     itemPreviewRef.current = null;
     setItemPreview(null);
     setDraggingItemId(null);
   }
 
   // 仮表示は保存済みitemsと分け、Esc・対象外へのドロップでは通信せず元へ戻す。
-  async function handleDragEnd({ active, over }: DragEndEvent) {
+  async function handleDragEnd({ active, over, activatorEvent }: DragEndEvent) {
     const current = applyItemDragPreview(items, itemPreviewRef.current);
     clearDragState();
     if (!over) return;
@@ -392,7 +450,10 @@ export function ListDetail({ list, categories }: Props) {
         activeItem.id,
         targetGroupId,
         overItem
-          ? { id: overItem.id, before: dropsBefore(active, over) }
+          ? {
+              id: overItem.id,
+              before: dropsBefore(active, over, activatorEvent),
+            }
           : null,
       );
     } else if (overItem && active.id !== over.id) {
@@ -509,7 +570,7 @@ export function ListDetail({ list, categories }: Props) {
     }
   }
 
-  // indented：グループの中の持ち物は、見出しのチェック欄と同じ列に並ばないよう1段右に下げる（利用者の指示）。
+  // 名前付きグループの中だけ1段下げ、末尾の持ち物は見出しと同じ列にそろえる（利用者の指示）。
   // pl-7 はチェック欄（size-5）と見出しとのすき間（gap-2）を合わせた幅
   function renderItems(sectionItems: PackingListItem[], indented = false) {
     return (
@@ -526,6 +587,7 @@ export function ListDetail({ list, categories }: Props) {
               onDeleted={handleDeleted}
               onSaveAsFavorite={setSavingItem}
               sortDisabled={reordering}
+              dropAllowed={itemDropAllowed}
             />
           ))}
         </ul>
@@ -695,10 +757,10 @@ export function ListDetail({ list, categories }: Props) {
         checkDisabled={total === 0 || groupChecking !== undefined || reordering}
         onToggleCheck={() => void handleGroupCheck(groupId)}
       >
-        {renderItems(sectionItems, true)}
+        {renderItems(sectionItems, groupId !== null)}
         {groupId === null && (
           // 利用者の指示で、空の未分類にも入力行を残す。未保存の行は件数に含めない。
-          <div className="pl-7">
+          <div>
             <AddItemRow listId={list.id} onAdded={handleAdded} />
           </div>
         )}
@@ -822,7 +884,9 @@ export function ListDetail({ list, categories }: Props) {
           <DndContext
             id={dndId}
             sensors={sensors}
-            collisionDetection={detectSortTarget}
+            collisionDetection={(args) =>
+              detectSortTarget(args, ungroupedStartLimit)
+            }
             // 表示件数が変わった未分類も、持ち物の移動先として測り直す（D-98）。
             measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
             modifiers={[restrictToVerticalAxis]}

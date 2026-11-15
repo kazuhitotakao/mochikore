@@ -91,15 +91,8 @@ function SortableGroupSection({
   );
 }
 
-// 未分類は動かさないが、持ち物を動かしてきて置く場所にはなる（D-98）
-function UngroupedSection({
-  title,
-  count,
-  allChecked,
-  checkDisabled,
-  onToggleCheck,
-  children,
-}: Props) {
+// 見出しは置かず、先頭直前の余白も移動先に含める。負の余白と内側の余白で表示位置は保つ。
+function UngroupedSection({ children }: Pick<Props, "children">) {
   const { setNodeRef } = useDroppable({
     id: sectionId(null),
     data: { groupId: null },
@@ -108,23 +101,9 @@ function UngroupedSection({
   return (
     <section
       ref={setNodeRef}
-      aria-label={title}
-      className="flex flex-col gap-1 rounded"
+      aria-label="グループに入っていない持ち物"
+      className="-mt-6 flex flex-col gap-1 rounded pt-6"
     >
-      {/* 利用者の指示で、表示する持ち物がない間は見出しを隠し、入力行だけ残す。 */}
-      {count > 0 && (
-        <div className="flex items-center gap-2">
-          <GroupCheckbox
-            title={title}
-            checked={allChecked}
-            disabled={checkDisabled}
-            onToggle={onToggleCheck}
-          />
-          <h2 className={`min-w-0 flex-1 ${HEADING}`}>
-            {title}（{count}件）
-          </h2>
-        </div>
-      )}
       {children}
     </section>
   );
