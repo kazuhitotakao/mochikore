@@ -293,6 +293,78 @@ class EmailChangeTest extends TestCase
         $this->assertNull($user->fresh()->pending_email);
     }
 
+    public function test_取り消すと確認中を消し、取り消した後のリンクでは確定しない(): void
+    {
+        $user = $this->user();
+        $token = $this->token($user);
+        $this->send($token, 'next@example.com')->assertNoContent();
+        $requestedAt = $user->fresh()->pending_email_requested_at;
+        $path = $this->path($this->link($user->fresh()));
+
+        $this->asToken($token)->deleteJson('/api/me/email-change')->assertNoContent();
+
+        $fresh = $user->fresh();
+        $this->assertNull($fresh->pending_email);
+        $this->assertTrue($fresh->pending_email_requested_at->equalTo($requestedAt));
+        $this->asToken($token)->getJson('/api/me')->assertOk()->assertJsonPath('data.pending_email', null);
+        $this->asToken($token)->postJson($path)->assertUnprocessable()->assertJsonPath('code', 'link_invalid');
+        $this->assertSame($user->email, $user->fresh()->email);
+        // 取り消しでは通知メールを送らない（受付時の2通だけ）
+        $this->assertCount(2, $this->messages);
+    }
+
+    public function test_確認中がなくても取り消しは204で、取り消した後も再送は60秒あける(): void
+    {
+        $user = $this->user();
+        $token = $this->token($user);
+        $this->asToken($token)->deleteJson('/api/me/email-change')->assertNoContent();
+        $this->assertNull($user->fresh()->pending_email_requested_at);
+
+        $this->send($token, 'next@example.com')->assertNoContent();
+        $this->asToken($token)->deleteJson('/api/me/email-change')->assertNoContent();
+        $this->asToken($token)->deleteJson('/api/me/email-change')->assertNoContent();
+        $this->send($token, 'next@example.com')->assertTooManyRequests()->assertJsonPath('retry_after', 60);
+        $this->travel(60)->seconds();
+        $this->send($token, 'next@example.com')->assertNoContent();
+        $this->assertSame('next@example.com', $user->fresh()->pending_email);
+    }
+
+    public function test_取り消しは本文を受け取らず、未ログインは401、メール未認証は403になる(): void
+    {
+        $user = $this->user();
+        $token = $this->token($user);
+        $this->send($token, 'next@example.com')->assertNoContent();
+        $this->asToken($token)->deleteJson('/api/me/email-change', ['pending_email' => null])
+            ->assertUnprocessable()->assertJsonPath('code', 'validation_error')
+            ->assertJsonPath('errors.pending_email.0', 'この項目は送信できません。');
+        $this->assertSame('next@example.com', $user->fresh()->pending_email);
+
+        $this->app['auth']->forgetGuards();
+        $this->withHeaders(['Authorization' => ''])->deleteJson('/api/me/email-change')
+            ->assertUnauthorized()->assertJsonPath('code', 'unauthenticated');
+
+        $unverified = User::factory()->unverified()->create(['password' => 'Password1!']);
+        $unverified->forceFill(['pending_email' => 'other@example.com', 'pending_email_requested_at' => now()])->save();
+        $this->asToken($this->token($unverified))->deleteJson('/api/me/email-change')
+            ->assertForbidden()->assertJsonPath('code', 'email_not_verified');
+        $this->assertSame('other@example.com', $unverified->fresh()->pending_email);
+    }
+
+    public function test_本人情報は確認リンクの期限内だけ確認中の変更先を返す(): void
+    {
+        $user = $this->user();
+        $token = $this->token($user);
+        $this->asToken($token)->getJson('/api/me')->assertJsonPath('data.pending_email', null);
+        $this->send($token, 'next@example.com')->assertNoContent();
+
+        $this->travel(60)->minutes();
+        $this->asToken($token)->getJson('/api/me')->assertJsonPath('data.pending_email', 'next@example.com');
+        $this->travel(1)->seconds();
+        $this->asToken($token)->getJson('/api/me')->assertJsonPath('data.pending_email', null);
+        // 保存した値は残すが、期限切れのリンクではもともと確定できない（API-28）
+        $this->assertSame('next@example.com', $user->fresh()->pending_email);
+    }
+
     private function user(): User
     {
         return User::factory()->create(['password' => 'Password1!']);

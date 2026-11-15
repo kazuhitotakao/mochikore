@@ -3,6 +3,7 @@ import { BackLink } from "@/components/BackLink";
 import { DeleteAccountDialog } from "@/features/auth/DeleteAccountDialog";
 import { EmailChangeForm } from "@/features/auth/EmailChangeForm";
 import { LogoutButton } from "@/features/auth/LogoutButton";
+import { PendingEmailStatus } from "@/features/auth/PendingEmailStatus";
 import { requireUser } from "@/features/auth/requireUser";
 import { fromPath, pathWithFrom, withFrom } from "@/lib/backPath";
 
@@ -24,9 +25,8 @@ export default async function AccountPage(props: PageProps<"/account">) {
       <section className="flex flex-col gap-1">
         <h2 className="font-medium">メールアドレス</h2>
         <p className="break-all">{user.email}</p>
-        {user.pending_email && (
-          <p className="break-all">確認中：{user.pending_email}</p>
-        )}
+        {/* 取り消した後の案内を残すため、確認中がなくても置いておく（D-107） */}
+        <PendingEmailStatus pendingEmail={user.pending_email} />
       </section>
 
       {user.email_verified_at && (

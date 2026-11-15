@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CancelEmailChangeRequest;
 use App\Http\Requests\ConfirmEmailChangeRequest;
 use App\Http\Requests\SendEmailChangeRequest;
 use App\Services\EmailChangeService;
@@ -19,6 +20,13 @@ class EmailChangeController extends Controller
     public function confirm(ConfirmEmailChangeRequest $request, EmailChangeService $service): Response
     {
         $service->confirm($request->user(), $request->validated('id'), $request->validated('hash'));
+
+        return response()->noContent();
+    }
+
+    public function destroy(CancelEmailChangeRequest $request, EmailChangeService $service): Response
+    {
+        $service->cancel($request->user());
 
         return response()->noContent();
     }
