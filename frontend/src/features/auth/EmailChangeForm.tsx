@@ -16,8 +16,6 @@ import {
 } from "./validation";
 
 const FIELDS = ["pending_email", "password"] as const;
-// SC-12には退会のパスワード欄もあるため、APIの項目名を保ったまま画面のIDだけ分ける
-const ID_PREFIX = "email-change-";
 
 type Props = {
   currentEmail: string;
@@ -26,7 +24,7 @@ type Props = {
   onSent?: () => void;
 };
 
-// SC-12-4・SC-13-4：初回と再送で同じ入力条件・API-27を使う
+// SC-17-4・SC-13-4：初回と再送で同じ入力条件・API-27を使う
 export function EmailChangeForm({
   currentEmail,
   pendingEmail,
@@ -35,7 +33,7 @@ export function EmailChangeForm({
 }: Props) {
   const router = useRouter();
   const redirectOnAuthError = useAuthErrorRedirect();
-  const fields = useFieldErrors(FIELDS, ID_PREFIX);
+  const fields = useFieldErrors(FIELDS);
   const busy = useRef(false);
   const [sending, setSending] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(initialWaitSeconds);
@@ -145,50 +143,44 @@ export function EmailChangeForm({
       )}
       {!resending && (
         <div>
-          <label
-            htmlFor={`${ID_PREFIX}pending_email`}
-            className="block font-medium"
-          >
+          <label htmlFor="pending_email" className="block font-medium">
             新しいメールアドレス
           </label>
           <input
-            id={`${ID_PREFIX}pending_email`}
+            id="pending_email"
             name="pending_email"
             type="email"
             autoComplete="email"
-            aria-describedby={`${ID_PREFIX}pending_email-error`}
+            aria-describedby="pending_email-error"
             aria-invalid={Boolean(fields.errors.pending_email)}
             onChange={() => fields.clear("pending_email")}
             className="w-full rounded border border-zinc-400 px-3 py-2"
           />
           <FieldError
-            id={`${ID_PREFIX}pending_email-error`}
+            id="pending_email-error"
             message={fields.errors.pending_email}
           />
         </div>
       )}
       {resending && (
         <FieldError
-          id={`${ID_PREFIX}pending_email-error`}
+          id="pending_email-error"
           message={fields.errors.pending_email}
         />
       )}
       <div>
-        <label htmlFor={`${ID_PREFIX}password`} className="block font-medium">
+        <label htmlFor="password" className="block font-medium">
           現在のパスワード
         </label>
         <PasswordInput
-          id={`${ID_PREFIX}password`}
+          id="password"
           name="password"
           autoComplete="current-password"
-          describedBy={`${ID_PREFIX}password-error`}
+          describedBy="password-error"
           invalid={Boolean(fields.errors.password)}
           onChange={() => fields.clear("password")}
         />
-        <FieldError
-          id={`${ID_PREFIX}password-error`}
-          message={fields.errors.password}
-        />
+        <FieldError id="password-error" message={fields.errors.password} />
       </div>
       <button
         type="submit"
