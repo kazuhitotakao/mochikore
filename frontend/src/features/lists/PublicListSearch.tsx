@@ -67,12 +67,12 @@ export function PublicListSearch({
   return (
     <form onSubmit={search} noValidate className="flex flex-col gap-4">
       {(serverMessage || otherError) && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {serverMessage ?? otherError}
         </p>
       )}
       <div>
-        <label htmlFor="keyword" className="block font-medium">
+        <label htmlFor="keyword" className="mb-1 block font-bold">
           リスト名で探す
         </label>
         <input
@@ -86,7 +86,7 @@ export function PublicListSearch({
             setKeyword(event.target.value);
             setErrors((current) => ({ ...current, keyword: undefined }));
           }}
-          className="w-full rounded border border-zinc-400 px-3 py-2"
+          className="field w-full"
         />
         <FieldError id="keyword-error" message={errors.keyword} />
       </div>
@@ -118,11 +118,7 @@ export function PublicListSearch({
         />
         <FieldError id="category_id-error" message={errors.category_id} />
       </div>
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn-primary">
         {pending ? "検索中…" : "検索"}
       </button>
     </form>

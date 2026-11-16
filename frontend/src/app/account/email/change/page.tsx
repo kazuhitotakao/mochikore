@@ -19,14 +19,14 @@ export default async function EmailChangeInputPage(
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={back ?? "/account"} />
-      <h1 className="text-2xl font-bold">メールアドレスの変更</h1>
+      <h1 className="text-2xl font-medium">メールアドレスの変更</h1>
 
       <div className="flex flex-col gap-1">
         {/* SC-12の表示から離れても、今のアドレスと別のものを入れやすくする */}
         <p className="break-all">現在：{user.email}</p>
         {/* API-27は確認中の変更先を置き換え、前の確認リンクを無効にする（D-72） */}
         {user.pending_email && (
-          <p className="break-all">
+          <p className="card-sunken mt-2 px-4 py-3 text-sm break-all text-muted">
             確認中：{user.pending_email}（別のアドレスを送ると置き換わります）
           </p>
         )}

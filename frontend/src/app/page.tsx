@@ -8,36 +8,31 @@ export default async function Home() {
 
   return (
     <main className="flex flex-col gap-6 py-12">
-      <h1 className="text-3xl font-bold">もちこれ</h1>
+      <h1 className="text-3xl font-bold text-brand-deep">もちこれ</h1>
       <p>
         用途ごとに持ち物・買い物のリストを作り、チェックして使えます。
         必要なら公開して、ほかの人にも見てもらえます。
       </p>
-      <Link
-        href="/register"
-        prefetch={false}
-        className="rounded bg-zinc-900 px-4 py-3 text-center text-white"
-      >
-        新規会員登録
-      </Link>
-      <Link
-        href="/login"
-        prefetch={false}
-        className="rounded border border-zinc-400 px-4 py-3 text-center"
-      >
-        ログイン
-      </Link>
+      {/* 画面の絵と同じく、2つのボタンは近づけて並べる */}
+      <div className="flex flex-col gap-3">
+        <Link href="/register" prefetch={false} className="btn-primary">
+          新規会員登録
+        </Link>
+        <Link href="/login" prefetch={false} className="btn-outline">
+          ログイン
+        </Link>
+      </div>
       <Link
         href="/public/lists"
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         公開リストを見る
       </Link>
       <Link
         href="/privacy"
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         プライバシーポリシー・お問い合わせ
       </Link>

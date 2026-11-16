@@ -73,7 +73,7 @@ export function RegisterForm({ currentPath }: { currentPath: string }) {
       )}
 
       <div>
-        <label htmlFor="email" className="block font-medium">
+        <label htmlFor="email" className="mb-1 block font-bold">
           メールアドレス
         </label>
         {/* SC-03-2：入力した文字を見直しやすい大きさで表示する */}
@@ -85,16 +85,16 @@ export function RegisterForm({ currentPath }: { currentPath: string }) {
           aria-describedby="email-error"
           aria-invalid={Boolean(fieldErrors.errors.email)}
           onChange={() => fieldErrors.clear("email")}
-          className="w-full rounded border border-zinc-400 px-3 py-2 text-lg"
+          className="field w-full text-lg"
         />
         <FieldError id="email-error" message={fieldErrors.errors.email} />
       </div>
 
       <div>
-        <label htmlFor="password" className="block font-medium">
+        <label htmlFor="password" className="mb-1 block font-bold">
           パスワード
         </label>
-        <p id="password-hint" className="text-sm text-zinc-600">
+        <p id="password-hint" className="mb-1 text-sm text-muted">
           空白を含めず、半角の英字・数字・記号で8〜72文字
         </p>
         <PasswordInput
@@ -108,11 +108,7 @@ export function RegisterForm({ currentPath }: { currentPath: string }) {
         <FieldError id="password-error" message={fieldErrors.errors.password} />
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-      >
+      <button type="submit" disabled={submitting} className="btn-primary">
         登録する
       </button>
     </form>
@@ -131,20 +127,20 @@ function RegisterError({
 
   if (code === "email_already_registered") {
     return (
-      <div role="alert" className="text-red-700">
+      <div role="alert" className="text-danger">
         <p>
           このメールアドレスはすでに登録されています。ログインするか、パスワードを再設定してください。
         </p>
         <div className="flex gap-4">
           <Link
             href={withFrom("/login", currentPath)}
-            className="underline tap-target"
+            className="text-link tap-target"
           >
             ログイン
           </Link>
           <Link
             href={withFrom("/forgot-password", currentPath)}
-            className="underline tap-target"
+            className="text-link tap-target"
           >
             パスワードを再設定
           </Link>
@@ -154,7 +150,7 @@ function RegisterError({
   }
 
   return (
-    <p role="alert" className="text-red-700">
+    <p role="alert" className="text-danger">
       {code === "too_many_requests"
         ? "しばらくしてから再度お試しください。"
         : code === "validation_error"

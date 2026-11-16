@@ -18,7 +18,7 @@ export default async function EmailChangePage(
     <main className="flex flex-col gap-6 py-8">
       {/* 共通2：SC-13はSC-12から進む画面なので、SC-12へ戻る */}
       <BackLink href="/account" />
-      <h1 className="text-2xl font-bold">メールを確認してください</h1>
+      <h1 className="text-2xl font-medium">メールを確認してください</h1>
       <EmailChangeResult
         key={currentPath}
         currentEmail={user.email}
@@ -31,7 +31,7 @@ export default async function EmailChangePage(
       <Link
         href="/account"
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         アカウント設定へ戻る
       </Link>

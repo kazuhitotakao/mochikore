@@ -207,13 +207,13 @@ export function ListForm({ categories, list }: Props) {
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
       {formError && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {formError}
         </p>
       )}
 
       <div>
-        <label htmlFor="title" className="block font-medium">
+        <label htmlFor="title" className="mb-1 block font-bold">
           リスト名（必須）
         </label>
         <input
@@ -228,7 +228,7 @@ export function ListForm({ categories, list }: Props) {
             setTitle(event.target.value);
             fieldErrors.clear("title");
           }}
-          className="w-full rounded border border-zinc-400 px-3 py-2"
+          className="field w-full"
         />
         <RemainingCount
           id="title-count"
@@ -246,12 +246,13 @@ export function ListForm({ categories, list }: Props) {
         aria-describedby="category_id-error"
         aria-invalid={Boolean(fieldErrors.errors.category_id)}
       >
-        <legend className="font-medium">カテゴリー（必須）</legend>
+        <legend className="font-bold">カテゴリー（必須）</legend>
         <div className="mt-2 flex flex-col gap-2">
           {categories.map((category) => (
             <label
               key={category.id}
-              className="flex items-start gap-3 rounded border border-zinc-300 px-3 py-2 has-[:checked]:border-zinc-900"
+              // 選んだものは枠の色だけでなく、薄い緑の背景と選択の丸でも示す
+              className="card flex items-start gap-3 px-3 py-2.5 has-[:checked]:border-brand has-[:checked]:bg-brand-soft"
             >
               <input
                 type="radio"
@@ -262,11 +263,11 @@ export function ListForm({ categories, list }: Props) {
                   setCategoryId(category.id);
                   fieldErrors.clear("category_id");
                 }}
-                className="mt-1"
+                className="mt-0.5"
               />
               <span>
                 <span className="block">{category.name}</span>
-                <span className="block text-sm text-zinc-600">
+                <span className="block text-sm text-muted">
                   {category.example}
                 </span>
               </span>
@@ -280,7 +281,7 @@ export function ListForm({ categories, list }: Props) {
       </fieldset>
 
       <div>
-        <label htmlFor="description" className="block font-medium">
+        <label htmlFor="description" className="mb-1 block font-bold">
           説明文（任意）
         </label>
         <textarea
@@ -295,7 +296,7 @@ export function ListForm({ categories, list }: Props) {
             setDescription(event.target.value);
             fieldErrors.clear("description");
           }}
-          className="w-full rounded border border-zinc-400 px-3 py-2"
+          className="field w-full"
         />
         <RemainingCount
           id="description-count"
@@ -323,17 +324,17 @@ export function ListForm({ categories, list }: Props) {
                 if (savedList.is_public) void changeVisibility(false);
                 else setConfirmPublic(true);
               }}
-              className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+              className="btn-outline"
             >
               {savedList.is_public ? "非公開にする" : "公開にする"}
             </button>
           </div>
           {moderated && (
-            <p id="moderated-notice" className="text-sm text-zinc-700">
+            <p id="moderated-notice" className="text-sm text-muted">
               このリストは運営により非公開になっています。 お問い合わせ：
               <a
                 href="mailto:simasyam@gmail.com"
-                className="underline tap-target"
+                className="text-link tap-target"
               >
                 simasyam@gmail.com
               </a>
@@ -346,11 +347,7 @@ export function ListForm({ categories, list }: Props) {
         </section>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-      >
+      <button type="submit" disabled={submitting} className="btn-primary">
         保存
       </button>
       <ConfirmDialog
@@ -379,7 +376,7 @@ function RemainingCount({
   const remaining = max - length;
 
   return (
-    <p id={id} className="mt-1 text-sm text-zinc-600">
+    <p id={id} className="mt-1 text-right text-sm text-muted">
       {remaining >= 0
         ? `残り${remaining}文字`
         : `${-remaining}文字多くなっています`}

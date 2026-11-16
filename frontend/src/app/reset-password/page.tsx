@@ -20,18 +20,18 @@ export default async function ResetPasswordPage(
           直接来た人にも行き先が分かるよう矢印の横に書く（利用者の指示） */}
       <BackLink href="/login" label="ログインへ" />
       {/* SC-15-2：リンクが使えないときも、何の画面か分かるよう見出しは出す */}
-      <h1 className="text-2xl font-bold">新しいパスワードを設定</h1>
+      <h1 className="text-2xl font-medium">新しいパスワードを設定</h1>
 
       {hasLink ? (
         <ResetPasswordForm token={token} email={email} />
       ) : (
         // C-04：tokenがないときの文言。入力しても保存できないので、入力欄は出さない
-        <div role="alert" className="flex flex-col gap-2 text-red-700">
+        <div role="alert" className="flex flex-col gap-2 text-danger">
           <p>再設定用のリンクを開き直してください。</p>
           {/* リンクが使えないときは、エラーの近くでメールの送り直しを案内する（利用者の指示、SC-15-5と同じ文言） */}
           <Link
             href="/forgot-password"
-            className="self-start underline tap-target"
+            className="self-start text-link tap-target"
           >
             再設定メールを送り直す
           </Link>

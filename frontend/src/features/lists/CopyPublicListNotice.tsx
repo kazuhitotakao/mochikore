@@ -23,7 +23,7 @@ export function CopyPublicListNotice() {
   return (
     <p
       role="status"
-      className="rounded border border-green-300 bg-green-50 px-4 py-3 text-green-900"
+      className="rounded-xl border border-brand/30 bg-brand-soft px-4 py-3 text-brand-deep"
     >
       リストをコピーしました。
     </p>

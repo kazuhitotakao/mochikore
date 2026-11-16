@@ -109,11 +109,11 @@ export function DeleteAccountDialog() {
   }
 
   return (
-    <div className="mt-6 border-t border-zinc-200 pt-6">
+    <div className="mt-2 border-t border-line-soft pt-6">
       <button
         type="button"
         onClick={start}
-        className="text-sm text-red-700 underline tap-target"
+        className="text-sm text-danger underline underline-offset-4 tap-target"
       >
         アカウントを削除
       </button>
@@ -126,7 +126,7 @@ export function DeleteAccountDialog() {
           closeIfIdle();
         }}
         {...backdrop}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded bg-background p-6 text-foreground backdrop:bg-black/40"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
       >
         {/* 閉じるたびに入力と表示切替を作り直し、パスワードを残さない */}
         <form
@@ -150,12 +150,12 @@ export function DeleteAccountDialog() {
             <p>削除すると元に戻せません。</p>
           </div>
           {formError && (
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {formError}
             </p>
           )}
           <fieldset disabled={submitting} className="flex flex-col gap-2">
-            <label htmlFor="password" className="font-medium">
+            <label htmlFor="password" className="font-bold">
               現在のパスワード
             </label>
             <PasswordInput
@@ -177,14 +177,14 @@ export function DeleteAccountDialog() {
               ref={cancelRef}
               disabled={submitting}
               onClick={() => setOpen(false)}
-              className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+              className="btn-outline"
             >
               やめる
             </button>
             <button
               type="submit"
               disabled={submitting || waitSeconds > 0}
-              className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
+              className="btn-danger"
             >
               {submitting ? "削除中…" : "削除する"}
             </button>

@@ -236,9 +236,9 @@ export function SavedItemPanel({
       {...backdrop}
       // 利用者の指示：スマホ幅（640px未満）は親指で選びやすいよう画面の下から出し、
       // 640px以上はほかのダイアログと同じく中央に出す（640pxはSC-09の2列と同じ境目、D-73）
-      className="mx-auto mt-auto mb-0 w-full max-w-[640px] rounded-t bg-background p-0 text-foreground backdrop:bg-black/40 sm:my-auto sm:max-w-lg sm:rounded"
+      className="mx-auto mt-auto mb-0 w-full max-w-[640px] rounded-t-3xl bg-background p-0 text-foreground backdrop:bg-overlay/50 sm:my-auto sm:max-w-lg sm:rounded-2xl"
     >
-      <div className="flex max-h-[80vh] flex-col gap-4 px-4 py-4">
+      <div className="flex max-h-[80vh] flex-col gap-4 px-5 py-5">
         {/* SC-08-2：閉じても追加しない */}
         <div className="flex items-center justify-between gap-3">
           <h2 id="saved-item-panel-heading" className="text-lg font-bold">
@@ -250,7 +250,7 @@ export function SavedItemPanel({
             aria-label="閉じる"
             onClick={onClose}
             disabled={adding}
-            className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded disabled:opacity-50"
+            className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-sunken disabled:opacity-50"
           >
             <svg
               aria-hidden="true"
@@ -288,13 +288,13 @@ export function SavedItemPanel({
             <p role="status">読み込み中…</p>
           ) : "error" in current ? (
             <div className="flex flex-col gap-2">
-              <p role="alert" className="text-red-700">
+              <p role="alert" className="text-danger">
                 {current.error}
               </p>
               <button
                 type="button"
                 onClick={() => setReloadCount((count) => count + 1)}
-                className="self-start rounded border border-zinc-400 px-3 py-1"
+                className="self-start btn-outline btn-sm"
               >
                 もう一度読み込む
               </button>
@@ -311,7 +311,7 @@ export function SavedItemPanel({
                 return (
                   <li
                     key={savedItem.id}
-                    className="flex items-center gap-3 border-b border-zinc-200"
+                    className="flex items-center gap-3 border-b border-line-soft"
                   >
                     {/* 行の余白も押せるよう、上下の余白はボタンの中に持たせ、高さを44px以上にする */}
                     <button
@@ -324,8 +324,8 @@ export function SavedItemPanel({
                         aria-hidden="true"
                         className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 text-sm ${
                           selected
-                            ? "border-zinc-900 bg-zinc-900 text-white"
-                            : "border-zinc-400"
+                            ? "border-brand bg-brand text-white"
+                            : "border-line-strong"
                         }`}
                       >
                         {selected ? "✓" : ""}
@@ -334,7 +334,9 @@ export function SavedItemPanel({
                         {savedItem.name}
                       </span>
                       {selected && (
-                        <span className="shrink-0 text-xs">選択中</span>
+                        <span className="shrink-0 text-xs text-muted">
+                          選択中
+                        </span>
                       )}
                     </button>
                     <button
@@ -344,7 +346,7 @@ export function SavedItemPanel({
                         setDeleteError(null);
                         setDeleteTarget(savedItem);
                       }}
-                      className="min-h-11 shrink-0 rounded px-3 text-sm text-red-700"
+                      className="min-h-11 shrink-0 rounded px-3 text-sm text-danger underline underline-offset-4"
                     >
                       削除
                     </button>
@@ -356,35 +358,37 @@ export function SavedItemPanel({
         </div>
 
         {/* SC-08-6：選択件数と「追加」。1件以上選ぶと押せる */}
-        <div className="flex flex-col gap-2 border-t border-zinc-300 pt-3">
+        <div className="flex flex-col gap-2 border-t border-line pt-3">
           {addError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {addError}
             </p>
           )}
           {currentRevision && "error" in currentRevision && (
             <div className="flex items-center gap-3">
-              <p role="alert" className="text-sm text-red-700">
+              <p role="alert" className="text-sm text-danger">
                 {currentRevision.error}
               </p>
               <button
                 type="button"
                 onClick={() => setRevisionLoadCount((count) => count + 1)}
-                className="shrink-0 rounded border border-zinc-400 px-3 py-1 text-sm"
+                className="shrink-0 btn-outline btn-sm"
               >
                 もう一度読み込む
               </button>
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-            <p role="status">{selectedIds.length}件選択中</p>
+            <p role="status" className="text-sm text-muted">
+              {selectedIds.length}件選択中
+            </p>
             <button
               type="button"
               onClick={() => void handleAdd()}
               disabled={
                 selectedIds.length === 0 || adding || baseRevision === null
               }
-              className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
+              className="btn-primary"
             >
               追加
             </button>

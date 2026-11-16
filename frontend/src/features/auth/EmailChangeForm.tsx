@@ -137,13 +137,13 @@ export function EmailChangeForm({
       className="flex flex-col gap-4"
     >
       {formError && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {formError}
         </p>
       )}
       {!resending && (
         <div>
-          <label htmlFor="pending_email" className="block font-medium">
+          <label htmlFor="pending_email" className="mb-1 block font-bold">
             新しいメールアドレス
           </label>
           <input
@@ -154,7 +154,7 @@ export function EmailChangeForm({
             aria-describedby="pending_email-error"
             aria-invalid={Boolean(fields.errors.pending_email)}
             onChange={() => fields.clear("pending_email")}
-            className="w-full rounded border border-zinc-400 px-3 py-2"
+            className="field w-full"
           />
           <FieldError
             id="pending_email-error"
@@ -169,7 +169,7 @@ export function EmailChangeForm({
         />
       )}
       <div>
-        <label htmlFor="password" className="block font-medium">
+        <label htmlFor="password" className="mb-1 block font-bold">
           現在のパスワード
         </label>
         <PasswordInput
@@ -185,7 +185,7 @@ export function EmailChangeForm({
       <button
         type="submit"
         disabled={sending || waitSeconds > 0}
-        className="self-start rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
+        className="self-start btn-primary"
       >
         {sending
           ? "送信中…"

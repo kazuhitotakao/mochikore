@@ -98,7 +98,7 @@ export function CategoryPicker<V extends string | number | null>({
       onKeyDown={handleKeyDown}
       className={open ? "flex min-h-0 flex-col" : undefined}
     >
-      <span id={labelId} className="block font-medium">
+      <span id={labelId} className="mb-1 block font-bold">
         {label}
       </span>
       <button
@@ -111,12 +111,13 @@ export function CategoryPicker<V extends string | number | null>({
         aria-controls={listId}
         aria-describedby={describedBy}
         onClick={() => setOpen(!open)}
-        className={`flex w-full items-center justify-between gap-3 rounded border px-3 py-2 text-left disabled:opacity-50 ${invalid ? "border-red-700" : "border-zinc-400"}`}
+        data-invalid={invalid}
+        className="field flex w-full items-center justify-between gap-3 text-left"
       >
         <span id={valueId} className="min-w-0 wrap-break-word">
           {current?.label ?? placeholder}
         </span>
-        <span aria-hidden="true" className="shrink-0 text-sm">
+        <span aria-hidden="true" className="shrink-0 text-sm text-brand">
           {open ? "▲" : "▼"}
         </span>
       </button>
@@ -126,7 +127,7 @@ export function CategoryPicker<V extends string | number | null>({
           ref={list}
           id={listId}
           aria-labelledby={labelId}
-          className="mt-1 max-h-64 min-h-0 divide-y divide-zinc-200 overflow-y-auto rounded border border-zinc-400"
+          className="mt-1 max-h-64 min-h-0 divide-y divide-line-soft overflow-y-auto rounded-xl border border-line-strong bg-white"
         >
           {options.map((option) => {
             const selected = option.value === value;
@@ -137,7 +138,7 @@ export function CategoryPicker<V extends string | number | null>({
                   type="button"
                   aria-current={selected ? "true" : undefined}
                   onClick={() => choose(option.value)}
-                  className={`flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-500/10 ${selected ? "font-bold" : ""}`}
+                  className={`flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left hover:bg-sunken ${selected ? "bg-brand-soft font-bold text-brand-deep" : ""}`}
                 >
                   <span aria-hidden="true" className="w-4 shrink-0">
                     {selected ? "✓" : ""}

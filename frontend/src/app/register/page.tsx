@@ -13,13 +13,13 @@ export default async function RegisterPage(props: PageProps<"/register">) {
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={back ?? "/"} />
-      <h1 className="text-2xl font-bold">新規会員登録</h1>
+      <h1 className="text-2xl font-medium">新規会員登録</h1>
 
       <p className="text-sm">
         <Link
           href={withFrom("/privacy", currentPath)}
           prefetch={false}
-          className="underline tap-target"
+          className="text-link tap-target"
         >
           プライバシーポリシー・お問い合わせ
         </Link>
@@ -30,7 +30,7 @@ export default async function RegisterPage(props: PageProps<"/register">) {
 
       <Link
         href={withFrom("/login", currentPath)}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         ログイン
       </Link>

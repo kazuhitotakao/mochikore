@@ -67,7 +67,7 @@ export function SavedGroupCandidates({
 
   return (
     <section aria-label="よく使うグループ" className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">よく使うグループ</h3>
+      <h3 className="text-sm font-bold">よく使うグループ</h3>
       {candidates === null ? (
         // 共通3：応答を待つ間だけ出す
         <p role="status" className="text-sm">
@@ -76,19 +76,19 @@ export function SavedGroupCandidates({
       ) : "error" in candidates ? (
         // SC-09-1：候補を読めなくても、名前を入力して追加できる
         <div className="flex items-center gap-3">
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" className="text-sm text-danger">
             {candidates.error}
           </p>
           <button
             type="button"
             onClick={onRetry}
-            className="shrink-0 rounded border border-zinc-400 px-3 py-1 text-sm"
+            className="shrink-0 btn-outline btn-sm"
           >
             もう一度読み込む
           </button>
         </div>
       ) : candidates.savedGroups.length === 0 ? (
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted">
           保存したグループはありません。丸の「…」から保存できます。
         </p>
       ) : (
@@ -98,7 +98,7 @@ export function SavedGroupCandidates({
             return (
               <li
                 key={savedGroup.id}
-                className="flex items-center gap-3 border-b border-zinc-200"
+                className="flex items-center gap-3 border-b border-line-soft"
               >
                 {/* 指で押しやすいよう、候補と「削除」は高さ44px以上にする（利用者の指示） */}
                 <button
@@ -111,7 +111,11 @@ export function SavedGroupCandidates({
                     {savedGroup.name}
                   </span>
                   {/* 色だけでなく文字でも、追加できない理由を示す */}
-                  {taken && <span className="shrink-0 text-xs">追加済み</span>}
+                  {taken && (
+                    <span className="shrink-0 text-xs text-muted">
+                      追加済み
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -120,7 +124,7 @@ export function SavedGroupCandidates({
                     setDeleteError(null);
                     setDeleteTarget(savedGroup);
                   }}
-                  className="min-h-11 shrink-0 rounded px-3 text-sm text-red-700"
+                  className="min-h-11 shrink-0 rounded px-3 text-sm text-danger underline underline-offset-4"
                 >
                   削除
                 </button>

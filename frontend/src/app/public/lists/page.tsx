@@ -65,7 +65,7 @@ export default async function PublicListsPage(
     <>
       <main className="flex flex-col gap-6 py-8">
         <BackLink href={user ? "/lists" : "/"} />
-        <h1 className="text-2xl font-bold">公開リスト</h1>
+        <h1 className="text-2xl font-medium">公開リスト</h1>
         <PublicListSearch
           key={
             query.toString() +
@@ -83,24 +83,24 @@ export default async function PublicListsPage(
             {result.data.length === 0 ? (
               <p>見つかりませんでした。</p>
             ) : (
-              <ul aria-label="検索結果" className="flex flex-col gap-2">
+              <ul aria-label="検索結果" className="flex flex-col gap-3">
                 {result.data.map((list) => (
                   <li key={list.id}>
                     <Link
                       href={publicListDetailHref(list.id, query)}
                       prefetch={false}
-                      className="flex flex-col gap-1 rounded border border-zinc-300 px-4 py-3 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2"
+                      className="card flex flex-col gap-1 px-4 py-3 hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     >
                       <h2 className="font-medium wrap-break-word">
                         {list.title}
                       </h2>
                       {list.description && (
-                        <p className="line-clamp-2 text-sm text-zinc-600">
+                        <p className="line-clamp-2 text-sm text-muted">
                           {list.description}
                         </p>
                       )}
-                      <p className="text-sm text-zinc-600">
-                        {list.category.name}
+                      <p className="mt-1">
+                        <span className="tag">{list.category.name}</span>
                       </p>
                     </Link>
                   </li>
@@ -115,26 +115,26 @@ export default async function PublicListsPage(
                 <Link
                   href={publicListHref(query, result.meta.current_page - 1)}
                   prefetch={false}
-                  className="rounded border border-zinc-400 px-3 py-2"
+                  className="btn-outline px-4"
                 >
                   前へ
                 </Link>
               ) : (
-                <span className="px-3 py-2 text-zinc-400">前へ</span>
+                <span className="px-4 py-2 text-faint">前へ</span>
               )}
-              <span>
+              <span className="text-sm text-muted">
                 {result.meta.current_page} / {result.meta.last_page}ページ
               </span>
               {result.meta.current_page < result.meta.last_page ? (
                 <Link
                   href={publicListHref(query, result.meta.current_page + 1)}
                   prefetch={false}
-                  className="rounded border border-zinc-400 px-3 py-2"
+                  className="btn-outline px-4"
                 >
                   次へ
                 </Link>
               ) : (
-                <span className="px-3 py-2 text-zinc-400">次へ</span>
+                <span className="px-4 py-2 text-faint">次へ</span>
               )}
             </nav>
           </>

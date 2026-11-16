@@ -14,11 +14,11 @@ export default async function ForgotPasswordPage(
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={back} />
-      <h1 className="text-2xl font-bold">パスワードの再設定</h1>
+      <h1 className="text-2xl font-medium">パスワードの再設定</h1>
 
       <ForgotPasswordForm />
 
-      <Link href="/login" className="self-start underline tap-target">
+      <Link href="/login" className="self-start text-link tap-target">
         ログイン画面へ戻る
       </Link>
     </main>

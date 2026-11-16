@@ -1,37 +1,120 @@
 @import "tailwindcss";
 
 /*
-  D-73：配色が決まるまでは、端末のダークモードに関係なく明るい表示に固定する（利用者の指示）。
-  背景だけが暗くなると、黒いボタン・選択の印が背景に溶けて見えなくなるため。
+  D-73：配色は「02_画面の絵」の生成り色と深い緑に決めた（利用者の指示）。
+  暗い表示用の配色は作っていないので、端末のダークモードに関係なく明るい表示に固定する。
   dark: の指定は .dark を付けたときだけ効くようにし、端末の設定では切り替えない。
 */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
   /* 入力欄・スクロールバーなどブラウザが描く部品も明るい表示にそろえる */
   color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/*
+  D-73：画面の色は、ここに付けた名前で使う（bg-brand・text-muted・border-line など）。
+  部品ごとに色の値を直接書かない。「02_画面の絵」と同じ色。
+*/
+@theme {
+  /* 地の色：画面の外側（パソコンの左右）、画面の地、少し沈めた枠 */
+  --color-canvas: #f6f1e6;
+  --color-background: #fffdf8;
+  --color-sunken: #fbf8f1;
+  /* 文字：本文、補足、入力例 */
+  --color-foreground: #3d3a33;
+  --color-muted: #7c7468;
+  --color-faint: #a79e8e;
+  /* 線：行の区切り、枠、入力欄の枠 */
+  --color-line-soft: #eee7d9;
+  --color-line: #ddd4c2;
+  --color-line-strong: #cfc5b1;
+  /* 深い緑：ボタン・リンク、濃い見出し、薄い背景（グループの見出し・選んだもの） */
+  --color-brand: #2f6652;
+  --color-brand-deep: #24503f;
+  --color-brand-soft: #e5eddf;
+  /* 控えめなラベル・未分類の見出しの背景 */
+  --color-sand: #efe9dc;
+  /* 削除・エラー */
+  --color-danger: #b24a3b;
+  /* ダイアログの後ろに敷く色（半透明で使う） */
+  --color-overlay: #0f1b14;
 }
 
 /*
-  D-73：押せるボタン・チェック欄・選択肢は、マウスを重ねるとリンクと同じ指の形にする（利用者の指示）。
-  Tailwind v4 はボタンも矢印のままにするため。押せないときは矢印に戻す。
-  並べ替えでつかむ所（cursor-grab）など部品で指定した形は、utilities が base より強いのでそちらが残る。
-  dnd-kit がドラッグできる行に付ける role="button" は対象にしない（行全体が指の形になるため）。
+  D-73：書体は Noto Sans JP（layout.tsx で読み込む）。
+  読み込みが終わるまで・読めなかったときは、端末の日本語の書体で表示する。
 */
+@theme inline {
+  --font-sans:
+    var(--font-noto-sans-jp), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", Meiryo, sans-serif;
+}
+
 @layer base {
+  /*
+    D-73：押せるボタン・チェック欄・選択肢は、マウスを重ねるとリンクと同じ指の形にする（利用者の指示）。
+    Tailwind v4 はボタンも矢印のままにするため。押せないときは矢印に戻す。
+    並べ替えでつかむ所（cursor-grab）など部品で指定した形は、utilities が base より強いのでそちらが残る。
+    dnd-kit がドラッグできる行に付ける role="button" は対象にしない（行全体が指の形になるため）。
+  */
   button:not(:disabled),
   input:is([type="checkbox"], [type="radio"]):not(:disabled, [readonly]),
   label:has(> input:is([type="checkbox"], [type="radio"]):not(:disabled)) {
     cursor: pointer;
+  }
+
+  /*
+    D-73：チェック欄と選択肢は、ブラウザ標準の青ではなく画面の絵と同じ生成りの枠と深い緑にする。
+    付いているかどうかは色だけでなく、✓ と中の丸でも示す。
+  */
+  input:is([type="checkbox"], [type="radio"]) {
+    appearance: none;
+    flex-shrink: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1.5px solid var(--color-line-strong);
+    background-color: #fff;
+    vertical-align: middle;
+  }
+
+  input[type="checkbox"] {
+    border-radius: 0.3125rem;
+    background-position: center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+  }
+
+  input[type="checkbox"]:checked {
+    border-color: var(--color-brand);
+    background-color: var(--color-brand);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 10.5l3.2 3.2L15 6.8'/%3E%3C/svg%3E");
+  }
+
+  input[type="radio"] {
+    border-radius: 9999px;
+  }
+
+  input[type="radio"]:checked {
+    border-color: var(--color-brand);
+    background-color: var(--color-brand);
+    box-shadow: inset 0 0 0 3px #fff;
+  }
+
+  input:is([type="checkbox"], [type="radio"]):disabled {
+    opacity: 0.5;
+  }
+
+  input:is([type="checkbox"], [type="radio"]):focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /* 色を強制する表示（Windowsのハイコントラストなど）では背景の ✓ が消えるので、ブラウザ標準の形に戻す */
+  @media (forced-colors: active) {
+    input:is([type="checkbox"], [type="radio"]) {
+      appearance: auto;
+    }
   }
 }
 
@@ -53,8 +136,193 @@
   }
 }
 
+/*
+  D-73：ボタン・入力欄・リンク・枠・ラベルの形は、ここでそろえる（画面の絵と同じ形）。
+  Tailwind v4 は指定の多いものを先に並べるので、px-3 などを足せばその画面だけ変えられる。
+*/
+
+/* 一番目立つボタン（深い緑の塗り）。高さは押しやすい44px以上 */
+@utility btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  border: 1.5px solid var(--color-brand);
+  border-radius: 0.625rem;
+  background-color: var(--color-brand);
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-brand-deep);
+    background-color: var(--color-brand-deep);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+/* 控えめなボタン（深い緑の枠と文字） */
+@utility btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  border: 1.5px solid var(--color-brand);
+  border-radius: 0.625rem;
+  background-color: var(--color-background);
+  color: var(--color-brand);
+  font-weight: 500;
+  text-align: center;
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-brand-soft);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+/* 削除を確定するボタン（赤の塗り） */
+@utility btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  border: 1.5px solid var(--color-danger);
+  border-radius: 0.625rem;
+  background-color: var(--color-danger);
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+
+  &:disabled {
+    opacity: 0.5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-danger);
+    outline-offset: 2px;
+  }
+}
+
+/* 行の中に置く小さめのボタン。btn-outline などに足して使う */
+@utility btn-sm {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.875rem;
+  font-size: 0.875rem;
+}
+
+/* 入力欄。白い地に生成りの枠で、選ぶと深い緑の枠になる。エラーは赤い枠と下の文で示す */
+@utility field {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: 0.625rem;
+  background-color: #fff;
+  color: var(--color-foreground);
+
+  &::placeholder {
+    color: var(--color-faint);
+  }
+
+  &:focus-visible,
+  &:focus-within {
+    border-color: var(--color-brand);
+    outline: 2px solid var(--color-brand-soft);
+    outline-offset: 0;
+  }
+
+  /* 入力中（選んでいる間）も、エラーの赤い枠を残す。枠の中に入力欄を置く部品（パスワード欄）も同じ */
+  &[aria-invalid="true"],
+  &[data-invalid="true"],
+  &:has([aria-invalid="true"]) {
+    border-color: var(--color-danger);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
+}
+
+/* 文字のリンク（深い緑の下線） */
+@utility text-link {
+  color: var(--color-brand);
+  text-decoration-line: underline;
+  text-underline-offset: 0.2em;
+
+  &:hover {
+    color: var(--color-brand-deep);
+  }
+}
+
+/* リストなどを1件ずつ囲む白い枠 */
+@utility card {
+  border: 1px solid var(--color-line);
+  border-radius: 0.875rem;
+  background-color: #fff;
+}
+
+/* 補足を囲む、少し沈めた枠 */
+@utility card-sunken {
+  border: 1px solid var(--color-line);
+  border-radius: 0.875rem;
+  background-color: var(--color-sunken);
+}
+
+/* カテゴリー・公開のラベル（薄い緑） */
+@utility tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  background-color: var(--color-brand-soft);
+  color: var(--color-brand-deep);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+/* 非公開のラベル（控えめな生成り）。色だけでなく「公開」「非公開」の文字でも示す */
+@utility tag-muted {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  background-color: var(--color-sand);
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+/* 「…」から開くメニュー */
+@utility menu {
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background-color: #fff;
+  box-shadow:
+    0 8px 24px rgb(61 58 51 / 0.14),
+    0 1px 3px rgb(61 58 51 / 0.08);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
 }

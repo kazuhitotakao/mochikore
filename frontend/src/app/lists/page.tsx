@@ -14,8 +14,8 @@ export default async function ListsPage(props: PageProps<"/lists">) {
   return (
     <main className="flex flex-col gap-6 py-8">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">自分のリスト</h1>
-        <p>
+        <h1 className="text-2xl font-medium">自分のリスト</h1>
+        <p className="text-sm text-muted">
           {lists.length}/{MAX_LISTS}件
         </p>
       </div>
@@ -28,11 +28,10 @@ export default async function ListsPage(props: PageProps<"/lists">) {
       {/* SC-05-3：100件のときは押せない */}
       {isFull ? (
         <div className="flex flex-col gap-1">
-          <button
-            type="button"
-            disabled
-            className="self-start rounded bg-zinc-900 px-4 py-2 text-white opacity-50"
-          >
+          <button type="button" disabled className="self-start btn-primary">
+            <span aria-hidden="true" className="mr-1.5">
+              ＋
+            </span>
             新しいリスト
           </button>
           <p>リストは100件までです。</p>
@@ -41,8 +40,11 @@ export default async function ListsPage(props: PageProps<"/lists">) {
         <Link
           href="/lists/new"
           prefetch={false}
-          className="self-start rounded bg-zinc-900 px-4 py-2 text-white"
+          className="self-start btn-primary"
         >
+          <span aria-hidden="true" className="mr-1.5">
+            ＋
+          </span>
           新しいリスト
         </Link>
       )}
@@ -51,24 +53,26 @@ export default async function ListsPage(props: PageProps<"/lists">) {
         <p>リストはまだありません。</p>
       ) : (
         // D-24：更新が新しい順で届く。同じ名前のリストも1件ずつ出す
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {lists.map((list) => (
             <li key={list.id}>
               <Link
                 href={`/lists/${list.id}`}
                 prefetch={false}
-                className="flex flex-col gap-1 rounded border border-zinc-300 px-4 py-3"
+                className="card flex flex-col gap-1 px-4 py-3 hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
                 <span className="font-medium">{list.title}</span>
                 {list.description && (
-                  <span className="truncate text-sm text-zinc-600">
+                  <span className="truncate text-sm text-muted">
                     {list.description}
                   </span>
                 )}
-                <span className="flex flex-wrap gap-x-3 text-sm text-zinc-600">
+                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                   {/* 利用者の指示で、持ち物の件数は出さない（D-63） */}
-                  <span>{list.category.name}</span>
-                  <span>{list.is_public ? "公開" : "非公開"}</span>
+                  <span className="tag">{list.category.name}</span>
+                  <span className={list.is_public ? "tag" : "tag-muted"}>
+                    {list.is_public ? "公開" : "非公開"}
+                  </span>
                   <span>更新 {formatDate(list.updated_at)}</span>
                 </span>
               </Link>
@@ -80,14 +84,14 @@ export default async function ListsPage(props: PageProps<"/lists">) {
       <Link
         href="/public/lists"
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         公開リストを見る
       </Link>
       <Link
         href="/account"
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         アカウント設定
       </Link>

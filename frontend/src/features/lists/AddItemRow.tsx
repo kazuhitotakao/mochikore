@@ -144,7 +144,7 @@ export function AddItemRow({ listId, onAdded }: Props) {
 
   return (
     <div
-      className="flex flex-col gap-1 border-b border-zinc-200 py-2"
+      className="flex flex-col gap-1 border-b border-line-soft py-2"
       role="group"
       aria-label="持ち物の追加"
     >
@@ -195,14 +195,14 @@ export function AddItemRow({ listId, onAdded }: Props) {
               });
             }
           }}
-          className="min-h-6 min-w-0 flex-1 scroll-mb-24 bg-transparent pr-2 text-base outline-none placeholder:text-zinc-400 focus-visible:outline-1 focus-visible:outline-zinc-400"
+          className="min-h-6 min-w-0 flex-1 scroll-mb-24 bg-transparent pr-2 text-base outline-none placeholder:text-faint focus-visible:outline-1 focus-visible:outline-line-strong"
         />
       </div>
       {error && (
         <p
           id="new-item-error"
           role="alert"
-          className="pl-7 text-sm text-red-700"
+          className="pl-7 text-sm text-danger"
         >
           {error}
         </p>

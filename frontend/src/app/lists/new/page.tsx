@@ -18,7 +18,7 @@ export default async function NewListPage() {
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href="/lists" />
-      <h1 className="text-2xl font-bold">新しいリスト</h1>
+      <h1 className="text-2xl font-medium">新しいリスト</h1>
       <ListForm categories={categories} />
     </main>
   );

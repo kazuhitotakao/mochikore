@@ -26,9 +26,9 @@ export function LogoutButton() {
   }
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       {error && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {error}
         </p>
       )}
@@ -36,7 +36,7 @@ export function LogoutButton() {
         type="button"
         onClick={handleClick}
         disabled={submitting}
-        className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+        className="btn-outline w-full"
       >
         ログアウト
       </button>

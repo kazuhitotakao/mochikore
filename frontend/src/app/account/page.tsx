@@ -19,10 +19,10 @@ export default async function AccountPage(props: PageProps<"/account">) {
     <main className="flex flex-col gap-6 py-8">
       {/* メール未認証ならSC-05を開いたときにSC-04へ移る（共通8） */}
       <BackLink href={back ?? "/lists"} />
-      <h1 className="text-2xl font-bold">アカウント設定</h1>
+      <h1 className="text-2xl font-medium">アカウント設定</h1>
 
       <section className="flex flex-col gap-1">
-        <h2 className="font-medium">メールアドレス</h2>
+        <h2 className="font-bold">メールアドレス</h2>
         <p className="break-all">{user.email}</p>
         {/* 取り消した後の案内を残すため、確認中がなくても置いておく（D-107） */}
         <PendingEmailStatus pendingEmail={user.pending_email} />
@@ -31,7 +31,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
           <Link
             href={withFrom("/account/email/change", currentPath)}
             prefetch={false}
-            className="self-start underline tap-target"
+            className="self-start text-link tap-target"
           >
             メールアドレスを変更
           </Link>
@@ -40,7 +40,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
           <Link
             href="/account/email"
             prefetch={false}
-            className="self-start underline tap-target"
+            className="self-start text-link tap-target"
           >
             確認メールの案内を開く
           </Link>
@@ -50,7 +50,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
       {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える */}
       <Link
         href={withFrom("/forgot-password", currentPath)}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         パスワードを変更
       </Link>
@@ -58,7 +58,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
       <Link
         href={withFrom("/privacy", currentPath)}
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         プライバシーポリシー・お問い合わせ
       </Link>

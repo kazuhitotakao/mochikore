@@ -77,15 +77,15 @@ export function ResetPasswordForm({ token, email }: Props) {
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       {formError?.kind === "link_invalid" && (
         // SC-15-5：422 link_invalid のときだけ、メールの送り直しを案内する
-        <div role="alert" className="text-red-700">
+        <div role="alert" className="text-danger">
           <p>リンクの有効期限が切れているか、すでに使われています。</p>
-          <Link href="/forgot-password" className="underline tap-target">
+          <Link href="/forgot-password" className="text-link tap-target">
             再設定メールを送り直す
           </Link>
         </div>
       )}
       {formError?.kind === "message" && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {formError.text}
         </p>
       )}
@@ -95,7 +95,7 @@ export function ResetPasswordForm({ token, email }: Props) {
         <label htmlFor="password" className="sr-only">
           新しいパスワード
         </label>
-        <p id="password-hint" className="text-sm text-zinc-600">
+        <p id="password-hint" className="mb-1 text-sm text-muted">
           空白を含めず、半角の英字・数字・記号で8〜72文字
         </p>
         <PasswordInput
@@ -109,11 +109,7 @@ export function ResetPasswordForm({ token, email }: Props) {
         <FieldError id="password-error" message={fieldErrors.errors.password} />
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-      >
+      <button type="submit" disabled={submitting} className="btn-primary">
         設定する
       </button>
     </form>

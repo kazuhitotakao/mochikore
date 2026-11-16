@@ -73,13 +73,13 @@ export function LoginForm({ next }: Props) {
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       {formError && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {formError}
         </p>
       )}
 
       <div>
-        <label htmlFor="email" className="block font-medium">
+        <label htmlFor="email" className="mb-1 block font-bold">
           メールアドレス
         </label>
         <input
@@ -90,13 +90,13 @@ export function LoginForm({ next }: Props) {
           aria-describedby="email-error"
           aria-invalid={Boolean(fieldErrors.errors.email)}
           onChange={() => fieldErrors.clear("email")}
-          className="w-full rounded border border-zinc-400 px-3 py-2"
+          className="field w-full"
         />
         <FieldError id="email-error" message={fieldErrors.errors.email} />
       </div>
 
       <div>
-        <label htmlFor="password" className="block font-medium">
+        <label htmlFor="password" className="mb-1 block font-bold">
           パスワード
         </label>
         <PasswordInput
@@ -110,11 +110,7 @@ export function LoginForm({ next }: Props) {
         <FieldError id="password-error" message={fieldErrors.errors.password} />
       </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-      >
+      <button type="submit" disabled={submitting} className="btn-primary">
         ログイン
       </button>
     </form>
