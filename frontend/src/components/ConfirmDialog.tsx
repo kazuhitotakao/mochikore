@@ -56,11 +56,11 @@ export function ConfirmDialog({
         cancelIfIdle();
       }}
       {...backdrop}
-      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
     >
       <p id={messageId}>{message}</p>
       {error && (
-        <p role="alert" className="mt-3 text-red-700">
+        <p role="alert" className="mt-3 text-danger">
           {error}
         </p>
       )}
@@ -69,7 +69,7 @@ export function ConfirmDialog({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+          className="btn-outline"
         >
           {cancelLabel}
         </button>
@@ -77,7 +77,7 @@ export function ConfirmDialog({
           type="button"
           onClick={onConfirm}
           disabled={busy}
-          className={`rounded px-4 py-2 text-white disabled:opacity-50 ${destructive ? "bg-red-700" : "bg-zinc-900"}`}
+          className={`rounded px-4 py-2 text-white disabled:opacity-50 ${destructive ? "bg-danger" : "bg-brand"}`}
         >
           {confirmLabel}
         </button>

@@ -15,7 +15,7 @@ export function SwipeDeleteLayer({ visible, open, label, onDelete }: Props) {
 
   return (
     // 押したときに並べ替えのドラッグを始めない（components/dragSensors）
-    <div data-no-drag className="absolute inset-0 flex justify-end bg-red-700">
+    <div data-no-drag className="absolute inset-0 flex justify-end bg-danger">
       <button
         type="button"
         tabIndex={open ? 0 : -1}

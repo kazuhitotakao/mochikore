@@ -110,7 +110,8 @@ export function ReportListDialog({ listId }: { listId: number }) {
       <button
         type="button"
         onClick={start}
-        className="self-start underline tap-target"
+        // 画面の絵と同じく、ほかのリンクより控えめな色にする
+        className="self-start text-sm text-muted underline underline-offset-4 tap-target hover:text-foreground"
       >
         通報する
       </button>
@@ -126,19 +127,19 @@ export function ReportListDialog({ listId }: { listId: number }) {
           closeIfIdle();
         }}
         {...backdrop}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded bg-background p-6 text-foreground backdrop:bg-black/40"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
       >
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
           <h2 id={titleId} className="text-lg font-bold">
             通報
           </h2>
           {formError && (
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {formError}
             </p>
           )}
           <fieldset disabled={submitting} className="flex flex-col gap-3">
-            <legend className="mb-3 font-medium">通報理由</legend>
+            <legend className="mb-3 font-bold">通報理由</legend>
             {REASONS.map((entry, index) => (
               <label key={entry.value} className="flex items-start gap-2">
                 <input
@@ -152,7 +153,7 @@ export function ReportListDialog({ listId }: { listId: number }) {
                     setReason(event.target.value);
                     fields.clear("reason");
                   }}
-                  className="mt-1 size-4 shrink-0"
+                  className="mt-0.5 shrink-0"
                 />
                 {entry.label}
               </label>
@@ -165,15 +166,11 @@ export function ReportListDialog({ listId }: { listId: number }) {
               autoFocus
               disabled={submitting}
               onClick={() => setOpen(false)}
-              className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+              className="btn-outline"
             >
               やめる
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-            >
+            <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "送信中…" : "送信"}
             </button>
           </div>

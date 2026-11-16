@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// D-73：端末ごとに書体が変わらないよう、画面の絵と同じ Noto Sans JP にそろえる（利用者の指示）。
+// ビルドのときに取り込んで自分のサイトから配るので、利用者のブラウザは Google へ通信しない。
+// 日本語の文字は細かく分けたファイルを、その画面で使う分だけ読み込む。先読みするのは英数字だけ
+const notoSansJp = Noto_Sans_JP({
+  variable: "--font-noto-sans-jp",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -19,13 +18,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="ja" className={`${notoSansJp.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        {/* D-73：スマホ幅を基準に1列で並べ、パソコンでは中央に最大640pxで表示する */}
-        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col px-4">
+        {/* D-73：スマホ幅を基準に1列で並べ、パソコンでは中央に最大640pxで表示する。
+            パソコンでは左右に生成り色の地を見せ、画面の地（少し明るい色）と線で分ける */}
+        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col bg-background px-5 sm:border-x sm:border-line">
           {children}
         </div>
       </body>

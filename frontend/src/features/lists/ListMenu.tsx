@@ -180,7 +180,7 @@ export function ListMenu({
         disabled={sending}
         onClick={() => setMenuOpen((open) => !open)}
         // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
-        className="flex min-h-11 min-w-11 items-center justify-center rounded border border-zinc-300 px-3 disabled:opacity-50"
+        className="-mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg px-3 text-xl text-muted hover:bg-sunken disabled:opacity-50"
       >
         …
       </button>
@@ -188,7 +188,7 @@ export function ListMenu({
       {menuOpen && (
         <ul
           id={menuId}
-          className="absolute right-0 z-10 mt-1 flex w-48 flex-col rounded border border-zinc-300 bg-background py-1 shadow"
+          className="absolute right-0 z-10 mt-1 flex w-48 flex-col menu py-1"
         >
           <li>
             <Link
@@ -264,7 +264,7 @@ export function ListMenu({
             <button
               type="button"
               onClick={() => openConfirm("delete")}
-              className="block w-full px-4 py-2 text-left text-red-700"
+              className="block w-full px-4 py-2 text-left text-danger"
             >
               このリストを削除
             </button>

@@ -69,14 +69,14 @@ export function GroupNameDialog({
         onCancel();
       }}
       {...backdrop}
-      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <h2 id={titleId} className="text-lg font-bold">
           {title}
         </h2>
         <div>
-          <label htmlFor={inputId} className="block font-medium">
+          <label htmlFor={inputId} className="mb-1 block font-bold">
             グループ名
           </label>
           <input
@@ -90,23 +90,16 @@ export function GroupNameDialog({
               setName(event.target.value);
               setError(null);
             }}
-            className="w-full rounded border border-zinc-400 px-3 py-2"
+            className="field w-full"
           />
           <FieldError id={errorId} message={error ?? undefined} />
         </div>
         {children}
         <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded border border-zinc-400 px-4 py-2"
-          >
+          <button type="button" onClick={onCancel} className="btn-outline">
             やめる
           </button>
-          <button
-            type="submit"
-            className="rounded bg-zinc-900 px-4 py-2 text-white"
-          >
+          <button type="submit" className="btn-primary">
             {submitLabel}
           </button>
         </div>

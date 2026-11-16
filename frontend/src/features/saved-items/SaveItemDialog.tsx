@@ -105,7 +105,7 @@ export function SaveItemDialog({
         closeIfIdle();
       }}
       {...backdrop}
-      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded bg-background p-6 text-foreground backdrop:bg-black/40"
+      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <h2 id="save-item-heading" className="text-lg font-bold">
@@ -113,13 +113,13 @@ export function SaveItemDialog({
         </h2>
 
         {formError && (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="text-danger">
             {formError}
           </p>
         )}
 
         <div>
-          <label htmlFor="name" className="block font-medium">
+          <label htmlFor="name" className="mb-1 block font-bold">
             項目名
           </label>
           <input
@@ -132,7 +132,7 @@ export function SaveItemDialog({
               setName(event.target.value);
               fieldErrors.clear("name");
             }}
-            className="w-full rounded border border-zinc-400 px-3 py-2"
+            className="field w-full"
           />
           <FieldError id="name-error" message={fieldErrors.errors.name} />
         </div>
@@ -166,15 +166,11 @@ export function SaveItemDialog({
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+            className="btn-outline"
           >
             やめる
           </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} className="btn-primary">
             保存
           </button>
         </div>

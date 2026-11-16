@@ -947,12 +947,16 @@ export function ListDetail({ list, categories }: Props) {
       >
         {/* SC-07-2・4 */}
         <header className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-2xl font-bold wrap-break-word">{list.title}</h1>
+          <div className="flex min-w-0 flex-col gap-2">
+            <h1 className="text-2xl font-medium wrap-break-word">
+              {list.title}
+            </h1>
             {/* 利用者の指示で、持ち物の件数は出さない（D-95） */}
-            <p className="flex flex-wrap gap-x-3 text-sm text-zinc-600">
-              <span>{list.category.name}</span>
-              <span>{isPublic ? "公開" : "非公開"}</span>
+            <p className="flex flex-wrap gap-2">
+              <span className="tag">{list.category.name}</span>
+              <span className={isPublic ? "tag" : "tag-muted"}>
+                {isPublic ? "公開" : "非公開"}
+              </span>
             </p>
           </div>
           {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
@@ -989,7 +993,7 @@ export function ListDetail({ list, categories }: Props) {
         </header>
 
         {visibilityError && (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="text-danger">
             {visibilityError}
           </p>
         )}
@@ -997,12 +1001,12 @@ export function ListDetail({ list, categories }: Props) {
           <p
             id="list-moderated-notice"
             role="alert"
-            className="text-sm text-zinc-700"
+            className="text-sm text-muted"
           >
             このリストは運営により非公開になっています。 お問い合わせ：
             <a
               href="mailto:simasyam@gmail.com"
-              className="underline tap-target"
+              className="text-link tap-target"
             >
               simasyam@gmail.com
             </a>
@@ -1019,7 +1023,7 @@ export function ListDetail({ list, categories }: Props) {
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
-            className="self-start rounded border border-zinc-400 px-3 py-1"
+            className="self-start btn-outline btn-sm"
           >
             よく使う項目から追加
           </button>
@@ -1086,7 +1090,7 @@ export function ListDetail({ list, categories }: Props) {
               {draggingItem && (
                 <div
                   aria-hidden="true"
-                  className="flex items-center gap-2 border-b border-zinc-200 bg-background py-2 shadow-md"
+                  className="flex items-center gap-2 border-b border-line-soft bg-background py-2 shadow-md"
                 >
                   <input
                     type="checkbox"
@@ -1099,7 +1103,7 @@ export function ListDetail({ list, categories }: Props) {
                     {draggingItem.name}
                   </span>
                   {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
-                  <span className="flex min-h-11 min-w-11 items-center justify-center rounded px-2">
+                  <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted">
                     …
                   </span>
                 </div>
@@ -1155,20 +1159,20 @@ export function ListDetail({ list, categories }: Props) {
       </div>
 
       {footerVisible && (
-        <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
-          <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
+        <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
+          <div className="flex flex-col gap-2 px-5 py-3">
             {notice && (
               <p role="status" className="text-sm">
                 {notice}
               </p>
             )}
             {reorderError && (
-              <p role="alert" className="text-sm text-red-700">
+              <p role="alert" className="text-sm text-danger">
                 {reorderError}
               </p>
             )}
             {groupCheckError && (
-              <p role="alert" className="text-sm text-red-700">
+              <p role="alert" className="text-sm text-danger">
                 {groupCheckError}
               </p>
             )}
@@ -1185,7 +1189,7 @@ export function ListDetail({ list, categories }: Props) {
                     type="button"
                     onClick={() => setSelectingMode(false)}
                     disabled={bulkDeleting}
-                    className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+                    className="btn-outline"
                   >
                     やめる
                   </button>
@@ -1200,7 +1204,7 @@ export function ListDetail({ list, categories }: Props) {
                       (deleteTargetIds.length === 0 &&
                         selectedGroupIds.size === 0)
                     }
-                    className="rounded bg-red-700 px-4 py-2 text-white disabled:opacity-50"
+                    className="btn-danger"
                   >
                     削除
                   </button>

@@ -618,46 +618,46 @@ export function GroupingEditor({
           aria-label="戻る"
           onClick={handleCancel}
           // 共通2の「←」と同じく、押せる範囲を44px四方以上にする（利用者の指示）
-          className="flex min-h-11 min-w-11 items-center justify-center self-start rounded px-2 text-xl"
+          className="-mb-3 -ml-3 flex min-h-11 min-w-11 items-center justify-center self-start rounded-lg px-3 text-xl text-brand hover:text-brand-deep"
         >
           ←
         </button>
 
         {/* SC-09-2・3 */}
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">グループを整理</h1>
+          <h1 className="text-2xl font-medium">グループを整理</h1>
           <button
             type="button"
             onClick={() => setNameDialog({ mode: "add" })}
             disabled={busy || draft.groups.length >= MAX_GROUPS}
-            className="shrink-0 rounded border border-zinc-400 px-3 py-1 disabled:opacity-50"
+            className="shrink-0 btn-outline btn-sm"
           >
             グループを追加
           </button>
         </div>
         {hiddenCheckedCount > 0 && (
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-muted">
             チェック済みの持ち物（{hiddenCheckedCount}
             件）は表示していません。今のグループに残ります（グループを削除すると未分類へ移ります）。
           </p>
         )}
         {conflict && (
           <div className="flex flex-col gap-2">
-            <p role="alert" className="text-red-700">
+            <p role="alert" className="text-danger">
               {CONFLICT_MESSAGE}
             </p>
             <button
               type="button"
               onClick={handleReload}
               disabled={busy}
-              className="self-start rounded border border-zinc-400 px-3 py-1 disabled:opacity-50"
+              className="self-start btn-outline btn-sm"
             >
               読み直す
             </button>
           </div>
         )}
         {error && (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="text-danger">
             {error}
           </p>
         )}
@@ -705,7 +705,7 @@ export function GroupingEditor({
                 type="button"
                 onClick={() => setNameDialog({ mode: "add" })}
                 disabled={busy || draft.groups.length >= MAX_GROUPS}
-                className="min-h-16 rounded-4xl border-2 border-dashed border-zinc-300 px-4 py-3 disabled:opacity-50"
+                className="min-h-16 rounded-2xl border-2 border-dashed border-line-strong px-4 py-3 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
               >
                 <span aria-hidden="true">＋ </span>グループを追加
               </button>
@@ -723,7 +723,7 @@ export function GroupingEditor({
           {!draggingGroup && (
             <DragOverlay>
               {draggingItem ? (
-                <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-zinc-900 bg-background px-4 py-2 shadow-md">
+                <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-brand bg-background px-4 py-2 shadow-md">
                   {draggingItem.name}
                 </span>
               ) : null}
@@ -733,8 +733,8 @@ export function GroupingEditor({
       </div>
 
       {/* SC-09-9：「キャンセル」「OK」は画面下に固定する */}
-      <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
-        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
+      <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
+        <div className="flex flex-col gap-2 px-5 py-3">
           {/* SC-09-5：よく使うグループに保存した結果 */}
           {notice && (
             <p role="status" className="text-sm">
@@ -742,7 +742,7 @@ export function GroupingEditor({
             </p>
           )}
           {favoriteError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {favoriteError}
             </p>
           )}
@@ -751,7 +751,7 @@ export function GroupingEditor({
               type="button"
               onClick={handleCancel}
               disabled={busy}
-              className="rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+              className="btn-outline"
             >
               キャンセル
             </button>
@@ -759,7 +759,7 @@ export function GroupingEditor({
               type="button"
               onClick={() => void handleSave()}
               disabled={busy}
-              className="rounded bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
+              className="btn-primary"
             >
               OK
             </button>
@@ -837,10 +837,10 @@ export function GroupingEditor({
 
 // 移し先の枠の見た目。ドラッグで上にいるときは、色だけでなく枠を太くして示す。
 // D-98（利用者の指示）：「ここに移します」の文は出さず、枠の強調だけにする
-function dropAreaBorder(isOver: boolean): string {
+function dropAreaBorder(isOver: boolean, idle: string): string {
   if (isOver)
-    return "border-zinc-900 outline-2 outline-offset-2 outline-zinc-900";
-  return "border-zinc-300";
+    return "border-brand-deep outline-2 outline-offset-2 outline-brand-deep";
+  return idle;
 }
 
 type GroupCircleProps = {
@@ -922,12 +922,13 @@ function GroupCircle({
       {...listeners}
       aria-label={name}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex min-w-0 touch-manipulation flex-col gap-2 rounded-4xl border-2 bg-background px-4 py-3 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${dropAreaBorder(
+      className={`flex min-w-0 touch-manipulation flex-col gap-2 rounded-2xl border-2 bg-white px-4 py-3 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${dropAreaBorder(
         isOver && isItemDrag(active),
+        "border-brand",
       )} ${isDragging ? "relative z-10 cursor-grabbing shadow-md" : "cursor-grab"}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h2 className="min-w-0 font-medium wrap-break-word">
+        <h2 className="min-w-0 font-bold wrap-break-word text-brand-deep">
           {name}
           <span className="inline-block whitespace-nowrap">
             （{items.length}件）
@@ -941,12 +942,12 @@ function GroupCircle({
             disabled={disabled}
             onClick={() => setMenuOpen((open) => !open)}
             // 指で押しやすいよう、押せる範囲を44px四方以上にする。丸の見出しが高くなりすぎないよう、上と右の余白に重ねる
-            className="-mt-2 -mr-2 flex min-h-11 min-w-11 items-center justify-center rounded px-2 disabled:opacity-50"
+            className="-mt-2 -mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-brand-deep disabled:opacity-50"
           >
             …
           </button>
           {menuOpen && (
-            <ul className="absolute right-0 z-10 mt-1 w-48 rounded border border-zinc-300 bg-background py-1 shadow">
+            <ul className="absolute right-0 z-10 mt-1 w-48 menu py-1">
               <li>
                 <button
                   type="button"
@@ -993,7 +994,7 @@ function GroupCircle({
                 <button
                   type="button"
                   onClick={() => choose(onDelete)}
-                  className="block w-full px-4 py-2 text-left text-red-700"
+                  className="block w-full px-4 py-2 text-left text-danger"
                 >
                   削除
                 </button>
@@ -1028,11 +1029,12 @@ function UnclassifiedArea({
     <section
       ref={setNodeRef}
       aria-label="未分類"
-      className={`flex flex-col gap-2 rounded border-2 border-dashed p-3 ${dropAreaBorder(
+      className={`flex flex-col gap-2 rounded-2xl border-2 border-dashed bg-white px-4 py-3 ${dropAreaBorder(
         isOver && isItemDrag(active),
+        "border-line-strong",
       )}`}
     >
-      <h2 className="font-medium">
+      <h2 className="font-bold text-muted">
         未分類
         <span className="inline-block whitespace-nowrap">
           （{items.length}件）
@@ -1098,7 +1100,7 @@ function ItemChip({
         onClick={onSelect}
         data-item-chip={item.id}
         disabled={disabled}
-        className="max-w-full cursor-grab touch-manipulation rounded-full border border-zinc-400 px-4 py-2 text-left wrap-break-word select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-50"
+        className="max-w-full cursor-grab touch-manipulation rounded-full border border-line-strong bg-background px-4 py-2 text-left wrap-break-word hover:border-brand select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
       >
         {item.name}
       </button>

@@ -48,7 +48,7 @@ export function EmailVerificationLink({ link, currentPath }: Props) {
 
   if (status === "invalid") {
     return (
-      <div role="alert" className="text-red-700">
+      <div role="alert" className="text-danger">
         <p>リンクの有効期限が切れているか、無効です。</p>
         <p>下のボタンから、確認メールを送り直してください。</p>
       </div>
@@ -56,7 +56,7 @@ export function EmailVerificationLink({ link, currentPath }: Props) {
   }
 
   return (
-    <p role="alert" className="text-red-700">
+    <p role="alert" className="text-danger">
       {NETWORK_ERROR_MESSAGE}
     </p>
   );

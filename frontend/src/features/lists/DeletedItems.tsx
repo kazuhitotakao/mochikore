@@ -22,8 +22,7 @@ type Props = {
   onConfirmAll: () => void;
 };
 
-const BUTTON =
-  "shrink-0 rounded border border-zinc-400 px-3 py-1 disabled:opacity-50";
+const BUTTON = "shrink-0 btn-outline btn-sm";
 
 // SC-07-12「削除した持ち物」。候補は画面の状態にだけ置き、ブラウザへ保存しない。
 // 別の画面へ移る・再読み込みする・タブを閉じると消える（D-28）
@@ -55,7 +54,7 @@ export function DeletedItems({
       className="flex flex-col gap-2"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 id="deleted-items-heading" className="font-medium">
+        <h2 id="deleted-items-heading" className="font-bold">
           削除した持ち物
         </h2>
         {/* 利用者の指示：候補がずっと残って邪魔になるので、確認なしで全部片付けられるようにする（D-103） */}
@@ -63,7 +62,7 @@ export function DeletedItems({
           type="button"
           onClick={onConfirmAll}
           disabled={restoringIds.size > 0}
-          className={BUTTON}
+          className="shrink-0 text-sm text-link tap-target disabled:opacity-50"
         >
           すべて確定
         </button>
@@ -125,16 +124,16 @@ function DeletedItemRow({
   }
 
   return (
-    <li className="flex flex-col gap-1 rounded border border-zinc-300 px-3 py-2">
-      <div className="flex items-center gap-3">
+    <li className="card-sunken flex flex-col gap-1 px-4 py-3">
+      <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="wrap-break-word">{item.name}</span>
-          <span className="text-sm text-zinc-600">
+          <span className="text-sm text-muted">
             元の位置：{position}番目・
             {item.is_checked ? "チェック済み" : "未チェック"}
           </span>
           {movesToBottom && (
-            <span className="text-sm text-zinc-600">
+            <span className="text-sm text-muted">
               並べ替えたため、戻すと一番下に入ります
             </span>
           )}
@@ -158,7 +157,7 @@ function DeletedItemRow({
         </button>
       </div>
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}

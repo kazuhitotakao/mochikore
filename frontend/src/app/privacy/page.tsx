@@ -19,15 +19,13 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
 
   return (
     <main className="flex flex-col gap-10 py-8 text-base leading-8 sm:py-12">
-      <header className="flex flex-col gap-4 border-b border-zinc-200 pb-8 dark:border-zinc-800">
+      <header className="flex flex-col gap-4 border-b border-line-soft pb-8">
         <BackLink href={back ?? "/"} />
-        <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-          もちこれ
-        </p>
-        <h1 className="text-2xl leading-snug font-bold text-balance">
+        <p className="text-sm font-medium text-muted">もちこれ</p>
+        <h1 className="text-2xl leading-snug font-medium text-balance">
           プライバシーポリシー・お問い合わせ
         </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm text-muted">
           最終更新日：<time dateTime="2026-11-13">2026年11月13日</time>
         </p>
         <p>もちこれでお預かりする情報と、その使い道・削除方法を案内します。</p>
@@ -35,57 +33,39 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
 
       <nav
         aria-labelledby="contents-heading"
-        className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-900"
+        className="rounded-2xl border border-line bg-sunken p-5"
       >
         <h2 id="contents-heading" className="text-sm font-bold">
           このページの内容
         </h2>
         <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 text-sm">
           <li>
-            <a
-              href="#information-heading"
-              className="underline underline-offset-4 tap-target"
-            >
+            <a href="#information-heading" className="text-link tap-target">
               お預かりする情報と利用目的
             </a>
           </li>
           <li>
-            <a
-              href="#sharing-heading"
-              className="underline underline-offset-4 tap-target"
-            >
+            <a href="#sharing-heading" className="text-link tap-target">
               リストの公開とコピー
             </a>
           </li>
           <li>
-            <a
-              href="#cookie-heading"
-              className="underline underline-offset-4 tap-target"
-            >
+            <a href="#cookie-heading" className="text-link tap-target">
               Cookieについて
             </a>
           </li>
           <li>
-            <a
-              href="#services-heading"
-              className="underline underline-offset-4 tap-target"
-            >
+            <a href="#services-heading" className="text-link tap-target">
               利用するサービス
             </a>
           </li>
           <li>
-            <a
-              href="#deletion-heading"
-              className="underline underline-offset-4 tap-target"
-            >
+            <a href="#deletion-heading" className="text-link tap-target">
               情報の削除・確認・訂正
             </a>
           </li>
           <li>
-            <a
-              href="#contact-heading"
-              className="underline underline-offset-4 tap-target"
-            >
+            <a href="#contact-heading" className="text-link tap-target">
               お問い合わせ
             </a>
           </li>
@@ -98,7 +78,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
       >
         <h2
           id="information-heading"
-          className="scroll-mt-6 border-b border-zinc-200 pb-3 text-lg font-bold dark:border-zinc-800"
+          className="scroll-mt-6 border-b border-line-soft pb-3 text-lg font-bold text-brand-deep"
         >
           1. お預かりする情報と利用目的
         </h2>
@@ -109,7 +89,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
               <p>
                 メールアドレス、パスワード、メール認証の状態などを、会員登録・ログイン・本人確認や、登録確認・パスワード再設定のメール送信に使います。
               </p>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="text-sm text-muted">
                 パスワードは、元の文字列に戻せない形に変換して保存します。
               </p>
             </dd>
@@ -146,12 +126,12 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
       >
         <h2
           id="sharing-heading"
-          className="scroll-mt-6 border-b border-zinc-200 pb-3 text-lg font-bold dark:border-zinc-800"
+          className="scroll-mt-6 border-b border-line-soft pb-3 text-lg font-bold text-brand-deep"
         >
           2. リストの公開とコピー
         </h2>
         <p>公開にしたリストは、ログインしていない人も見ることができます。</p>
-        <dl className="flex flex-col gap-4 rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
+        <dl className="flex flex-col gap-4 rounded-2xl border border-line p-5">
           <div className="flex flex-col gap-1">
             <dt className="font-bold">公開される情報</dt>
             <dd>リスト名・説明・カテゴリー・持ち物・グループ名と並び順</dd>
@@ -161,7 +141,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
             <dd>作成者のメールアドレス・チェック状態</dd>
           </div>
         </dl>
-        <div className="flex flex-col gap-2 rounded-2xl bg-zinc-50 p-5 dark:bg-zinc-900">
+        <div className="flex flex-col gap-2 rounded-2xl bg-sunken p-5">
           <h3 className="font-bold">ほかの人のコピーは残ります</h3>
           <p>
             ほかの人が自分用にコピーしたリストは、独立したデータとして保存されます。元のリストを非公開にしたり削除したり、退会したりしても、ほかの人のコピーは残ります。
@@ -172,7 +152,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
       <section aria-labelledby="cookie-heading" className="flex flex-col gap-5">
         <h2
           id="cookie-heading"
-          className="scroll-mt-6 border-b border-zinc-200 pb-3 text-lg font-bold dark:border-zinc-800"
+          className="scroll-mt-6 border-b border-line-soft pb-3 text-lg font-bold text-brand-deep"
         >
           3. Cookieについて
         </h2>
@@ -191,12 +171,12 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
       >
         <h2
           id="services-heading"
-          className="scroll-mt-6 border-b border-zinc-200 pb-3 text-lg font-bold dark:border-zinc-800"
+          className="scroll-mt-6 border-b border-line-soft pb-3 text-lg font-bold text-brand-deep"
         >
           4. 利用するサービス
         </h2>
         <p>本サービスの公開・運用には、次のサービスの利用を予定しています。</p>
-        <ul className="flex flex-col divide-y divide-zinc-200 rounded-2xl border border-zinc-200 px-5 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="flex flex-col divide-y divide-line-soft rounded-2xl border border-line px-5">
           <li className="flex flex-col gap-1 py-4">
             <h3 className="font-bold">Vercel</h3>
             <p>画面の配信</p>
@@ -218,7 +198,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
       >
         <h2
           id="deletion-heading"
-          className="scroll-mt-6 border-b border-zinc-200 pb-3 text-lg font-bold dark:border-zinc-800"
+          className="scroll-mt-6 border-b border-line-soft pb-3 text-lg font-bold text-brand-deep"
         >
           5. 情報の削除・確認・訂正
         </h2>
@@ -228,7 +208,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
             <Link
               href={withFrom("/account", currentPath)}
               prefetch={false}
-              className="underline underline-offset-4 tap-target"
+              className="text-link tap-target"
             >
               アカウント設定
             </Link>
@@ -243,7 +223,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
             <li>よく使う項目・よく使うグループ</li>
             <li>ログイン情報・パスワード再設定の情報</li>
           </ul>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-muted">
             ほかの人が自分用にコピーしたリストは残ります。
           </p>
         </div>
@@ -257,15 +237,18 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
 
       <section
         aria-labelledby="contact-heading"
-        className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-900"
+        className="flex flex-col gap-4 rounded-2xl border border-line bg-sunken p-5"
       >
-        <h2 id="contact-heading" className="scroll-mt-6 text-lg font-bold">
+        <h2
+          id="contact-heading"
+          className="scroll-mt-6 text-lg font-bold text-brand-deep"
+        >
           6. お問い合わせ
         </h2>
         <p>もちこれへのお問い合わせは、メールで受け付けています。</p>
         <a
           href="mailto:simasyam@gmail.com"
-          className="self-start break-all font-medium underline underline-offset-4 tap-target"
+          className="self-start break-all font-medium text-link tap-target"
         >
           simasyam@gmail.com
         </a>
@@ -273,15 +256,15 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
 
       <nav
         aria-label="ページ移動"
-        className="flex flex-wrap gap-x-6 gap-y-3 border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800"
+        className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-sm"
       >
-        <Link href="/" prefetch={false} className="underline tap-target">
+        <Link href="/" prefetch={false} className="text-link tap-target">
           トップへ戻る
         </Link>
         <Link
           href={withFrom("/register", currentPath)}
           prefetch={false}
-          className="underline tap-target"
+          className="text-link tap-target"
         >
           新規会員登録
         </Link>

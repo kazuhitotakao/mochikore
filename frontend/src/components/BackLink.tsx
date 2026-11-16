@@ -15,7 +15,8 @@ export function BackLink({ href, label }: Props) {
       prefetch={false}
       aria-label={label ? undefined : "戻る"}
       // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
-      className="flex min-h-11 min-w-11 items-center justify-center gap-1 self-start rounded px-2"
+      // 矢印を本文の左端にそろえ、下の見出しに近づける（画面の絵と同じ並び）
+      className="-mb-3 -ml-3 flex min-h-11 min-w-11 items-center justify-center gap-1 self-start rounded-lg px-3 text-brand hover:text-brand-deep"
     >
       <span aria-hidden="true" className="text-xl">
         ←

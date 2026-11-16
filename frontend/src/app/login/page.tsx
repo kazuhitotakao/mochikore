@@ -23,7 +23,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={back} />
-      <h1 className="text-2xl font-bold">ログイン</h1>
+      <h1 className="text-2xl font-medium">ログイン</h1>
 
       {/* 02_画面配置 共通7：ログインが必要な画面で401になったとき */}
       {searchParams.expired === "1" && (
@@ -42,14 +42,14 @@ export default async function LoginPage(props: PageProps<"/login">) {
       {/* SC-02-6 */}
       <Link
         href={withFrom("/forgot-password", currentPath)}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         パスワードを忘れた方
       </Link>
 
       <Link
         href={withFrom("/register", currentPath)}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         新規会員登録
       </Link>

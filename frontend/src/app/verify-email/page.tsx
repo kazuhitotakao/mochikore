@@ -22,7 +22,7 @@ export default async function VerifyEmailPage(
 
   return (
     <main className="flex flex-col gap-6 py-8">
-      <h1 className="text-2xl font-bold">メールを確認してください</h1>
+      <h1 className="text-2xl font-medium">メールを確認してください</h1>
 
       {link && <EmailVerificationLink link={link} currentPath={currentPath} />}
 
@@ -39,7 +39,7 @@ export default async function VerifyEmailPage(
       <Link
         href="/account"
         prefetch={false}
-        className="self-start underline tap-target"
+        className="self-start text-link tap-target"
       >
         アカウント設定
       </Link>

@@ -39,7 +39,7 @@ export function SelectionList({
             item.group_id !== null && selectedGroupIds.has(item.group_id);
           const selected = byGroup || selectedItemIds.has(item.id);
           return (
-            <li key={item.id} className="border-b border-zinc-200">
+            <li key={item.id} className="border-b border-line-soft">
               <button
                 type="button"
                 aria-pressed={selected}
@@ -78,7 +78,7 @@ export function SelectionList({
               aria-label={group.name}
               className="flex flex-col gap-1"
             >
-              <h2 className="-mx-2 rounded-lg bg-zinc-100 font-semibold wrap-break-word">
+              <h2 className="-mx-2 rounded-lg bg-brand-soft font-bold wrap-break-word">
                 <button
                   type="button"
                   aria-pressed={selected}
@@ -90,7 +90,7 @@ export function SelectionList({
                   <SelectMark selected={selected} />
                   <span className="min-w-0 flex-1">
                     {group.name}
-                    <span className="text-sm font-normal whitespace-nowrap text-zinc-600">
+                    <span className="text-sm font-normal whitespace-nowrap text-muted">
                       （{rows.length}件）
                     </span>
                   </span>
@@ -119,7 +119,7 @@ function SelectMark({ selected }: { selected: boolean }) {
     <span
       aria-hidden="true"
       className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
-        selected ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-400"
+        selected ? "border-brand bg-brand text-white" : "border-line-strong"
       }`}
     >
       {selected ? "✓" : ""}

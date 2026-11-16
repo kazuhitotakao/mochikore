@@ -65,7 +65,7 @@ export function EmailChangeResult({
   return (
     <div className="flex flex-col gap-6">
       {status === "invalid" && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           リンクの有効期限が切れているか、無効です。
         </p>
       )}
@@ -75,7 +75,7 @@ export function EmailChangeResult({
       )}
       {status === "failed" && (
         <div className="flex flex-col gap-3">
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="text-danger">
             {NETWORK_ERROR_MESSAGE}
           </p>
           <button
@@ -84,7 +84,7 @@ export function EmailChangeResult({
               setStatus("verifying");
               setAttempt((value) => value + 1);
             }}
-            className="self-start rounded border border-zinc-400 px-4 py-2"
+            className="self-start btn-outline"
           >
             もう一度確認する
           </button>

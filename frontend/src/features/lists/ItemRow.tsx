@@ -205,7 +205,7 @@ export function ItemRow({
       {...listeners}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       // 横の動きは左スワイプ（D-105）に使うので、ブラウザには縦のスクロールと拡大だけを任せる
-      className={`flex cursor-grab touch-pan-y touch-pinch-zoom flex-col border-b border-zinc-200 bg-background select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""}`}
+      className={`flex cursor-grab touch-pan-y touch-pinch-zoom flex-col border-b border-line-soft bg-background select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""}`}
     >
       {isDragging && dropAllowed && (
         // D-98：すき間の寸法と移動先の判定を変えず、収まる場所を枠の形でも示す。
@@ -269,7 +269,7 @@ export function ItemRow({
                 onBlur={() => {
                   if (!error) void saveName();
                 }}
-                className="min-w-0 flex-1 rounded border border-zinc-400 px-2 py-1"
+                className="field min-h-9 min-w-0 flex-1 px-2 py-1"
               />
             ) : (
               <button
@@ -293,7 +293,7 @@ export function ItemRow({
                 disabled={busy}
                 onClick={() => setMenuOpen((open) => !open)}
                 // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
-                className="flex min-h-11 min-w-11 items-center justify-center rounded px-2 disabled:opacity-50"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted hover:bg-sunken disabled:opacity-50"
               >
                 …
               </button>
@@ -301,7 +301,7 @@ export function ItemRow({
               {menuOpen && (
                 <ul
                   id={menuId}
-                  className="absolute right-0 z-10 mt-1 w-48 rounded border border-zinc-300 bg-background py-1 shadow"
+                  className="absolute right-0 z-10 mt-1 w-48 menu py-1"
                 >
                   <li>
                     <button
@@ -319,7 +319,7 @@ export function ItemRow({
                     <button
                       type="button"
                       onClick={() => void deleteItem()}
-                      className="block w-full px-4 py-2 text-left text-red-700"
+                      className="block w-full px-4 py-2 text-left text-danger"
                     >
                       削除
                     </button>
@@ -333,7 +333,7 @@ export function ItemRow({
             <p
               id={errorId}
               role="alert"
-              className={`text-sm text-red-700 ${isDragging ? "opacity-0" : ""}`}
+              className={`text-sm text-danger ${isDragging ? "opacity-0" : ""}`}
             >
               {error}
             </p>

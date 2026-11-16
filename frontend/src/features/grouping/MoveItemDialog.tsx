@@ -43,7 +43,7 @@ export function MoveItemDialog({
         onCancel();
       }}
       {...backdrop}
-      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded bg-background p-6 text-foreground backdrop:bg-black/40"
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
     >
       <div className="flex flex-col gap-4">
         <h2 id={titleId} className="text-lg font-bold wrap-break-word">
@@ -59,7 +59,7 @@ export function MoveItemDialog({
                   type="button"
                   disabled={current}
                   onClick={() => onMove(target.key)}
-                  className="flex w-full items-center justify-between gap-3 rounded border border-zinc-400 px-4 py-3 text-left disabled:border-dashed disabled:text-zinc-500"
+                  className="flex w-full items-center justify-between gap-3 rounded-xl border-[1.5px] border-line-strong bg-white px-4 py-3 text-left hover:border-brand disabled:border-dashed disabled:border-line-strong disabled:bg-transparent disabled:text-muted"
                 >
                   <span className="min-w-0 wrap-break-word">{target.name}</span>
                   {current && (
@@ -73,11 +73,7 @@ export function MoveItemDialog({
           })}
         </ul>
         <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded border border-zinc-400 px-4 py-2"
-          >
+          <button type="button" onClick={onCancel} className="btn-outline">
             やめる
           </button>
         </div>

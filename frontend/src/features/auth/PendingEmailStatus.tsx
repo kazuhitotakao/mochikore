@@ -43,12 +43,12 @@ export function PendingEmailStatus({ pendingEmail }: Props) {
     <>
       {pendingEmail && !cancelled && (
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <p className="break-all">確認中：{pendingEmail}</p>
+          <p className="text-sm break-all text-muted">確認中：{pendingEmail}</p>
           <button
             type="button"
             onClick={handleCancel}
             disabled={submitting}
-            className="underline tap-target disabled:opacity-50"
+            className="text-sm text-link tap-target disabled:opacity-50"
           >
             変更を取り消す
           </button>
@@ -56,7 +56,7 @@ export function PendingEmailStatus({ pendingEmail }: Props) {
       )}
       {cancelled && <p role="status">メールアドレスの変更を取り消しました。</p>}
       {error && (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="text-danger">
           {error}
         </p>
       )}

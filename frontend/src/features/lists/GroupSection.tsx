@@ -29,7 +29,7 @@ type Props = {
   children: ReactNode;
 };
 
-const HEADING = "font-semibold wrap-break-word";
+const HEADING = "font-bold wrap-break-word";
 
 /**
  * SC-07-6：グループの見出しと、その中の持ち物。
@@ -116,7 +116,7 @@ function SortableGroupSection({
               ? { transform: `translateX(${swipe.offset}px)` }
               : undefined
           }
-          className={`relative flex min-h-15 items-center gap-2 rounded-lg bg-zinc-100 px-2 py-2 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
+          className={`relative flex min-h-15 items-center gap-2 rounded-lg bg-brand-soft px-2 py-2 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
         >
           <GroupCheckbox
             title={title}
@@ -130,10 +130,10 @@ function SortableGroupSection({
             {...attributes}
             {...listeners}
             aria-level={2}
-            className={`min-w-0 flex-1 cursor-grab touch-pan-y touch-pinch-zoom select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${HEADING}`}
+            className={`min-w-0 flex-1 cursor-grab touch-pan-y touch-pinch-zoom select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${HEADING}`}
           >
             {title}
-            <span className="text-sm font-normal whitespace-nowrap text-zinc-600">
+            <span className="text-sm font-normal whitespace-nowrap text-muted">
               （{count}件）
             </span>
           </h2>

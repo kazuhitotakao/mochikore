@@ -64,10 +64,10 @@ export function CopyPublicListButton({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 border-t border-zinc-300 bg-background">
-      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-4 py-3">
+    <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
+      <div className="flex flex-col gap-2 px-5 py-3">
         {error && (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="text-danger">
             {error}
           </p>
         )}
@@ -75,7 +75,7 @@ export function CopyPublicListButton({
           type="button"
           disabled={sending}
           onClick={() => void copy()}
-          className="rounded bg-zinc-900 px-4 py-3 text-white disabled:opacity-50"
+          className="btn-primary"
         >
           {sending ? "コピー中…" : "自分用にコピー"}
         </button>

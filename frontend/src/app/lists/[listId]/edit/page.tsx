@@ -25,7 +25,7 @@ export default async function EditListPage(
   return (
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={`/lists/${list.id}`} />
-      <h1 className="text-2xl font-bold">リストを編集</h1>
+      <h1 className="text-2xl font-medium">リストを編集</h1>
       <ListForm categories={categories} list={list} />
     </main>
   );

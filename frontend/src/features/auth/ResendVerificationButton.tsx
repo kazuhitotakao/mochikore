@@ -48,12 +48,14 @@ export function ResendVerificationButton() {
         type="button"
         onClick={handleClick}
         disabled={sending || waitSeconds > 0}
-        className="self-start rounded border border-zinc-400 px-4 py-2 disabled:opacity-50"
+        className="self-start btn-primary"
       >
         確認メールを送り直す
       </button>
       {waitSeconds > 0 && (
-        <p role="status">あと{waitSeconds}秒で送り直せます</p>
+        <p role="status" className="text-sm text-muted">
+          あと{waitSeconds}秒で送り直せます
+        </p>
       )}
       {message && <p role="status">{message}</p>}
     </div>

@@ -15,7 +15,7 @@ export default function ErrorPage({
       <button
         type="button"
         onClick={() => retry()}
-        className="self-start rounded border border-zinc-400 px-4 py-2"
+        className="self-start btn-outline"
       >
         もう一度読み込む
       </button>
