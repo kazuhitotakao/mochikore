@@ -19,6 +19,8 @@ export default async function ResetPasswordPage(
       {/* 共通2：メールのリンクから開くので前の画面がない。再設定をやめる人向けにSC-02へ戻し、
           直接来た人にも行き先が分かるよう矢印の横に書く（利用者の指示） */}
       <BackLink href="/login" label="ログインへ" />
+      {/* SC-15-2：リンクが使えないときも、何の画面か分かるよう見出しは出す */}
+      <h1 className="text-2xl font-bold">新しいパスワードを設定</h1>
 
       {hasLink ? (
         <ResetPasswordForm token={token} email={email} />

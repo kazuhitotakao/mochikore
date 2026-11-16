@@ -91,7 +91,8 @@ export function ResetPasswordForm({ token, email }: Props) {
       )}
 
       <div>
-        <label htmlFor="password" className="block font-medium">
+        {/* 見出し（SC-15-2）と同じ言葉が2回並ぶので画面には出さず、読み上げ用の名前だけ残す（利用者の指示） */}
+        <label htmlFor="password" className="sr-only">
           新しいパスワード
         </label>
         <p id="password-hint" className="text-sm text-zinc-600">
