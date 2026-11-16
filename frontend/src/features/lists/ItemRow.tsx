@@ -16,6 +16,8 @@ import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
 import type { ItemDeleteResult, PackingListItem } from "@/types/api";
 import { isNotFound, itemErrorMessage } from "./itemErrors";
+import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
+import { useSwipeToDelete } from "./useSwipeToDelete";
 import { validateItemName } from "./validation";
 
 type Props = {
@@ -28,6 +30,9 @@ type Props = {
   sortDisabled: boolean;
   // ドラッグ中のすき間は、実際に置けるときだけ示す。
   dropAllowed?: boolean;
+  // D-105：左スワイプで「削除」を出している行か。開けるのは1行だけなので、親が持つ
+  swipeOpen: boolean;
+  onSwipeOpenChange: (open: boolean) => void;
 };
 
 // 行が隠れたときに、次の行のチェック欄へカーソルを移すためのID（SC-07-7）
@@ -43,10 +48,13 @@ export function ItemRow({
   onSaveAsFavorite,
   sortDisabled,
   dropAllowed = false,
+  swipeOpen,
+  onSwipeOpenChange,
 }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const {
+    active,
     attributes,
     listeners,
     setNodeRef,
@@ -81,6 +89,16 @@ export function ItemRow({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuContainer, menuOpen, closeMenu);
   const [error, setError] = useState<string | null>(null);
+  // D-105：「…」の「削除」と同じく、確認なしで削除して「削除した持ち物」へ移す（D-27）。
+  // 名前の入力中・送信中・メニューを開いている間・並べ替えの保存中・ドラッグ中は横に引かない
+  const swipeContainer = useRef<HTMLDivElement>(null);
+  const swipe = useSwipeToDelete({
+    container: swipeContainer,
+    disabled: sortDisabled || editing || busy || menuOpen || active !== null,
+    open: swipeOpen,
+    onOpenChange: onSwipeOpenChange,
+    onDelete: () => void deleteItem(),
+  });
 
   // 404・401などで画面を移動・読み直ししたら true
   function handleMovingError(failure: unknown): boolean {
@@ -186,7 +204,8 @@ export function ItemRow({
       {...attributes}
       {...listeners}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`flex cursor-grab touch-manipulation flex-col gap-1 border-b border-zinc-200 bg-background py-2 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""}`}
+      // 横の動きは左スワイプ（D-105）に使うので、ブラウザには縦のスクロールと拡大だけを任せる
+      className={`flex cursor-grab touch-pan-y touch-pinch-zoom flex-col border-b border-zinc-200 bg-background select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""}`}
     >
       {isDragging && dropAllowed && (
         // D-98：すき間の寸法と移動先の判定を変えず、収まる場所を枠の形でも示す。
@@ -197,104 +216,130 @@ export function ItemRow({
         />
       )}
       <div
-        className={`flex items-center gap-2 ${isDragging ? "opacity-0" : ""}`}
+        ref={swipeContainer}
+        className={`relative ${swipe.offset < 0 ? "overflow-hidden" : ""}`}
       >
-        <input
-          type="checkbox"
-          id={itemCheckboxId(item.id)}
-          checked={item.is_checked}
-          disabled={busy}
-          aria-label={item.name}
-          aria-describedby={errorId}
-          onChange={() => void toggleChecked()}
-          className="size-5 shrink-0"
+        <SwipeDeleteLayer
+          visible={swipe.offset < 0}
+          open={swipe.isOpen}
+          label={`${item.name}を削除`}
+          // 消す前に閉じる。「削除した持ち物」から戻したときに、開いたまま戻さない
+          onDelete={() => {
+            onSwipeOpenChange(false);
+            void deleteItem();
+          }}
         />
-        {editing ? (
-          <input
-            type="text"
-            value={draft}
-            autoFocus
-            aria-label="持ち物名"
-            aria-invalid={Boolean(error)}
-            aria-describedby={errorId}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setError(null);
-            }}
-            onKeyDown={handleKeyDown}
-            // エラーを出している間は、ほかを押しただけでは送り直さない
-            onBlur={() => {
-              if (!error) void saveName();
-            }}
-            className="min-w-0 flex-1 rounded border border-zinc-400 px-2 py-1"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(item.name);
-              setEditing(true);
-            }}
-            className="min-w-0 flex-1 cursor-grab text-left wrap-break-word"
+        {/* 行の中身だけを横にずらし、下の赤い「削除」を見せる。並べ替えの位置（li の transform）とは分ける */}
+        <div
+          {...swipe.handlers}
+          style={
+            swipe.offset < 0
+              ? { transform: `translateX(${swipe.offset}px)` }
+              : undefined
+          }
+          className={`relative flex flex-col gap-1 bg-background py-2 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
+        >
+          <div
+            className={`flex items-center gap-2 ${isDragging ? "opacity-0" : ""}`}
           >
-            {item.name}
-          </button>
-        )}
+            <input
+              type="checkbox"
+              id={itemCheckboxId(item.id)}
+              checked={item.is_checked}
+              disabled={busy}
+              aria-label={item.name}
+              aria-describedby={errorId}
+              onChange={() => void toggleChecked()}
+              className="size-5 shrink-0"
+            />
+            {editing ? (
+              <input
+                type="text"
+                value={draft}
+                autoFocus
+                aria-label="持ち物名"
+                aria-invalid={Boolean(error)}
+                aria-describedby={errorId}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setError(null);
+                }}
+                onKeyDown={handleKeyDown}
+                // エラーを出している間は、ほかを押しただけでは送り直さない
+                onBlur={() => {
+                  if (!error) void saveName();
+                }}
+                className="min-w-0 flex-1 rounded border border-zinc-400 px-2 py-1"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(item.name);
+                  setEditing(true);
+                }}
+                className="min-w-0 flex-1 cursor-grab text-left wrap-break-word"
+              >
+                {item.name}
+              </button>
+            )}
 
-        <div ref={menuContainer} data-no-drag className="relative">
-          <button
-            type="button"
-            aria-label={`${item.name}の操作`}
-            aria-expanded={menuOpen}
-            aria-controls={menuId}
-            disabled={busy}
-            onClick={() => setMenuOpen((open) => !open)}
-            // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
-            className="flex min-h-11 min-w-11 items-center justify-center rounded px-2 disabled:opacity-50"
-          >
-            …
-          </button>
-          {/* SC-07-10 */}
-          {menuOpen && (
-            <ul
-              id={menuId}
-              className="absolute right-0 z-10 mt-1 w-48 rounded border border-zinc-300 bg-background py-1 shadow"
+            <div ref={menuContainer} data-no-drag className="relative">
+              <button
+                type="button"
+                aria-label={`${item.name}の操作`}
+                aria-expanded={menuOpen}
+                aria-controls={menuId}
+                disabled={busy}
+                onClick={() => setMenuOpen((open) => !open)}
+                // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
+                className="flex min-h-11 min-w-11 items-center justify-center rounded px-2 disabled:opacity-50"
+              >
+                …
+              </button>
+              {/* SC-07-10 */}
+              {menuOpen && (
+                <ul
+                  id={menuId}
+                  className="absolute right-0 z-10 mt-1 w-48 rounded border border-zinc-300 bg-background py-1 shadow"
+                >
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onSaveAsFavorite(item);
+                      }}
+                      className="block w-full px-4 py-2 text-left"
+                    >
+                      よく使う項目に保存
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => void deleteItem()}
+                      className="block w-full px-4 py-2 text-left text-red-700"
+                    >
+                      削除
+                    </button>
+                  </li>
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <p
+              id={errorId}
+              role="alert"
+              className={`text-sm text-red-700 ${isDragging ? "opacity-0" : ""}`}
             >
-              <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onSaveAsFavorite(item);
-                  }}
-                  className="block w-full px-4 py-2 text-left"
-                >
-                  よく使う項目に保存
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => void deleteItem()}
-                  className="block w-full px-4 py-2 text-left text-red-700"
-                >
-                  削除
-                </button>
-              </li>
-            </ul>
+              {error}
+            </p>
           )}
         </div>
       </div>
-
-      {error && (
-        <p
-          id={errorId}
-          role="alert"
-          className={`text-sm text-red-700 ${isDragging ? "opacity-0" : ""}`}
-        >
-          {error}
-        </p>
-      )}
     </li>
   );
 }

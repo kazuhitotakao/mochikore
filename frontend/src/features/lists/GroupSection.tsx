@@ -3,8 +3,10 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { sectionId } from "./itemSorting";
+import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
+import { useSwipeToDelete } from "./useSwipeToDelete";
 
 type Props = {
   // null は未分類
@@ -18,6 +20,12 @@ type Props = {
   // D-106：空のグループも押せる。送信中は押せない
   checkDisabled: boolean;
   onToggleCheck: () => void;
+  // D-105：名前付きグループの見出しを左スワイプで削除する。開けるのは1行だけなので、開閉は親が持つ。
+  // 削除は確認してから、中の持ち物ごと消す（親が確認を出す）
+  swipeOpen?: boolean;
+  onSwipeOpenChange?: (open: boolean) => void;
+  swipeDisabled?: boolean;
+  onSwipeDelete?: () => void;
   children: ReactNode;
 };
 
@@ -44,9 +52,14 @@ function SortableGroupSection({
   allChecked,
   checkDisabled,
   onToggleCheck,
+  swipeOpen = false,
+  onSwipeOpenChange = () => {},
+  swipeDisabled = false,
+  onSwipeDelete = () => {},
   children,
 }: Props & { groupId: number }) {
   const {
+    active,
     attributes,
     listeners,
     setNodeRef,
@@ -60,6 +73,15 @@ function SortableGroupSection({
     disabled: sortDisabled,
     attributes: { role: "heading", roleDescription: "並べ替えできるグループ" },
   });
+  // ドラッグ中・並べ替えの保存中・送信中は横に引かない
+  const swipeContainer = useRef<HTMLDivElement>(null);
+  const swipe = useSwipeToDelete({
+    container: swipeContainer,
+    disabled: swipeDisabled || sortDisabled || active !== null,
+    open: swipeOpen,
+    onOpenChange: onSwipeOpenChange,
+    onDelete: onSwipeDelete,
+  });
 
   return (
     <section
@@ -69,27 +91,53 @@ function SortableGroupSection({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`flex flex-col gap-1 rounded bg-background ${isDragging ? "relative z-10 shadow-md" : ""}`}
     >
-      {/* 見出しだけを薄く塗り、持ち物の行と見分けられるようにする（利用者の指示）。 */}
-      <div className="-mx-2 flex min-h-15 items-center gap-2 rounded-lg bg-zinc-100 px-2 py-2">
-        <GroupCheckbox
-          title={title}
-          checked={allChecked}
-          disabled={checkDisabled}
-          onToggle={onToggleCheck}
+      {/* 横の動きは左スワイプ（D-105）に使うので、ブラウザには縦のスクロールと拡大だけを任せる。
+          赤い「削除」を見出しの薄い背景と同じ幅・角丸にそろえる */}
+      <div
+        ref={swipeContainer}
+        className={`relative -mx-2 touch-pan-y touch-pinch-zoom rounded-lg ${swipe.offset < 0 ? "overflow-hidden" : ""}`}
+      >
+        <SwipeDeleteLayer
+          visible={swipe.offset < 0}
+          open={swipe.isOpen}
+          label={`${title}と中の持ち物を削除`}
+          // 確認を出す前に閉じる。確認で「やめる」を押したときに、開いたまま残さない
+          onDelete={() => {
+            onSwipeOpenChange(false);
+            onSwipeDelete();
+          }}
         />
-        {/* 見出しそのものを持ち手にする。持ち手のマークは出さない（D-03） */}
-        <h2
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          aria-level={2}
-          className={`min-w-0 flex-1 cursor-grab touch-manipulation select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${HEADING}`}
+        {/* 見出しだけを薄く塗り、持ち物の行と見分けられるようにする（利用者の指示）。
+            持ち物の行と同じ高さ（60px）にし、赤い「削除」の縦幅もそろえる（D-105） */}
+        <div
+          {...swipe.handlers}
+          style={
+            swipe.offset < 0
+              ? { transform: `translateX(${swipe.offset}px)` }
+              : undefined
+          }
+          className={`relative flex min-h-15 items-center gap-2 rounded-lg bg-zinc-100 px-2 py-2 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
         >
-          {title}
-          <span className="text-sm font-normal whitespace-nowrap text-zinc-600">
-            （{count}件）
-          </span>
-        </h2>
+          <GroupCheckbox
+            title={title}
+            checked={allChecked}
+            disabled={checkDisabled}
+            onToggle={onToggleCheck}
+          />
+          {/* 見出しそのものを持ち手にする。持ち手のマークは出さない（D-03） */}
+          <h2
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            aria-level={2}
+            className={`min-w-0 flex-1 cursor-grab touch-pan-y touch-pinch-zoom select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 ${HEADING}`}
+          >
+            {title}
+            <span className="text-sm font-normal whitespace-nowrap text-zinc-600">
+              （{count}件）
+            </span>
+          </h2>
+        </div>
       </div>
       {children}
     </section>
