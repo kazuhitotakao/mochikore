@@ -20,8 +20,9 @@ import type { MouseEvent, TouchEvent } from "react";
 // パソコンは長押しせず、押したまま少し動かしたらすぐ動かし始める
 const MOUSE_DISTANCE_PX = 5;
 // スマホは0.1秒押してから動かし始める。押してすぐ指を滑らせたときは、画面のスクロールにする
-const TOUCH_DELAY_MS = 100;
-const TOUCH_TOLERANCE_PX = 5;
+// SC-07 の左スワイプ（D-105）も、ドラッグと取り合わないよう同じ値で判定する
+export const TOUCH_DELAY_MS = 100;
+export const TOUCH_TOLERANCE_PX = 5;
 // D-98：SC-09 の丸は、中の持ち物を動かす操作と分けるため、PC・スマホとも0.3秒押してから動かす
 const LONG_PRESS: PointerActivationConstraint = { delay: 300, tolerance: 5 };
 

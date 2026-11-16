@@ -212,6 +212,13 @@ export function ListDetail({ list, categories }: Props) {
   // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
   // チェック済みの表示切替は、開け閉めしても消えない（D-94）
   const [panelOpen, setPanelOpen] = useState(false);
+  // D-105：左スワイプで「削除」を出している行（持ち物は item-ID、グループは group-ID）。開けるのは1行だけ
+  const [swipeOpenKey, setSwipeOpenKey] = useState<string | null>(null);
+  // D-105：見出しを左スワイプして削除しようとしているグループ。確認してから中の持ち物ごと消す
+  const [swipeDeleteGroup, setSwipeDeleteGroup] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
   const pendingFocusId = useRef<string | null>(null);
   const { delayedIds, hideLater, pauseHide, cancelHide, isWaitingToHide } =
@@ -628,6 +635,7 @@ export function ListDetail({ list, categories }: Props) {
               onSaveAsFavorite={setSavingItem}
               sortDisabled={reordering}
               dropAllowed={itemDropAllowed}
+              {...swipeProps(`item-${item.id}`)}
             />
           ))}
         </ul>
@@ -767,6 +775,8 @@ export function ListDetail({ list, categories }: Props) {
     setSelectedItemIds(new Set());
     setSelectedGroupIds(new Set());
     setBulkDeleteError(null);
+    // D-105：「選んで削除」の間は左スワイプを使わない。戻ったときに「削除」を開いたまま残さない
+    setSwipeOpenKey(null);
   }
 
   function toggleInSet(
@@ -800,10 +810,12 @@ export function ListDetail({ list, categories }: Props) {
     return `選んだ持ち物（${itemCount}件）を削除しますか？元に戻せません。${groupNote}`;
   }
 
-  // F-26・D-100：選んだ持ち物とグループをまとめて削除する（API-38）。確認してから消すので、戻す候補には入れない
-  async function handleBulkDelete() {
-    const itemIds = deleteTargetIds;
-    const groupIds = [...selectedGroupIds];
+  // F-26・D-100：持ち物とグループをまとめて削除する（API-38）。確認してから消すので、戻す候補には入れない。
+  // 「選んで削除」と、見出しの左スワイプ（D-105）の両方で使う。消せたら true
+  async function deleteItemsAndGroups(
+    itemIds: number[],
+    groupIds: number[],
+  ): Promise<boolean> {
     setBulkDeleting(true);
     setBulkDeleteError(null);
     try {
@@ -811,28 +823,72 @@ export function ListDetail({ list, categories }: Props) {
         `/lists/${list.id}/items/bulk-delete`,
         { method: "POST", body: { item_ids: itemIds, group_ids: groupIds } },
       );
-      const removed = new Set(itemIds);
-      setItems((current) => current.filter((item) => !removed.has(item.id)));
+      const removedItems = new Set(itemIds);
+      const removedGroups = new Set(groupIds);
+      setItems((current) =>
+        current.filter((item) => !removedItems.has(item.id)),
+      );
       setGroups((current) =>
-        current.filter((group) => !selectedGroupIds.has(group.id)),
+        current.filter((group) => !removedGroups.has(group.id)),
       );
       // D-51：公開中のリストで持ち物が0件になると、自動で非公開になる
       if (isPublic && !result.is_public) {
         setNotice("持ち物がなくなったため、リストを非公開にしました。");
       }
       setIsPublic(result.is_public);
-      setConfirmingDelete(false);
-      setSelectingMode(false);
+      return true;
     } catch (failure) {
-      if (redirectIfAuthError(failure)) return;
+      if (redirectIfAuthError(failure)) return false;
       if (isNotFound(failure)) {
         router.refresh();
-        return;
+        return false;
       }
       // 失敗したときは選んだものを残し、確認の中に理由を出す
       setBulkDeleteError(bulkDeleteErrorMessage(failure));
+      return false;
     } finally {
       setBulkDeleting(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (await deleteItemsAndGroups(deleteTargetIds, [...selectedGroupIds])) {
+      setConfirmingDelete(false);
+      setSelectingMode(false);
+    }
+  }
+
+  // D-105：左スワイプで「削除」を出せるのは1行だけ。別の行を引いたら前の行は閉じる
+  function swipeProps(key: string) {
+    return {
+      swipeOpen: swipeOpenKey === key,
+      onSwipeOpenChange: (open: boolean) =>
+        setSwipeOpenKey((current) =>
+          open ? key : current === key ? null : current,
+        ),
+    };
+  }
+
+  // D-105（利用者の指示）：見出しの左スワイプで消すグループは、中の全有効持ち物（隠れたチェック済みも含む）ごと消す。
+  // 「選んで削除」でグループを選んだときと同じで、元に戻せない（D-100）
+  const swipeDeleteItemIds = swipeDeleteGroup
+    ? items
+        .filter((item) => item.group_id === swipeDeleteGroup.id)
+        .map((item) => item.id)
+    : [];
+
+  function swipeDeleteMessage(): string {
+    if (!swipeDeleteGroup) return "";
+    const count = swipeDeleteItemIds.length;
+    return count === 0
+      ? `「${swipeDeleteGroup.name}」を削除しますか？元に戻せません。`
+      : `「${swipeDeleteGroup.name}」と中の持ち物（${count}件）を削除しますか？元に戻せません。`;
+  }
+
+  async function handleSwipeGroupDelete() {
+    if (!swipeDeleteGroup) return;
+    if (await deleteItemsAndGroups(swipeDeleteItemIds, [swipeDeleteGroup.id])) {
+      setSwipeDeleteGroup(null);
     }
   }
 
@@ -861,6 +917,14 @@ export function ListDetail({ list, categories }: Props) {
         // 全件チェック済みでも持ち物と同じ色を保ち、猶予中は取り消せる（利用者の指示）。
         checkDisabled={groupChecking !== undefined || reordering}
         onToggleCheck={() => void handleGroupCheck(groupId)}
+        // D-105：名前付きグループの見出しだけ。未分類には見出しがないので使わない
+        {...swipeProps(`group-${groupId}`)}
+        swipeDisabled={bulkDeleting || groupChecking !== undefined}
+        onSwipeDelete={() => {
+          if (groupId === null) return;
+          setBulkDeleteError(null);
+          setSwipeDeleteGroup({ id: groupId, name: title });
+        }}
       >
         {renderItems(sectionItems, groupId !== null)}
         {groupId === null && (
@@ -1158,6 +1222,22 @@ export function ListDetail({ list, categories }: Props) {
         error={bulkDeleteError}
         onConfirm={() => void handleBulkDelete()}
         onCancel={() => setConfirmingDelete(false)}
+      />
+
+      {/* D-105：見出しを左スワイプしたグループの削除の確認。中の持ち物も消え、元に戻せないことを伝える */}
+      <ConfirmDialog
+        open={swipeDeleteGroup !== null}
+        message={swipeDeleteMessage()}
+        confirmLabel="削除する"
+        cancelLabel="やめる"
+        busy={bulkDeleting}
+        destructive
+        error={bulkDeleteError}
+        onConfirm={() => void handleSwipeGroupDelete()}
+        onCancel={() => {
+          setSwipeDeleteGroup(null);
+          setBulkDeleteError(null);
+        }}
       />
     </>
   );
