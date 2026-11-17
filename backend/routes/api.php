@@ -24,6 +24,7 @@ use App\Http\Controllers\RestorePackingListItemController;
 use App\Http\Controllers\SavedGroupController;
 use App\Http\Controllers\SavedItemController;
 use App\Http\Controllers\UpdateEmptyGroupCheckController;
+use App\Http\Controllers\UpdateGroupNameController;
 use App\Http\Controllers\UpdateListVisibilityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
@@ -76,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
         Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class);
         Route::patch('/groups/{group}/check', UpdateEmptyGroupCheckController::class);
+        Route::patch('/groups/{group}', UpdateGroupNameController::class);
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
         Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);

@@ -932,7 +932,17 @@ function GroupCircle({
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 font-bold wrap-break-word text-brand-deep">
-          {name}
+          {/* D-109：名前を押すと「名前を変更」を開く（持ち物を押すと移し先を選ぶのと同じ）。
+              短く押したときだけ開き、長押し（0.3秒）して動かしたときは丸の並べ替えにする */}
+          <button
+            type="button"
+            onClick={onRename}
+            disabled={disabled}
+            className="text-left font-bold wrap-break-word disabled:opacity-50"
+          >
+            {name}
+            <span className="sr-only">（名前を変更）</span>
+          </button>
           <span className="inline-block whitespace-nowrap">
             （{items.length}件）
           </span>
@@ -950,16 +960,8 @@ function GroupCircle({
             …
           </button>
           {menuOpen && (
+            // D-109：名前の変更は名前を押して行うので、ここには置かない
             <ul className="absolute right-0 z-10 mt-1 w-48 menu py-1">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => choose(onRename)}
-                  className="block w-full px-4 py-2 text-left"
-                >
-                  名前を変更
-                </button>
-              </li>
               {canMoveUp && (
                 <li>
                   <button

@@ -932,6 +932,17 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
           setBulkDeleteError(null);
           setSwipeDeleteGroup({ id: groupId, name: title });
         }}
+        // D-109：名前を変えたら、保存できた名前で見出しを書き換える。同名の確認には隠したグループも含める
+        otherGroupNames={groups
+          .filter((group) => group.id !== groupId)
+          .map((group) => group.name)}
+        onRenamed={(saved) =>
+          setGroups((current) =>
+            current.map((group) =>
+              group.id === saved.id ? { ...group, name: saved.name } : group,
+            ),
+          )
+        }
       >
         {renderItems(sectionItems, groupId !== null)}
         {groupId === null && (
