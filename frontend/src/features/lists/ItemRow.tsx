@@ -209,10 +209,11 @@ export function ItemRow({
     >
       {isDragging && dropAllowed && (
         // D-98：すき間の寸法と移動先の判定を変えず、収まる場所を枠の形でも示す。
+        // 色は画面の地に合わせた緑の点線と薄い緑（利用者の指示）
         <div
           aria-hidden="true"
           data-drag-insertion
-          className="pointer-events-none absolute inset-x-0 inset-y-1 z-10 rounded-lg border-2 border-dashed border-sky-400 bg-sky-50"
+          className="pointer-events-none absolute inset-x-0 inset-y-1 z-10 rounded-lg border-2 border-dashed border-brand/60 bg-brand-soft/70"
         />
       )}
       <div
