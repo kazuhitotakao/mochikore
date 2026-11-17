@@ -13,7 +13,7 @@ export default async function GroupingPage(
   // URLの値をそのまま Laravel のパスへ入れないよう、正の整数だけを通す
   if (!/^[1-9][0-9]*$/.test(listId)) notFound();
 
-  // D-95：SC-07 でチェック済みを表示中に開いたときだけ、チェック済みも分類の対象にする
+  // D-95：SC-07 と同じ表示で始める（表示中に開いたらチェック済みも出す）。画面の中でも切り替えられる
   const includeChecked = searchParams.show_checked === "1";
 
   // SC-09-1：最新の分類を読む（API-29）。読めなければ編集を始めない（エラーの画面になる）。

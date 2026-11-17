@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BackArrow } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { SwitchIndicator } from "@/components/SwitchIndicator";
 import { useDragSensors } from "@/components/dragSensors";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
@@ -224,7 +225,7 @@ function sameDraft(a: Draft, b: Draft): boolean {
 type Props = {
   listId: number;
   initialState: GroupingState;
-  // D-95：SC-07 でチェック済みを表示中に開いたときだけ true。false ならチェック済みを出さない
+  // D-95：SC-07 でチェック済みを表示中に開いたときは true。開いたときの表示で、画面の中でも切り替えられる
   includeChecked: boolean;
 };
 
@@ -269,6 +270,8 @@ export function GroupingEditor({
     ({ key: string } & CandidatesState) | null
   >(null);
   const [savingFavorite, setSavingFavorite] = useState(false);
+  // D-95（利用者の指示）：SC-07 と同じ表示で始め、見出しの下のボタンで切り替える。画面の中の状態で、保存しない
+  const [showChecked, setShowChecked] = useState(includeChecked);
   const [notice, setNotice] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
@@ -281,10 +284,11 @@ export function GroupingEditor({
   const dirty = !sameDraft(draft, savedDraft);
   const busy = saving || reloading;
   // D-95：出さないチェック済みも下書きには残し、今の所属のまま保存する（API-30 は全有効持ち物の所属を受け取る）
-  const shownItems = includeChecked
+  // 切り替えても下書き（所属・丸・名前）は変えないので、隠した後に戻しても動かした所属が残る
+  const shownItems = showChecked
     ? state.items
     : state.items.filter((item) => !item.is_checked);
-  const hiddenCheckedCount = state.items.length - shownItems.length;
+  const checkedCount = state.items.filter((item) => item.is_checked).length;
   const draggingItem = shownItems.find((item) => item.id === draggingId);
   const movingItem = shownItems.find((item) => item.id === movingItemId);
   const draggingGroup = draft.groups.find(
@@ -508,8 +512,8 @@ export function GroupingEditor({
 
   function backToList() {
     leaving.current = true;
-    // D-94：チェック済みを表示したまま来たときは、戻ったときも表示したままにする
-    router.replace(withShowChecked(`/lists/${listId}`, includeChecked));
+    // D-94（利用者の指示）：戻った SC-07 は、この画面で最後に選んだ表示で始める
+    router.replace(withShowChecked(`/lists/${listId}`, showChecked));
   }
 
   // SC-09-9「キャンセル」と「←」。変更がなければそのまま戻り、あれば破棄を確かめる（SC-09-10）
@@ -638,11 +642,20 @@ export function GroupingEditor({
             グループを追加
           </button>
         </div>
-        {hiddenCheckedCount > 0 && (
-          <p className="text-sm text-muted">
-            チェック済みの持ち物（{hiddenCheckedCount}
-            件）は表示していません。今のグループに残ります（グループを削除すると未分類へ移ります）。
-          </p>
+        {/* SC-09-2・D-95：チェック済みがあるときだけ置く。利用者の指示で、文字だけでは今の状態が分かりにくいので
+            オン・オフの形のスイッチにする（色だけでなく、つまみの位置でも示す）。隠しているときの案内文は出さない */}
+        {checkedCount > 0 && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showChecked}
+            onClick={() => setShowChecked((current) => !current)}
+            disabled={busy}
+            className="flex min-h-11 items-center gap-3 self-start rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
+          >
+            <span>チェック済みを表示（{checkedCount}件）</span>
+            <SwitchIndicator on={showChecked} />
+          </button>
         )}
         {conflict && (
           <div className="flex flex-col gap-2">
