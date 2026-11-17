@@ -7,6 +7,7 @@ import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
 import type { PackingListItem } from "@/types/api";
 import { isNotFound, itemErrorMessage } from "./itemErrors";
+import { ITEM_NAME_FIELD } from "./ItemRow";
 import { validateItemName } from "./validation";
 
 type Props = {
@@ -29,6 +30,8 @@ export function AddItemRow({ listId, onAdded }: Props) {
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // SC-07-13：入力している間だけ、名前を直すときと同じ入力欄の見た目にする
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     function blurOutside(event: PointerEvent) {
@@ -154,7 +157,8 @@ export function AddItemRow({ listId, onAdded }: Props) {
       <p id="new-item-hint" className="sr-only">
         Enter、または入力欄の外を押すと保存します。
       </p>
-      <div className="flex items-center gap-2">
+      {/* SC-07-13（利用者の指示）：入力前も、ほかの持ち物の行と同じ高さ（「…」ボタンと同じ44px）にする */}
+      <div className="flex min-h-11 items-center gap-2">
         <input
           type="checkbox"
           disabled
@@ -179,7 +183,11 @@ export function AddItemRow({ listId, onAdded }: Props) {
             setError(null);
           }}
           onKeyDown={handleKeyDown}
-          onBlur={() => void save("blur")}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            void save("blur");
+          }}
           onCompositionStart={() => {
             composing.current = true;
           }}
@@ -195,7 +203,10 @@ export function AddItemRow({ listId, onAdded }: Props) {
               });
             }
           }}
-          className="min-h-6 min-w-0 flex-1 scroll-mb-24 bg-transparent pr-2 text-base outline-none placeholder:text-faint focus-visible:outline-1 focus-visible:outline-line-strong"
+          // SC-07-13（利用者の指示）：入力している間だけ、名前を直すときと同じ入力欄（白地と枠）にする。
+          // ふだんは下線だけで、ほかの行と列をそろえる。エラーのときは赤い枠（aria-invalid）。
+          // 入力前は行の高さいっぱいを押せるようにする。枠（36px）は行（44px）に収まるので、押しても行の高さは変わらない
+          className={`scroll-mb-24 text-base ${focused ? ITEM_NAME_FIELD : "min-h-11 min-w-0 flex-1 bg-transparent pr-2 outline-none placeholder:text-faint"}`}
         />
       </div>
       {error && (
