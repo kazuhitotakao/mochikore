@@ -28,6 +28,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { BackArrow } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useDragSensors } from "@/components/dragSensors";
 import { useDismiss } from "@/components/useDismiss";
@@ -619,10 +620,10 @@ export function GroupingEditor({
           type="button"
           aria-label="戻る"
           onClick={handleCancel}
-          // 共通2の「←」と同じく、押せる範囲を44px四方以上にする（利用者の指示）
-          className="-mb-3 -ml-3 flex min-h-11 min-w-11 items-center justify-center self-start rounded-lg px-3 text-xl text-brand hover:text-brand-deep"
+          // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
+          className="group -mb-1 self-start back-button tap-target"
         >
-          ←
+          <BackArrow />
         </button>
 
         {/* SC-09-2・3 */}
