@@ -63,7 +63,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 - SC-09のグループは枠全体を元と同じ寸法・内容で動かし、影を付ける。グループを動かす間はDragOverlayを外し、持ち物を動かすときだけ名前を重ねて表示する。並べ替えは下書きにし、OK（API-30）で保存する（D-58・D-59・D-98）。
 - 指で押すボタン・リンクは、押せる範囲を44px四方以上にする。文字だけのリンク・ボタンには `tap-target`（globals.css）を付け、縦並び（flex-col）の中では `self-start` も付けて横いっぱいに広げない（D-73）。
 - 押せるボタン・チェック欄・選択肢の指の形は globals.css でそろえている。部品ごとに `cursor-pointer` を付けない。dnd-kit の `role="button"` は対象外（D-73）。
-- 配色は生成り色の地と深い緑（02_画面の絵、D-73）。色は globals.css の名前（`bg-brand`・`text-muted`・`border-line`・`text-danger` など）、ボタン・入力欄・リンク・枠・ラベルは `btn-primary`・`btn-outline`・`btn-danger`・`field`・`text-link`・`card`・`tag` を使う。戻るボタン「←」は `BackLink`（見た目は `back-button`）を使う。`zinc` などの色や色の値を部品に直接書かない。暗い表示用の配色は作らない。書体は Noto Sans JP（`layout.tsx` の `next/font/google`。自分のサイトから配る）。
+- 配色は生成り色の地と深い緑（02_画面の絵、D-73）。色は globals.css の名前（`bg-brand`・`text-muted`・`border-line`・`text-danger` など）、ボタン・入力欄・リンク・枠・ラベルは `btn-primary`・`btn-outline`・`btn-danger`・`field`・`text-link`・`card`・`tag` を使う。戻るボタン「←」は `BackLink`（見た目は `back-button`）を使う。オン・オフの切り替えは `SwitchIndicator` を使い、ボタンに `role="switch"`・`aria-checked` を付ける。`zinc` などの色や色の値を部品に直接書かない。暗い表示用の配色は作らない。書体は Noto Sans JP（`layout.tsx` の `next/font/google`。自分のサイトから配る）。
 - エラーや選択状態は、色だけでなく文字や形でも示す。
 - 他人の文字を `dangerouslySetInnerHTML` で表示しない。
 - ログイン後の戻り先は同じサイト内だけにする。

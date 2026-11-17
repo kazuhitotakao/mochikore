@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FieldError } from "@/components/FieldError";
+import { SwitchIndicator } from "@/components/SwitchIndicator";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { useFieldErrors } from "@/features/auth/useFieldErrors";
 import {
@@ -316,6 +317,8 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
         <section aria-label="公開設定" className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <span>公開設定：{savedList.is_public ? "公開" : "非公開"}</span>
+            {/* SC-06-7（利用者の指示）：文字のボタンではなく、オン・オフの形のスイッチにする。オンが公開。
+                公開にするときだけ確認し、非公開に戻すときはすぐ切り替える（D-42・D-85） */}
             <button
               type="button"
               role="switch"
@@ -327,9 +330,10 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
                 if (savedList.is_public) void changeVisibility(false);
                 else setConfirmPublic(true);
               }}
-              className="btn-outline"
+              // 押せる範囲は44px四方以上にする（D-73）
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
             >
-              {savedList.is_public ? "非公開にする" : "公開にする"}
+              <SwitchIndicator on={savedList.is_public} />
             </button>
           </div>
           {moderated && (
