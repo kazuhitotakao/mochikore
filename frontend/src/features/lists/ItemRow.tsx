@@ -20,6 +20,9 @@ import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
 import { useSwipeToDelete } from "./useSwipeToDelete";
 import { validateItemName } from "./validation";
 
+// 持ち物の名前の入力欄。名前を直すときと、末尾の追加欄で入力しているときに同じ見た目にする（利用者の指示）
+export const ITEM_NAME_FIELD = "field min-h-9 min-w-0 flex-1 px-2 py-1";
+
 type Props = {
   item: PackingListItem;
   onChanged: (item: PackingListItem) => void;
@@ -270,7 +273,7 @@ export function ItemRow({
                 onBlur={() => {
                   if (!error) void saveName();
                 }}
-                className="field min-h-9 min-w-0 flex-1 px-2 py-1"
+                className={ITEM_NAME_FIELD}
               />
             ) : (
               <button
