@@ -174,4 +174,37 @@ class GroupingService
             $locked->increment('grouping_revision');
         });
     }
+
+    /**
+     * API-44 グループ名だけを変える（D-109）。持ち物・順番・チェックは変えない。
+     */
+    public function rename(PackingListGroup $group, string $name): PackingListGroup
+    {
+        return DB::transaction(function () use ($group, $name) {
+            // 整理（API-30）・並べ替えと同じ親リストをロックし、その後で同名を確かめる
+            $locked = PackingList::whereKey($group->packing_list_id)->lockForUpdate()->firstOrFail();
+            $target = $locked->groups()->whereKey($group->id)->firstOrFail();
+
+            // 同じ名前のままなら、revision も更新日時も変えない（28-05 の変化なしの OK と同じ）
+            if ($target->name === $name) {
+                return $target;
+            }
+
+            // D-57：同じリストのほかのグループと同名は不可。照合順序に頼らず、PHP で完全一致を比べる
+            $taken = $locked->groups()->whereKeyNot($target->id)->pluck('name')
+                ->contains(fn (string $other) => $other === $name);
+            if ($taken) {
+                throw ValidationException::withMessages([
+                    'name' => [__('validation.group_name.duplicate')],
+                ]);
+            }
+
+            $target->update(['name' => $name]);
+            // D-59・D-109：グループの変更なので revision を増やし、開いたままの SC-09 が古い名前で上書きしないようにする。
+            // D-24：一覧の上に戻す（increment は updated_at も更新する）
+            $locked->increment('grouping_revision');
+
+            return $target;
+        });
+    }
 }

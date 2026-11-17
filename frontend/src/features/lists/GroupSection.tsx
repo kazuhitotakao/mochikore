@@ -3,7 +3,22 @@
 import { useDroppable } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useRef, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
+import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
+import { trimLikeLaravel } from "@/features/auth/validation";
+import { validateGroupName } from "@/features/grouping/validation";
+import { clientApi } from "@/lib/api/client";
+import type { PackingListGroup } from "@/types/api";
+import { isNotFound, itemErrorMessage } from "./itemErrors";
+import { ITEM_NAME_FIELD } from "./ItemRow";
 import { sectionId } from "./itemSorting";
 import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
 import { useSwipeToDelete } from "./useSwipeToDelete";
@@ -26,6 +41,9 @@ type Props = {
   onSwipeOpenChange?: (open: boolean) => void;
   swipeDisabled?: boolean;
   onSwipeDelete?: () => void;
+  // D-109：見出しの名前を押して変える。同じリストのほかのグループ名は、同名の確認（V-14）に使う
+  otherGroupNames?: readonly string[];
+  onRenamed?: (group: PackingListGroup) => void;
   children: ReactNode;
 };
 
@@ -56,8 +74,97 @@ function SortableGroupSection({
   onSwipeOpenChange = () => {},
   swipeDisabled = false,
   onSwipeDelete = () => {},
+  otherGroupNames = [],
+  onRenamed = () => {},
   children,
 }: Props & { groupId: number }) {
+  const router = useRouter();
+  const redirectIfAuthError = useAuthErrorRedirect();
+  const errorId = useId();
+  const nameButton = useRef<HTMLButtonElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  // 入力欄が消えるときの blur や、Enter と欄外の重なりで二重に送らないよう、状態の反映を待たずに判定する（D-73）
+  const editingNow = useRef(false);
+  const renameInFlight = useRef(false);
+  // Enter・Esc で入力を終えたときだけ名前のボタンへカーソルを戻す。欄外を押したときは移った先を保つ
+  const focusNameAfterEdit = useRef(false);
+
+  useEffect(() => {
+    if (editing || !focusNameAfterEdit.current) return;
+    focusNameAfterEdit.current = false;
+    nameButton.current?.focus();
+  }, [editing]);
+
+  function startEditing() {
+    editingNow.current = true;
+    setDraft(title);
+    setNameError(null);
+    setEditing(true);
+  }
+
+  function finishEditing(restoreFocus: boolean) {
+    editingNow.current = false;
+    focusNameAfterEdit.current = restoreFocus;
+    setNameError(null);
+    setEditing(false);
+  }
+
+  // D-109・SC-07-6：入力を確定したら API-44 で保存する。持ち物の名前（SC-07-8）と同じ流れ
+  async function saveName(restoreFocus: boolean) {
+    if (!editingNow.current || renameInFlight.current) return;
+
+    // 変わっていなければ送らずに戻す
+    if (trimLikeLaravel(draft) === title) {
+      finishEditing(restoreFocus);
+      return;
+    }
+
+    const invalid = validateGroupName(draft, otherGroupNames);
+    if (invalid) {
+      setNameError(invalid);
+      return;
+    }
+
+    renameInFlight.current = true;
+    setRenaming(true);
+    setNameError(null);
+    try {
+      const saved = await clientApi<PackingListGroup>(`/groups/${groupId}`, {
+        method: "PATCH",
+        body: { name: draft },
+      });
+      onRenamed(saved);
+      finishEditing(restoreFocus);
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      // ほかの画面でグループが消えていたら、最新の内容を読み直す
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      // 共通10：失敗しても入力中の名前は残す。同名などは V-14 の文を出す
+      setNameError(itemErrorMessage(failure));
+    } finally {
+      renameInFlight.current = false;
+      setRenaming(false);
+    }
+  }
+
+  function handleNameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    // 日本語の変換を確定する Enter では保存しない
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void saveName(true);
+    }
+    if (event.key === "Escape" && !renameInFlight.current) {
+      event.preventDefault();
+      finishEditing(true);
+    }
+  }
+
   const {
     active,
     attributes,
@@ -70,14 +177,15 @@ function SortableGroupSection({
   } = useSortable({
     id: sectionId(groupId),
     data: { groupId },
-    disabled: sortDisabled,
+    // 名前を入力している間は並べ替えない
+    disabled: sortDisabled || editing,
     attributes: { role: "heading", roleDescription: "並べ替えできるグループ" },
   });
   // ドラッグ中・並べ替えの保存中・送信中は横に引かない
   const swipeContainer = useRef<HTMLDivElement>(null);
   const swipe = useSwipeToDelete({
     container: swipeContainer,
-    disabled: swipeDisabled || sortDisabled || active !== null,
+    disabled: swipeDisabled || sortDisabled || editing || active !== null,
     open: swipeOpen,
     onOpenChange: onSwipeOpenChange,
     onDelete: onSwipeDelete,
@@ -130,15 +238,52 @@ function SortableGroupSection({
             {...attributes}
             {...listeners}
             aria-level={2}
-            className={`min-w-0 flex-1 cursor-grab touch-pan-y touch-pinch-zoom select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${HEADING}`}
+            className={`flex min-w-0 flex-1 cursor-grab touch-pan-y touch-pinch-zoom items-center gap-1 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${HEADING}`}
           >
-            {title}
-            <span className="text-sm font-normal whitespace-nowrap text-muted">
+            {editing ? (
+              <input
+                type="text"
+                value={draft}
+                autoFocus
+                // 送信中は書き換えさせず、保存した名前と入力がずれないようにする
+                readOnly={renaming}
+                aria-label="グループ名"
+                aria-invalid={Boolean(nameError)}
+                aria-describedby={errorId}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setNameError(null);
+                }}
+                onKeyDown={handleNameKeyDown}
+                // エラーを出している間は、ほかを押しただけでは送り直さない
+                onBlur={() => {
+                  if (!nameError) void saveName(false);
+                }}
+                className={`${ITEM_NAME_FIELD} font-bold`}
+              />
+            ) : (
+              // D-109：持ち物の名前（SC-07-8）と同じく、押すと入力欄になる。押したまま動かすと並べ替え
+              <button
+                ref={nameButton}
+                type="button"
+                onClick={startEditing}
+                className="min-w-0 cursor-grab text-left font-bold wrap-break-word"
+              >
+                {title}
+                <span className="sr-only">（名前を変更）</span>
+              </button>
+            )}
+            <span className="shrink-0 text-sm font-normal whitespace-nowrap text-muted">
               （{count}件）
             </span>
           </h2>
         </div>
       </div>
+      {nameError && (
+        <p id={errorId} role="alert" className="px-2 text-sm text-danger">
+          {nameError}
+        </p>
+      )}
       {children}
     </section>
   );
