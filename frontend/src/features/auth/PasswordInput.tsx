@@ -35,14 +35,30 @@ export function PasswordInput({
         onChange={onChange}
         className="min-h-10 min-w-0 flex-1 bg-transparent outline-none"
       />
+      {/* D-39：よくある目のアイコンにする。押すと次にどうなるかを形で示す（隠れているときは目、表示中は斜線付きの目）。
+          押せる範囲は44px四方にし、上下にはみ出させて枠の高さをほかの入力欄とそろえる（D-73） */}
       <button
         type="button"
         onClick={() => setVisible((current) => !current)}
         aria-controls={id}
         aria-pressed={visible}
-        className="min-h-10 shrink-0 rounded-lg px-2 text-sm text-brand hover:text-brand-deep focus-visible:outline-2 focus-visible:outline-brand"
+        aria-label={visible ? "パスワードを隠す" : "パスワードを表示"}
+        className="-my-0.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:text-brand focus-visible:outline-2 focus-visible:outline-brand"
       >
-        {visible ? "パスワードを隠す" : "パスワードを表示"}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="size-6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+          <circle cx="12" cy="12" r="3" />
+          {visible && <path d="M4 4l16 16" />}
+        </svg>
       </button>
     </div>
   );
