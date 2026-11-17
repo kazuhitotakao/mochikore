@@ -9,6 +9,7 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { PackingList } from "@/types/api";
+import { withShowChecked } from "./showChecked";
 import { PUBLISH_MESSAGE, visibilityErrorMessage } from "./visibility";
 
 type Props = {
@@ -87,10 +88,12 @@ export function ListMenu({
   }
 
   // D-95（利用者の指示）：チェック済みを表示しているときだけ、整理画面でもチェック済みを分類できるようにする。
-  // 表示の切替は画面の中の状態なので、開くときのURLで渡す
-  const groupingHref = showChecked
-    ? `/lists/${listId}/grouping?show_checked=1`
-    : `/lists/${listId}/grouping`;
+  // D-94：SC-06・SC-09 から戻ったときも表示を引き継ぐ。表示の切替は画面の中の状態なので、開くときのURLで渡す
+  const groupingHref = withShowChecked(
+    `/lists/${listId}/grouping`,
+    showChecked,
+  );
+  const editHref = withShowChecked(`/lists/${listId}/edit`, showChecked);
 
   // SC-07-4・F-19：押したときだけ整理画面（SC-09）を開く（D-56）
   function openGrouping() {
@@ -191,11 +194,7 @@ export function ListMenu({
           className="absolute right-0 z-10 mt-1 flex w-48 flex-col menu py-1"
         >
           <li>
-            <Link
-              href={`/lists/${listId}/edit`}
-              prefetch={false}
-              className="block px-4 py-2"
-            >
+            <Link href={editHref} prefetch={false} className="block px-4 py-2">
               リストを編集
             </Link>
           </li>
