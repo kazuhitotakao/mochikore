@@ -6,12 +6,11 @@ import { clientApi } from "@/lib/api/client";
 import type { PackingListItem } from "@/types/api";
 import { isNotFound, itemErrorMessage } from "./itemErrors";
 
-// 削除した持ち物の候補。削除したときの値と、その時点で上から何番目だったか
+// 削除した持ち物の候補。削除したときの値。
+// SC-07-12（利用者の指示）：元の位置・チェックの有無・戻す位置の説明は出さず、名前だけを並べる。
+// 戻す位置は Laravel が決める（D-31）
 export type DeletedItem = {
   item: PackingListItem;
-  position: number;
-  // D-31：削除した後に並べ替えたら、戻すと元の位置ではなく一番下に入る
-  movesToBottom?: boolean;
 };
 
 type Props = {
@@ -100,7 +99,7 @@ function DeletedItemRow({
 }) {
   const redirectIfAuthError = useAuthErrorRedirect();
   const [error, setError] = useState<string | null>(null);
-  const { item, position, movesToBottom } = deleted;
+  const { item } = deleted;
 
   // API-25：1件ずつ戻す。D-35：送信中は押せない
   async function restore() {
@@ -126,18 +125,7 @@ function DeletedItemRow({
   return (
     <li className="card-sunken flex flex-col gap-1 px-4 py-3">
       <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="wrap-break-word">{item.name}</span>
-          <span className="text-sm text-muted">
-            元の位置：{position}番目・
-            {item.is_checked ? "チェック済み" : "未チェック"}
-          </span>
-          {movesToBottom && (
-            <span className="text-sm text-muted">
-              並べ替えたため、戻すと一番下に入ります
-            </span>
-          )}
-        </div>
+        <span className="min-w-0 flex-1 wrap-break-word">{item.name}</span>
         <button
           type="button"
           onClick={() => void restore()}

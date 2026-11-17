@@ -386,13 +386,12 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   }
 
   function handleDeleted(item: PackingListItem, result: ItemDeleteResult) {
-    const position = items.findIndex((existing) => existing.id === item.id) + 1;
     setItems((current) =>
       current.filter((existing) => existing.id !== item.id),
     );
     // 削除した持ち物は候補に移し、新しく削除したものを上に出す
     setDeletedItems((current) => [
-      { item, position },
+      { item },
       ...current.filter((deleted) => deleted.item.id !== item.id),
     ]);
     // D-51：公開中のリストで最後の持ち物を削除すると、自動で非公開になる
@@ -612,10 +611,6 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
         body: { item_ids: moved.map((item) => item.id), ...(move && { move }) },
       });
       if (move) clearEmptyGroupCheck(move.group_id);
-      // D-31：並べ替えた後は、削除した持ち物を戻すと一番下に入る
-      setDeletedItems((current) =>
-        current.map((deleted) => ({ ...deleted, movesToBottom: true })),
-      );
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (isNotFound(failure)) {
