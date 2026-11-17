@@ -311,6 +311,39 @@
   line-height: 1.25rem;
 }
 
+/*
+  共通2の「←」（前の画面へ戻る）。白い丸に深い緑の線の矢印（利用者の指示、D-73）。
+  入力欄・カードと同じ白い地と生成りの枠にして、画面から浮かないようにする。
+  丸は36px（控えめにするため、利用者の指示）。押せる範囲は tap-target を足して44px四方にする。
+*/
+@utility back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--color-line);
+  border-radius: 9999px;
+  background-color: #fff;
+  color: var(--color-brand);
+  box-shadow: 0 1px 3px rgb(61 58 51 / 0.08);
+  transition:
+    background-color 150ms,
+    border-color 150ms;
+
+  &:hover {
+    border-color: var(--color-brand-soft);
+    background-color: var(--color-brand-soft);
+    color: var(--color-brand-deep);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
 /* 「…」から開くメニュー */
 @utility menu {
   border: 1px solid var(--color-line);
