@@ -1095,9 +1095,11 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
             {renderSection(null, "未分類")}
             <DragOverlay adjustScale={false}>
               {draggingItem && (
+                // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
+                // 縁取りは ring にして、元の行と高さを変えない（D-98）
                 <div
                   aria-hidden="true"
-                  className="flex items-center gap-2 border-b border-line-soft bg-background py-2 shadow-md"
+                  className="flex items-center gap-2 rounded-lg bg-background py-2 pl-1.5 shadow-md ring-1 ring-line"
                 >
                   <input
                     type="checkbox"
