@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { readAsUser } from "@/features/auth/requireUser";
 import { ListForm } from "@/features/lists/ListForm";
+import { isShowChecked, withShowChecked } from "@/features/lists/showChecked";
 import { serverApi } from "@/lib/api/server";
 import type { Category, PackingListDetail } from "@/types/api";
 
@@ -21,12 +22,14 @@ export default async function EditListPage(
     `/lists/${listId}/edit`,
   );
   const categories = await serverApi<Category[]>("/categories");
+  // D-94：SC-07 でチェック済みを表示したまま来たときは、戻ったときも表示したままにする
+  const showChecked = isShowChecked((await props.searchParams).show_checked);
 
   return (
     <main className="flex flex-col gap-6 py-8">
-      <BackLink href={`/lists/${list.id}`} />
+      <BackLink href={withShowChecked(`/lists/${list.id}`, showChecked)} />
       <h1 className="text-2xl font-medium">リストを編集</h1>
-      <ListForm categories={categories} list={list} />
+      <ListForm categories={categories} list={list} showChecked={showChecked} />
     </main>
   );
 }

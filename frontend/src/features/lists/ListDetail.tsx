@@ -55,6 +55,7 @@ import {
 } from "./itemSorting";
 import { LIST_MENU_BUTTON_ID, ListMenu } from "./ListMenu";
 import { SelectionList } from "./SelectionList";
+import { SHOW_CHECKED_PARAM } from "./showChecked";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
@@ -156,11 +157,13 @@ type Props = {
   list: PackingListDetail;
   // SC-07-17：よく使う項目に保存するときのカテゴリーの選択肢（API-18）
   categories: Category[];
+  // D-94：チェック済みを表示したまま SC-06・SC-09 へ行って戻ったときだけ true
+  initialShowChecked: boolean;
 };
 
 // SC-07 自分のリストの内容（通常画面）。持ち物の追加・削除で件数や公開の表示が変わるので、
 // 画面の状態として持ち、保存できた値（D-71）で表示を更新する
-export function ListDetail({ list, categories }: Props) {
+export function ListDetail({ list, categories, initialShowChecked }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
@@ -205,8 +208,9 @@ export function ListDetail({ list, categories }: Props) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
-  // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる
-  const [showChecked, setShowChecked] = useState(false);
+  // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる。
+  // 表示したまま SC-06・SC-09 へ行って戻ったときだけ、表示を引き継ぐ（利用者の指示）
+  const [showChecked, setShowChecked] = useState(initialShowChecked);
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
   const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
   // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
@@ -262,6 +266,14 @@ export function ListDetail({ list, categories }: Props) {
   const visibleGroups = groups.filter(
     (group) => !hiddenSectionIds.has(group.id),
   );
+
+  // D-94：引き継ぎの印はURLから取り除き、再読み込みでは隠した状態から始める
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(SHOW_CHECKED_PARAM)) return;
+    url.searchParams.delete(SHOW_CHECKED_PARAM);
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, []);
 
   useEffect(() => {
     if (!notice) return;

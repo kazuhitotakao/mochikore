@@ -4,6 +4,7 @@ import { readAsUser } from "@/features/auth/requireUser";
 import { CopyPublicListNotice } from "@/features/lists/CopyPublicListNotice";
 import { serverApi } from "@/lib/api/server";
 import { ListDetail } from "@/features/lists/ListDetail";
+import { isShowChecked } from "@/features/lists/showChecked";
 import type { Category, PackingListDetail } from "@/types/api";
 
 // SC-07 自分のリストの内容（通常画面）
@@ -32,6 +33,7 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
         key={`${list.grouping_revision}-${list.updated_at}`}
         list={list}
         categories={categories}
+        initialShowChecked={isShowChecked(searchParams.show_checked)}
       />
     </main>
   );

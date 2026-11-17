@@ -46,6 +46,7 @@ import {
   SavedGroupCandidates,
   type CandidatesState,
 } from "./SavedGroupCandidates";
+import { withShowChecked } from "@/features/lists/showChecked";
 import { MAX_GROUPS } from "./validation";
 
 // V-13：分類の保存（API-30）の競合
@@ -506,7 +507,8 @@ export function GroupingEditor({
 
   function backToList() {
     leaving.current = true;
-    router.replace(`/lists/${listId}`);
+    // D-94：チェック済みを表示したまま来たときは、戻ったときも表示したままにする
+    router.replace(withShowChecked(`/lists/${listId}`, includeChecked));
   }
 
   // SC-09-9「キャンセル」と「←」。変更がなければそのまま戻り、あれば破棄を確かめる（SC-09-10）

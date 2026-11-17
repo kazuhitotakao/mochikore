@@ -24,6 +24,7 @@ import {
   validateDescription,
   validateTitle,
 } from "./validation";
+import { withShowChecked } from "./showChecked";
 import { PUBLISH_MESSAGE, visibilityErrorMessage } from "./visibility";
 
 // 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う
@@ -41,10 +42,12 @@ type Props = {
   categories: Category[];
   // 編集のときだけ渡す。ないときは新規作成
   list?: EditableList;
+  // D-94：SC-07 でチェック済みを表示したまま来たとき。保存して戻った後も表示したままにする
+  showChecked?: boolean;
 };
 
 // SC-06 リスト作成・編集。新規は API-06、編集は API-08
-export function ListForm({ categories, list }: Props) {
+export function ListForm({ categories, list, showChecked = false }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // D-85：入力の保存後に公開できなかった場合も、次の送信は保存済みの内容と比較する
@@ -149,7 +152,7 @@ export function ListForm({ categories, list }: Props) {
           });
       // SC-06-6：保存したらそのリストの内容（SC-07）へ。戻るでこの画面に戻らないよう置き換える。
       // 移動が終わるまで送信中のままにして、二重送信を防ぐ
-      router.replace(`/lists/${saved.id}`);
+      router.replace(withShowChecked(`/lists/${saved.id}`, showChecked));
     } catch (error) {
       showError(error);
       setSubmitting(false);
