@@ -6,6 +6,7 @@ import {
   DragOverlay,
   pointerWithin,
   rectIntersection,
+  useDndContext,
   useDraggable,
   useDroppable,
   type Active,
@@ -48,6 +49,7 @@ import {
   SavedGroupCandidates,
   type CandidatesState,
 } from "./SavedGroupCandidates";
+import { SelectMark } from "@/features/lists/SelectionList";
 import { ShowCheckedSwitch } from "@/features/lists/ShowCheckedSwitch";
 import { withShowChecked } from "@/features/lists/showChecked";
 import { MAX_GROUPS } from "./validation";
@@ -83,7 +85,7 @@ function isItemDrag(active: Active | null): boolean {
 // 画面読み上げで伝える文。dnd-kit の既定は英語なので、日本語にする
 const screenReaderInstructions: ScreenReaderInstructions = {
   draggable:
-    "持ち物でEnterキーを押すと、移し先を一覧から選べます。持ち物をグループへ移すときは、スペースキーで持ち上げ、矢印キーで移す先の丸を選び、スペースキーで置くこともできます。丸を動かすときは、丸でスペースキーを押して持ち上げ、矢印キーで動かします。Escキーでやめます。",
+    "持ち物でEnterキーを押すと、移し先を一覧から選べます。持ち物をグループへ移すときは、スペースキーで持ち上げ、矢印キーで移す先の丸を選び、スペースキーで置くこともできます。「選んで移す」の間は、Enterキーで持ち物を選び、選んだ持ち物を持ち上げて置くと、選んだ持ち物をまとめて移します。丸を動かすときは、丸でスペースキーを押して持ち上げ、矢印キーで動かします。Escキーでやめます。",
 };
 
 // SC-09-7（利用者の指示）：持ち物の Enter キーは移し先を選ぶのに使うので、キーボードで持ち上げるのはスペースキーだけにする
@@ -276,6 +278,12 @@ export function GroupingEditor({
   const [draggingId, setDraggingId] = useState<UniqueIdentifier | null>(null);
   // SC-09-7：移し先を選んでいる持ち物のID（利用者の指示）
   const [movingItemId, setMovingItemId] = useState<number | null>(null);
+  // D-112：「選んで移す」の選ぶ表示と、選んだ持ち物。下書きと同じく画面の中だけに持つ
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const selectButtonId = useId();
   // SC-09-11・D-102：このリストのカテゴリーのよく使うグループ。どの読み込みの結果かを key で区別し、
   // 古い結果を表示しない
   const [candidateLoadCount, setCandidateLoadCount] = useState(0);
@@ -306,6 +314,9 @@ export function GroupingEditor({
     : state.items.filter((item) => !item.is_checked);
   const checkedCount = state.items.filter((item) => item.is_checked).length;
   const draggingItem = shownItems.find((item) => item.id === draggingId);
+  // D-112：選んだ持ち物をつかんで動かしているときは、選んだ持ち物をまとめて移す
+  const draggingSelection =
+    selecting && draggingItem !== undefined && selectedIds.has(draggingItem.id);
   const movingItem = shownItems.find((item) => item.id === movingItemId);
   const draggingGroup = draft.groups.find(
     (group) => circleId(group.key) === draggingId,
@@ -450,7 +461,9 @@ export function GroupingEditor({
   function handleDragEnd(event: DragEndEvent) {
     setDraggingId(null);
     if (!isCircleId(event.active.id) && isTouchTap(event)) {
-      openMoveDialog(Number(event.active.id));
+      // D-112：選ぶ表示の間は、動かさずに離したときも押したときと同じく選ぶ・外す
+      if (selecting) toggleSelected(Number(event.active.id));
+      else openMoveDialog(Number(event.active.id));
       return;
     }
     const target = event.over?.data.current as DropData | undefined;
@@ -463,16 +476,27 @@ export function GroupingEditor({
       }
       return;
     }
+    // D-112：選んだ持ち物をつかんで置いたら、選んだ持ち物をまとめて移す
+    if (selecting && selectedIds.has(Number(event.active.id))) {
+      moveSelectedTo(target.groupKey);
+      return;
+    }
     moveItemTo(Number(event.active.id), target.groupKey);
     if (target.groupKey !== null && collapsedGroups.has(target.groupKey)) {
       focusItemChip(Number(event.active.id), target.groupKey);
     }
   }
 
-  const nameOf = (id: UniqueIdentifier) =>
-    isCircleId(id)
-      ? `「${draft.groups.find((group) => circleId(group.key) === id)?.name ?? ""}」`
-      : (shownItems.find((item) => item.id === id)?.name ?? "");
+  // 選んだ持ち物をまとめて動かしているときは、件数も読み上げる（D-112）
+  const nameOf = (id: UniqueIdentifier) => {
+    if (isCircleId(id)) {
+      return `「${draft.groups.find((group) => circleId(group.key) === id)?.name ?? ""}」`;
+    }
+    const name = shownItems.find((item) => item.id === id)?.name ?? "";
+    return selecting && selectedIds.has(Number(id)) && selectedIds.size > 1
+      ? `${name}など選んだ${selectedIds.size}件`
+      : name;
+  };
   const labelOf = (data: unknown) => (data as DropData | undefined)?.label;
   const announcements: Announcements = {
     onDragStart: ({ active }) => `${nameOf(active.id)}を持ち上げました。`,
@@ -503,6 +527,48 @@ export function GroupingEditor({
   ) {
     setMovingItemId(null);
     focusItemChip(itemId, targetKey);
+  }
+
+  // D-112：「選んで移す」を始める・やめる。やめたら選んだ持ち物を外し、カーソルを「選んで移す」へ戻す
+  function startSelecting() {
+    if (busy) return;
+    setSelectedIds(new Set());
+    setSelecting(true);
+  }
+
+  function endSelecting() {
+    setSelecting(false);
+    setSelectedIds(new Set());
+    requestAnimationFrame(() =>
+      document.getElementById(selectButtonId)?.focus(),
+    );
+  }
+
+  // 選ぶ表示の間は、持ち物を押すと選ぶ・外す（移し先の一覧は開かない）
+  function toggleSelected(itemId: number) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  // 選んだ持ち物をまとめて移す。1件ずつ移すときと同じく下書きで、順番とチェックは変えない（D-59・D-60）。
+  // 続けて別の持ち物を選べるよう選ぶ表示は続け、移した持ち物の印だけを外す（利用者の指示）。
+  // 1件も所属が変わらなかったとき（同じ丸に戻した）は、選んだまま残す
+  function moveSelectedTo(key: string | null) {
+    const ids = shownItems
+      .filter((item) => selectedIds.has(item.id))
+      .map((item) => item.id);
+    if (ids.every((id) => (draft.assignment[id] ?? null) === key)) return;
+    updateDraft((current) => {
+      const assignment = { ...current.assignment };
+      for (const id of ids) assignment[id] = key;
+      return { ...current, assignment };
+    });
+    setSelectedIds(new Set());
+    if (key !== null && collapsedGroups.has(key)) focusItemChip(ids[0], key);
   }
 
   function addGroup(name: string) {
@@ -573,6 +639,9 @@ export function GroupingEditor({
       setDraft(fresh);
       setDraggingId(null);
       setConflict(false);
+      // 読み直した持ち物と合わないので、選んでいた持ち物は外す（D-112）
+      setSelecting(false);
+      setSelectedIds(new Set());
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (failure instanceof ApiError && failure.status === 404) {
@@ -705,26 +774,43 @@ export function GroupingEditor({
             strategy={rectSortingStrategy}
           >
             <div className="flex flex-col gap-2">
-              {/* SC-09-2（利用者の指示）：1回で切り替えられるよう、SC-07と同じ小さな文字で一覧の上に置く。
-                  押せる高さは44pxを保ち、余白を詰めて一覧が下がりすぎないようにする（D-73・D-95）。 */}
+              {/* SC-09-2・14：一覧の上の左に「すべてたたむ」「選んで移す」を同じ形の小さいボタンで並べ（利用者の指示）、
+                  右にチェック済みの表示のスイッチを置く。押せる範囲は44px（D-73・D-95・D-112） */}
               {(draft.groups.length > 0 || checkedCount > 0) && (
-                <div className="relative z-10 -mt-4 flex flex-wrap items-center justify-between gap-x-2">
+                <div className="relative z-10 -mt-2 flex flex-wrap items-center justify-between gap-2">
                   {draft.groups.length > 0 && (
-                    <button
-                      type="button"
-                      aria-controls={groupGridId}
-                      onClick={toggleAllCollapsed}
-                      disabled={busy || draggingId !== null}
-                      className="min-h-11 tap-target rounded-lg text-sm font-medium text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
-                    >
-                      {allGroupsCollapsed ? "すべて開く" : "すべてたたむ"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        aria-controls={groupGridId}
+                        onClick={toggleAllCollapsed}
+                        disabled={busy || draggingId !== null}
+                        className="btn-outline btn-sm tap-target"
+                      >
+                        {allGroupsCollapsed ? "すべて開く" : "すべてたたむ"}
+                      </button>
+                      {/* D-112：選んだ持ち物をまとめて移す。選ぶ表示の間はもう一度押すとやめる */}
+                      {shownItems.length > 0 && (
+                        <button
+                          id={selectButtonId}
+                          type="button"
+                          aria-pressed={selecting}
+                          onClick={selecting ? endSelecting : startSelecting}
+                          disabled={busy || draggingId !== null}
+                          className={`btn-outline btn-sm tap-target ${selecting ? "bg-brand-soft" : ""}`}
+                        >
+                          選んで移す
+                        </button>
+                      )}
+                    </div>
                   )}
+                  {/* D-112：選ぶ表示の間は、選ぶ対象が変わらないよう押せなくする。
+                      隠すとスマホ幅で一覧が1行分上に跳ねるので、出したままにする */}
                   {checkedCount > 0 && (
                     <ShowCheckedSwitch
                       on={showChecked}
                       count={checkedCount}
-                      disabled={busy || draggingId !== null}
+                      disabled={busy || draggingId !== null || selecting}
                       size="sm"
                       align="end"
                       className="ml-auto"
@@ -752,7 +838,8 @@ export function GroupingEditor({
                     favoriteDisabled={savingFavorite}
                     onSaveAsFavorite={() => void saveAsFavorite(group.name)}
                     onDelete={() => deleteGroup(group.key)}
-                    onSelectItem={openMoveDialog}
+                    selection={selecting ? selectedIds : null}
+                    onSelectItem={selecting ? toggleSelected : openMoveDialog}
                   />
                 ))}
                 {/* SC-09-3（利用者の指示）：作ったグループが出る場所の近くで追加できるよう、並びの最後に置く。
@@ -773,15 +860,23 @@ export function GroupingEditor({
           <UnclassifiedArea
             items={unclassified}
             disabled={busy}
-            onSelectItem={openMoveDialog}
+            selection={selecting ? selectedIds : null}
+            onSelectItem={selecting ? toggleSelected : openMoveDialog}
           />
 
           {/* グループは枠そのものを動かし、持ち物だけ名前を重ねて表示する（SC-09-8、利用者の指示）。 */}
           {!draggingGroup && (
             <DragOverlay>
               {draggingItem ? (
-                <span className="flex cursor-grabbing items-center gap-2 rounded-full border border-brand bg-background px-4 py-2 shadow-md">
+                // 件数を添えても名前が折り返さないよう、元の持ち物の幅より広がってよい（画面の幅まで）
+                <span className="flex w-max max-w-[calc(100vw-2.5rem)] cursor-grabbing items-center gap-2 rounded-full border border-brand bg-background px-4 py-2 shadow-md">
                   {draggingItem.name}
+                  {/* D-112：選んだ持ち物をまとめて動かすときは、何件動くかを添える */}
+                  {draggingSelection && selectedIds.size > 1 && (
+                    <span className="shrink-0 rounded-full bg-brand px-2 text-sm text-white">
+                      {selectedIds.size}件
+                    </span>
+                  )}
                 </span>
               ) : null}
             </DragOverlay>
@@ -803,7 +898,13 @@ export function GroupingEditor({
               {favoriteError}
             </p>
           )}
-          <div className="flex justify-end gap-3">
+          <div className="flex items-center justify-end gap-3">
+            {/* D-112：選ぶ表示の間は、たたんだ丸の中も含めて選んだ件数を左に出す。移すのはドラッグで行う（利用者の指示） */}
+            {selecting && (
+              <p role="status" className="mr-auto">
+                {selectedIds.size}件選択中
+              </p>
+            )}
             <button
               type="button"
               onClick={handleCancel}
@@ -913,7 +1014,9 @@ type GroupCircleProps = {
   onRename: () => void;
   onSaveAsFavorite: () => void;
   onDelete: () => void;
-  // 中の持ち物を押したとき（移し先を選ぶ）
+  // D-112：「選んで移す」の間だけ、選んだ持ち物のID。null なら選ぶ表示ではない
+  selection: ReadonlySet<number> | null;
+  // 中の持ち物を押したとき（移し先を選ぶ。選ぶ表示の間は選ぶ・外す）
   onSelectItem: (itemId: number) => void;
 };
 
@@ -930,9 +1033,12 @@ function GroupCircle({
   onRename,
   onSaveAsFavorite,
   onDelete,
+  selection,
   onSelectItem,
 }: GroupCircleProps) {
   const contentId = useId();
+  // D-112：選ぶ表示の間は、丸の並べ替え・名前の変更・「…」を止める（押し間違えないように）
+  const selecting = selection !== null;
   const menuContainer = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useDismiss(menuContainer, menuOpen, () => setMenuOpen(false));
@@ -951,7 +1057,8 @@ function GroupCircle({
   } = useSortable({
     id: circleId(dropKey),
     data: dropData,
-    disabled,
+    // 選ぶ表示の間も、選んだ持ち物を置く場所としては使う（D-112）
+    disabled: { draggable: disabled || selecting, droppable: disabled },
     attributes: { role: "group", roleDescription: "並べ替えできるグループ" },
   });
   // 丸そのものを持ち手にする。キーボードは丸にカーソルがあるときだけ持ち上げ、
@@ -972,7 +1079,9 @@ function GroupCircle({
   return (
     <section
       ref={setCircleRef}
-      {...attributes}
+      // 選ぶ表示の間は並べ替えの読み上げ（押せない状態）を付けない。たたんだ丸へ移したときに
+      // カーソルを戻せるよう、カーソルだけは置けるようにする（focusItemChip）
+      {...(selecting ? { tabIndex: -1 } : attributes)}
       {...listeners}
       aria-label={name}
       data-group-key={dropKey}
@@ -980,7 +1089,7 @@ function GroupCircle({
       className={`flex min-w-0 touch-manipulation flex-col gap-2 rounded-2xl border-2 bg-white px-4 py-3 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${dropAreaBorder(
         isOver && isItemDrag(active),
         "border-brand",
-      )} ${collapsed ? "self-start" : ""} ${isDragging ? "relative z-10 cursor-grabbing shadow-md" : "cursor-grab"}`}
+      )} ${collapsed ? "self-start" : ""} ${isDragging ? "relative z-10 cursor-grabbing shadow-md" : selecting ? "" : "cursor-grab"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 font-bold wrap-break-word text-brand-deep">
@@ -989,7 +1098,7 @@ function GroupCircle({
           <button
             type="button"
             onClick={onRename}
-            disabled={disabled}
+            disabled={disabled || selecting}
             className="text-left font-bold wrap-break-word disabled:opacity-50"
           >
             {name}
@@ -1005,7 +1114,7 @@ function GroupCircle({
               type="button"
               aria-label={`${name}の操作`}
               aria-expanded={menuOpen}
-              disabled={disabled}
+              disabled={disabled || selecting}
               onClick={() => setMenuOpen((open) => !open)}
               // 指で押しやすいよう、押せる範囲を44px四方以上にする。丸の見出しが高くなりすぎないよう、上と右の余白に重ねる
               className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-brand-deep disabled:opacity-50"
@@ -1062,6 +1171,7 @@ function GroupCircle({
           <ItemChips
             items={items}
             disabled={disabled}
+            selection={selection}
             onSelect={onSelectItem}
           />
         )}
@@ -1074,10 +1184,12 @@ function GroupCircle({
 function UnclassifiedArea({
   items,
   disabled,
+  selection,
   onSelectItem,
 }: {
   items: PackingListItem[];
   disabled: boolean;
+  selection: ReadonlySet<number> | null;
   onSelectItem: (itemId: number) => void;
 }) {
   const dropData: DropData = { groupKey: null, label: "未分類" };
@@ -1102,7 +1214,12 @@ function UnclassifiedArea({
           （{items.length}件）
         </span>
       </h2>
-      <ItemChips items={items} disabled={disabled} onSelect={onSelectItem} />
+      <ItemChips
+        items={items}
+        disabled={disabled}
+        selection={selection}
+        onSelect={onSelectItem}
+      />
     </section>
   );
 }
@@ -1111,12 +1228,22 @@ function UnclassifiedArea({
 function ItemChips({
   items,
   disabled,
+  selection,
   onSelect,
 }: {
   items: PackingListItem[];
   disabled: boolean;
+  selection: ReadonlySet<number> | null;
   onSelect: (itemId: number) => void;
 }) {
+  // D-112：選んだ持ち物をつかんで動かしている間は、一緒に移るほかの選んだ持ち物も薄くする
+  const { active } = useDndContext();
+  const movingSelection =
+    selection !== null &&
+    active !== null &&
+    !isCircleId(active.id) &&
+    selection.has(Number(active.id));
+
   if (items.length === 0) return null;
 
   // 利用者の指示：スマホの指でつかみやすいよう、持ち物の間をあける
@@ -1127,6 +1254,8 @@ function ItemChips({
           key={item.id}
           item={item}
           disabled={disabled}
+          selected={selection === null ? null : selection.has(item.id)}
+          moving={movingSelection && selection.has(item.id)}
           onSelect={() => onSelect(item.id)}
         />
       ))}
@@ -1137,12 +1266,20 @@ function ItemChips({
 function ItemChip({
   item,
   disabled,
+  selected,
+  moving,
   onSelect,
 }: {
   item: PackingListItem;
   disabled: boolean;
+  // D-112：選ぶ表示の間だけ true／false。null なら選ぶ表示ではない
+  selected: boolean | null;
+  // 選んだ持ち物と一緒に動かしているところか
+  moving: boolean;
   onSelect: () => void;
 }) {
+  const selecting = selected !== null;
+  // 選ぶ表示の間も動かせる。選んだ持ち物をつかむと、選んだ持ち物をまとめて移す（D-112）
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: item.id,
     disabled,
@@ -1150,21 +1287,32 @@ function ItemChip({
   });
 
   return (
-    <li className={`min-w-0 max-w-full ${isDragging ? "opacity-40" : ""}`}>
+    <li
+      className={`min-w-0 max-w-full ${isDragging || moving ? "opacity-40" : ""}`}
+    >
       {/* D-58（利用者の指示で変更）：持ち手を出さず、名前のどこからでも動かせる。
           キーボードでも、このボタンから持ち上げて移動できる。
-          押す（Enter キー）と移し先を選べる。ドラッグが始まった後は dnd-kit が click を止めるので、両方は起きない */}
+          押す（Enter キー）と移し先を選べる（選ぶ表示の間は選ぶ・外す、D-112）。
+          ドラッグが始まった後は dnd-kit が click を止めるので、両方は起きない */}
       <button
         ref={setNodeRef}
         type="button"
         {...attributes}
+        // 選ぶ表示の間は、選んでいるかも伝える
+        aria-pressed={selecting ? selected : undefined}
         {...listeners}
         onClick={onSelect}
         data-item-chip={item.id}
         disabled={disabled}
-        className="max-w-full cursor-grab touch-manipulation rounded-full border border-line-strong bg-background px-4 py-2 text-left wrap-break-word hover:border-brand select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
+        className={`max-w-full cursor-grab touch-manipulation rounded-full border px-4 py-2 text-left wrap-break-word hover:border-brand select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50 ${
+          selecting
+            ? `inline-flex items-center gap-2 ${selected ? "border-brand bg-brand-soft" : "border-line-strong bg-background"}`
+            : "border-line-strong bg-background"
+        }`}
       >
-        {item.name}
+        {/* SC-07の「選んで削除」と同じ丸い印。選ぶと塗りつぶして✓を出す（色だけで示さない） */}
+        {selecting && <SelectMark selected={selected} />}
+        <span className="min-w-0">{item.name}</span>
       </button>
     </li>
   );
