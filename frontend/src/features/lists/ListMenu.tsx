@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Icon, type IconName } from "@/components/Icon";
 import { SwitchIndicator } from "@/components/SwitchIndicator";
@@ -11,6 +18,8 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { withShowChecked } from "./showChecked";
+import type { VisibilityToggle } from "./useVisibilityToggle";
+import { PublishConfirmDialog } from "./VisibilitySwitch";
 
 type Props = {
   listId: number;
@@ -30,10 +39,13 @@ type Props = {
   publishDisabled: boolean;
   // 運営による非公開の案内の id。押せない理由として読み上げる
   publishDescribedBy?: string;
-  onTogglePublic: () => void;
+  visibility: VisibilityToggle;
 };
 
 type Confirming = "grouping" | "reset-checks" | "delete" | null;
+
+// 確認で「やめる」を押した後に、カーソルを戻す「…」の項目
+type MenuItemKey = "public" | "reset-checks" | "delete";
 
 // SC-07-4「…」メニュー
 export function ListMenu({
@@ -48,7 +60,7 @@ export function ListMenu({
   isPublic,
   publishDisabled,
   publishDescribedBy,
-  onTogglePublic,
+  visibility,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -60,6 +72,26 @@ export function ListMenu({
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 「…」を開き直したときにカーソルを移す項目。描画に使わないので ref に置く
+  const focusAfterReopen = useRef<MenuItemKey | null>(null);
+
+  // 確認（子の ConfirmDialog）が閉じてから項目へカーソルを移す。子の effect が先に動くので、
+  // 確認を開いている間（後ろの画面を操作できない間）に移そうとして失敗することはない
+  useEffect(() => {
+    const item = focusAfterReopen.current;
+    if (!menuOpen || !item) return;
+    focusAfterReopen.current = null;
+    menuContainer.current
+      ?.querySelector<HTMLElement>(`[data-menu-item="${item}"]`)
+      ?.focus();
+  }, [menuOpen]);
+
+  // SC-07-4（利用者の指示）：「…」から開いた確認で「やめる」を押したら（Esc・外枠も同じ）、
+  // 「…」を開いたまま戻し、続けて別の操作を選べるようにする。押した項目へカーソルを戻す（D-73）
+  function reopenMenu(item: MenuItemKey) {
+    focusAfterReopen.current = item;
+    setMenuOpen(true);
+  }
 
   function openConfirm(kind: Exclude<Confirming, null>) {
     setMenuOpen(false);
@@ -182,9 +214,10 @@ export function ListMenu({
                 aria-checked={isPublic}
                 aria-describedby={publishDescribedBy}
                 disabled={publishDisabled}
+                data-menu-item="public"
                 onClick={() => {
                   setMenuOpen(false);
-                  onTogglePublic();
+                  visibility.toggle();
                 }}
                 className={MENU_ITEM}
               >
@@ -201,6 +234,7 @@ export function ListMenu({
                 type="button"
                 onClick={() => openConfirm("reset-checks")}
                 disabled={saving}
+                data-menu-item="reset-checks"
                 className={MENU_ITEM}
               >
                 <MenuLabel icon="reset">チェックを全部外す</MenuLabel>
@@ -227,6 +261,7 @@ export function ListMenu({
               <button
                 type="button"
                 onClick={() => openConfirm("delete")}
+                data-menu-item="delete"
                 className={`${MENU_ITEM} text-danger`}
               >
                 <MenuLabel icon="trash" danger>
@@ -256,7 +291,10 @@ export function ListMenu({
         busy={sending}
         error={error}
         onConfirm={handleResetChecks}
-        onCancel={() => setConfirming(null)}
+        onCancel={() => {
+          setConfirming(null);
+          reopenMenu("reset-checks");
+        }}
       />
 
       {/* SC-07-15・D-26：実際のリスト名と、中の持ち物も消えることを伝える */}
@@ -269,7 +307,17 @@ export function ListMenu({
         destructive
         error={error}
         onConfirm={handleDelete}
-        onCancel={() => setConfirming(null)}
+        onCancel={() => {
+          setConfirming(null);
+          reopenMenu("delete");
+        }}
+      />
+
+      {/* SC-07-4・D-42：公開にするときだけ確認する。SC-06 と同じ文言・同じ動き。
+          「やめる」で「…」を開き直すので、この中に置く */}
+      <PublishConfirmDialog
+        visibility={visibility}
+        onCancel={() => reopenMenu("public")}
       />
     </div>
   );
