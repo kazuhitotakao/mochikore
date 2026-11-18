@@ -34,6 +34,8 @@ type Props = {
   sortDisabled: boolean;
   // ドラッグ中のすき間は、実際に置けるときだけ示す。
   dropAllowed?: boolean;
+  // D-111：ほかの持ち物が重ねられていて、離すとこの持ち物がグループになるか
+  combineTarget?: boolean;
   // D-105：左スワイプで「削除」を出している行か。開けるのは1行だけなので、親が持つ
   swipeOpen: boolean;
   onSwipeOpenChange: (open: boolean) => void;
@@ -52,6 +54,7 @@ export function ItemRow({
   onSaveAsFavorite,
   sortDisabled,
   dropAllowed = false,
+  combineTarget = false,
   swipeOpen,
   onSwipeOpenChange,
 }: Props) {
@@ -209,8 +212,17 @@ export function ItemRow({
       {...listeners}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       // 横の動きは左スワイプ（D-105）に使うので、ブラウザには縦のスクロールと拡大だけを任せる
-      className={`flex cursor-grab touch-pan-y touch-pinch-zoom flex-col border-b border-line-soft bg-background select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""}`}
+      className={`flex cursor-grab touch-pan-y touch-pinch-zoom flex-col border-b border-line-soft bg-background select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${isDragging ? (dropAllowed ? "relative" : "opacity-0") : ""} ${combineTarget ? "relative z-10" : ""}`}
     >
+      {combineTarget && (
+        // D-111：すき間の点線と見分けられるよう、重ねられた行は実線の緑の枠で囲む。
+        // 真上に浮かせた行が重なっても枠が見えるよう、行より少し外へ広げる
+        <div
+          aria-hidden="true"
+          data-combine-target
+          className="pointer-events-none absolute -inset-x-1.5 -inset-y-1 z-10 rounded-xl border-2 border-brand bg-brand-soft/40"
+        />
+      )}
       {isDragging && dropAllowed && (
         // D-98：すき間の寸法と移動先の判定を変えず、収まる場所を枠の形でも示す。
         // 色は画面の地に合わせた緑の点線と薄い緑（利用者の指示）

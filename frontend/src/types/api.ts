@@ -130,6 +130,12 @@ export type BulkAddResult = {
   items: PackingListItem[];
 };
 
+// API-45 持ち物を重ねてグループにした結果（D-111）。重ねた持ち物は group に入り、重ねられた持ち物は見出しに変わった
+export type GroupFromItemResult = {
+  group: PackingListGroup;
+  item: PackingListItem;
+};
+
 // API-12 持ち物の削除。最後の1件を消すと非公開になることがある（D-51）
 export type ItemDeleteResult = {
   is_public: boolean;
