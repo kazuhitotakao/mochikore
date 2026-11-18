@@ -228,6 +228,8 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   } | null>(null);
   // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
   const pendingFocusId = useRef<string | null>(null);
+  // 最後の操作が指・マウスか。カーソルを移すときに画面をスクロールさせるかを決める（D-94）
+  const pointerInput = useRef(false);
   // SC-07-2・F-08：公開の切り替え（API-14）。並べ替え・まとめてチェック・まとめて削除の保存中と、
   // 「選んで削除」の間は押せない（D-100）。まとめて削除で0件になると自動で非公開になるため（D-51）
   const visibilityBlocked =
@@ -304,12 +306,32 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  // SC-07-7：チェックして行が隠れたら、次の行（なければ「チェック済みを表示」のスイッチ）へカーソルを移す
+  // 指・マウスとキーボードのどちらで操作しているかを覚える。押した直後に判定できるよう、先に受け取る
+  useEffect(() => {
+    const onPointer = () => {
+      pointerInput.current = true;
+    };
+    const onKey = () => {
+      pointerInput.current = false;
+    };
+    document.addEventListener("pointerdown", onPointer, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, []);
+
+  // SC-07-7：チェックして行が隠れたら、次の行（なければ「チェック済みを表示」のスイッチ）へカーソルを移す。
+  // D-94：指・マウスで操作したときは画面をスクロールさせない。後ろに未チェックの持ち物がないと
+  // 一覧の上のスイッチへ移り、画面が先頭まで飛ぶため（利用者の指示）。キーボードでは移した先を画面に出す
   useEffect(() => {
     const targetId = pendingFocusId.current;
     if (!targetId) return;
     pendingFocusId.current = null;
-    document.getElementById(targetId)?.focus();
+    document
+      .getElementById(targetId)
+      ?.focus({ preventScroll: pointerInput.current });
   }, [items, delayedIds, groups, delayedGroupIds]);
 
   // D-106：空の見出しが隠れるときだけ、その中のカーソルを表示のスイッチへ移す。
