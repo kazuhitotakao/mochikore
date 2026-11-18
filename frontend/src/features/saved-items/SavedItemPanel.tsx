@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { LoadingRows } from "@/components/LoadingRows";
 import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
@@ -238,9 +239,10 @@ export function SavedItemPanel({
       // 640px以上はほかのダイアログと同じく中央に出す（640pxはSC-09の2列と同じ境目、D-73）
       className="mx-auto mt-auto mb-0 w-full max-w-[640px] rounded-t-3xl bg-background p-0 text-foreground backdrop:bg-overlay/50 sm:my-auto sm:max-w-lg sm:rounded-2xl"
     >
-      <div className="flex max-h-[80vh] flex-col gap-4 px-5 py-5">
+      {/* D-73（利用者の指示）：候補の件数や応答待ちで、パネルと下の操作が上下に動かないようにする。 */}
+      <div className="flex h-[min(80dvh,32rem)] flex-col gap-4 px-5 py-5">
         {/* SC-08-2：閉じても追加しない */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex shrink-0 items-center justify-between gap-3">
           <h2 id="saved-item-panel-heading" className="text-lg font-bold">
             よく使う項目から追加
           </h2>
@@ -281,11 +283,13 @@ export function SavedItemPanel({
 
         {/* カテゴリーを選んでいる間は、その一覧に場所を譲る。選んだ候補（選択件数）はそのまま残る */}
         <div
-          className={categoryPickerOpen ? "hidden" : "min-h-24 overflow-y-auto"}
+          aria-busy={current === null}
+          className={
+            categoryPickerOpen ? "hidden" : "min-h-0 flex-1 overflow-y-auto"
+          }
         >
           {current === null ? (
-            // 共通3：応答を待つ間だけ出す
-            <p role="status">読み込み中…</p>
+            <LoadingRows rows={4} withSelection />
           ) : "error" in current ? (
             <div className="flex flex-col gap-2">
               <p role="alert" className="text-danger">
@@ -358,7 +362,7 @@ export function SavedItemPanel({
         </div>
 
         {/* SC-08-6：選択件数と「追加」。1件以上選ぶと押せる */}
-        <div className="flex flex-col gap-2 border-t border-line pt-3">
+        <div className="flex shrink-0 flex-col gap-2 border-t border-line pt-3">
           {addError && (
             <p role="alert" className="text-sm text-danger">
               {addError}

@@ -69,7 +69,7 @@ export function GroupNameDialog({
         onCancel();
       }}
       {...backdrop}
-      className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
+      className="m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-sm overflow-y-auto rounded-2xl bg-background p-6 text-foreground backdrop:bg-overlay/50"
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <h2 id={titleId} className="text-lg font-bold">

@@ -15,12 +15,16 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
   if (!/^[1-9][0-9]*$/.test(listId)) notFound();
 
   // D-43：他人のリストと存在しないリストは、どちらも「ページが見つかりません」
-  const list = await readAsUser<PackingListDetail>(
-    `/lists/${listId}`,
-    `/lists/${listId}`,
-  );
-  // SC-07-17：よく使う項目に保存するときに選ぶカテゴリー（API-18、ログイン不要）
-  const categories = await serverApi<Category[]>("/categories");
+  // SC-07-17・D-73：独立しているカテゴリーの取得を同時に始め、画面を開くまでの待ち時間を減らす。
+  const [listRead, categoryRead] = await Promise.allSettled([
+    readAsUser<PackingListDetail>(`/lists/${listId}`, `/lists/${listId}`),
+    serverApi<Category[]>("/categories"),
+  ]);
+  // D-43：同時に失敗しても、本人確認とリストのエラーを先に扱う。
+  if (listRead.status === "rejected") throw listRead.reason;
+  if (categoryRead.status === "rejected") throw categoryRead.reason;
+  const list = listRead.value;
+  const categories = categoryRead.value;
   const searchParams = await props.searchParams;
 
   return (
