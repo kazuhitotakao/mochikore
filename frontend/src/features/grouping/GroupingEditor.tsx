@@ -33,6 +33,7 @@ import { BackArrow } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useDragSensors } from "@/components/dragSensors";
 import { Icon } from "@/components/Icon";
+import { SwitchIndicator } from "@/components/SwitchIndicator";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
@@ -718,20 +719,17 @@ export function GroupingEditor({
     <>
       {/* 画面下に固定した「キャンセル」「保存」に、最後の持ち物が隠れないよう余白をとる */}
       <div className="flex flex-col gap-6 pb-40">
-        <div className="flex min-h-11 items-center gap-3">
-          <button
-            type="button"
-            aria-label="戻る"
-            onClick={handleCancel}
-            // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
-            className="group shrink-0 back-button tap-target"
-          >
-            <BackArrow />
-          </button>
-          <h1 className="min-w-0 flex-1 text-2xl font-medium">
-            グループを整理
-          </h1>
-        </div>
+        {/* SC-07と同じく、戻るボタンの下に見出しを左寄せで置く（D-73、利用者の指示）。 */}
+        <button
+          type="button"
+          aria-label="戻る"
+          onClick={handleCancel}
+          // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
+          className="group -mb-1 self-start back-button tap-target"
+        >
+          <BackArrow />
+        </button>
+        <h1 className="text-2xl font-medium">グループを整理</h1>
         {conflict && (
           <div className="flex flex-col gap-2">
             <p role="alert" className="text-danger">
@@ -769,20 +767,23 @@ export function GroupingEditor({
             items={draft.groups.map((group) => circleId(group.key))}
             strategy={rectSortingStrategy}
           >
-            <div className="flex flex-col gap-2">
-              {/* SC-09-2・14：一覧の上の左に「すべてたたむ」を小さい枠のボタンで置き（利用者の指示）、
-                  右にチェック済みの表示のスイッチを置く。押せる範囲は44px（D-73・D-95・D-112） */}
+            <div className="flex flex-col">
+              {/* SC-09-2・14：SC-07のチェック済み表示と同じ枠なしのスイッチにそろえ、右にまとめる（利用者の指示）。
+                  一覧を広く使えるよう上下の余白を詰め、押せる範囲は44pxを保つ（D-73・D-95・D-112） */}
               {(draft.groups.length > 0 || checkedCount > 0) && (
-                <div className="relative z-10 -mt-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="relative z-10 -mt-6 flex flex-wrap items-center justify-end gap-x-4">
                   {draft.groups.length > 0 && (
                     <button
                       type="button"
+                      role="switch"
+                      aria-checked={allGroupsCollapsed}
                       aria-controls={groupGridId}
                       onClick={toggleAllCollapsed}
                       disabled={busy || draggingId !== null}
-                      className="btn-outline btn-sm tap-target"
+                      className="flex min-h-11 items-center gap-2 self-end rounded-lg text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
                     >
-                      {allGroupsCollapsed ? "すべて開く" : "すべてたたむ"}
+                      <span>すべてたたむ</span>
+                      <SwitchIndicator on={allGroupsCollapsed} size="sm" />
                     </button>
                   )}
                   {/* D-112：持ち物を選んでいる間は、選ぶ対象が変わらないよう押せなくする。
@@ -794,7 +795,6 @@ export function GroupingEditor({
                       disabled={busy || draggingId !== null || hasSelection}
                       size="sm"
                       align="end"
-                      className="ml-auto"
                       onToggle={() => setShowChecked((current) => !current)}
                     />
                   )}
@@ -1309,14 +1309,18 @@ function ItemChip({
         onClick={onSelect}
         data-item-chip={item.id}
         disabled={disabled}
-        className={`max-w-full cursor-grab touch-manipulation rounded-full border px-4 py-2 text-left wrap-break-word hover:border-brand select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50 ${
+        className={`relative max-w-full cursor-grab touch-manipulation rounded-full border px-4 py-2 text-left wrap-break-word hover:border-brand select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50 ${
           selected
-            ? "inline-flex items-center gap-2 border-brand bg-brand-soft"
+            ? "border-brand bg-brand-soft"
             : "border-line-strong bg-background"
         }`}
       >
-        {/* 選んだ持ち物だけに、SC-07の「選んで削除」と同じ丸い印（塗りつぶして✓）を出す（色だけで示さない） */}
-        {selected && <SelectMark selected />}
+        {/* 選んでも幅や文字の位置が変わらないよう、丸い印は右上に重ねる（D-73・D-112、利用者の指示）。 */}
+        {selected && (
+          <span className="absolute -top-2 -right-2 flex">
+            <SelectMark selected />
+          </span>
+        )}
         <span className="min-w-0">{item.name}</span>
       </button>
     </li>
