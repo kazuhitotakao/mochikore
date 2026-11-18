@@ -104,12 +104,19 @@ function isTouchTap(event: DragEndEvent): boolean {
   );
 }
 
-// 移し先を選んだ後・やめた後に、その持ち物へカーソルを戻す。移した持ち物は別の丸で作り直されるため、場所を探して戻す
-function focusItemChip(itemId: number) {
+// 移した持ち物がたたんだグループに隠れたときは、その枠へカーソルを戻す（SC-09、利用者の指示）。
+function focusItemChip(itemId: number, targetKey: string | null) {
   requestAnimationFrame(() => {
-    document
-      .querySelector<HTMLElement>(`[data-item-chip="${itemId}"]`)
-      ?.focus();
+    const item = document.querySelector<HTMLElement>(
+      `[data-item-chip="${itemId}"]`,
+    );
+    if (item && item.getClientRects().length > 0) {
+      item.focus();
+    } else if (targetKey !== null) {
+      document
+        .querySelector<HTMLElement>(`[data-group-key="${targetKey}"]`)
+        ?.focus();
+    }
   });
 }
 
@@ -230,7 +237,7 @@ type Props = {
   includeChecked: boolean;
 };
 
-// SC-09 グループ整理（F-19）。ここでの操作はすべて下書きで、「OK」でまとめて保存する（D-59）。
+// SC-09 グループ整理（F-19）。分類・順番は下書きで、「OK」でまとめて保存する（D-59）。
 // チェック・持ち物の追加/削除/並べ替えはここではしない（D-60）
 export function GroupingEditor({
   listId,
@@ -242,6 +249,10 @@ export function GroupingEditor({
   const [state, setState] = useState(initialState);
   const [savedDraft, setSavedDraft] = useState(() => draftFrom(initialState));
   const [draft, setDraft] = useState(() => draftFrom(initialState));
+  // SC-09（利用者の指示）：開閉は表示だけの状態。分類の保存・破棄確認やSC-07の記録とは分ける（D-59・D-110）。
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [nameDialog, setNameDialog] = useState<NameDialog>(null);
   const [afterDiscard, setAfterDiscard] = useState<AfterDiscard>(null);
   const [saving, setSaving] = useState(false);
@@ -253,6 +264,7 @@ export function GroupingEditor({
   const leaving = useRef(false);
   // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
   const dndId = useId();
+  const groupGridId = useId();
   // D-58（利用者の指示で変更）：SC-07 の並べ替えと同じく、持ち物のどこをつかんでも動かせる。
   // 丸は中の持ち物と分けるため、0.3秒押してから動かす（D-98）
   const sensors = useDragSensors(
@@ -271,7 +283,7 @@ export function GroupingEditor({
     ({ key: string } & CandidatesState) | null
   >(null);
   const [savingFavorite, setSavingFavorite] = useState(false);
-  // D-95（利用者の指示）：SC-07 と同じ表示で始め、見出しの下のボタンで切り替える。画面の中の状態で、保存しない
+  // D-95（利用者の指示）：SC-07 と同じ表示で始め、一覧の上で切り替える。画面の中の状態で、保存しない
   const [showChecked, setShowChecked] = useState(includeChecked);
   const [notice, setNotice] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -284,6 +296,9 @@ export function GroupingEditor({
 
   const dirty = !sameDraft(draft, savedDraft);
   const busy = saving || reloading;
+  const allGroupsCollapsed =
+    draft.groups.length > 0 &&
+    draft.groups.every((group) => collapsedGroups.has(group.key));
   // D-95：出さないチェック済みも下書きには残し、今の所属のまま保存する（API-30 は全有効持ち物の所属を受け取る）
   // 切り替えても下書き（所属・丸・名前）は変えないので、隠した後に戻しても動かした所属が残る
   const shownItems = showChecked
@@ -386,6 +401,26 @@ export function GroupingEditor({
     setDraft(change);
   }
 
+  function toggleCollapsed(key: string) {
+    if (busy || draggingId !== null) return;
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // 未分類は振り分ける持ち物を探す場所なので、まとめてたたむ対象に含めない（SC-09、利用者の指示）。
+  function toggleAllCollapsed() {
+    if (busy || draggingId !== null) return;
+    setCollapsedGroups(
+      allGroupsCollapsed
+        ? new Set()
+        : new Set(draft.groups.map((group) => group.key)),
+    );
+  }
+
   // 持ち物を丸（または未分類）へ移す。1件につき1グループまで（D-56）。順番とチェックは変えない（D-60）
   function moveItemTo(itemId: number, key: string | null) {
     if (busy) return;
@@ -429,6 +464,9 @@ export function GroupingEditor({
       return;
     }
     moveItemTo(Number(event.active.id), target.groupKey);
+    if (target.groupKey !== null && collapsedGroups.has(target.groupKey)) {
+      focusItemChip(Number(event.active.id), target.groupKey);
+    }
   }
 
   const nameOf = (id: UniqueIdentifier) =>
@@ -459,9 +497,12 @@ export function GroupingEditor({
     setMovingItemId(itemId);
   }
 
-  function closeMoveDialog(itemId: number) {
+  function closeMoveDialog(
+    itemId: number,
+    targetKey: string | null = draft.assignment[itemId] ?? null,
+  ) {
     setMovingItemId(null);
-    focusItemChip(itemId);
+    focusItemChip(itemId, targetKey);
   }
 
   function addGroup(name: string) {
@@ -486,6 +527,11 @@ export function GroupingEditor({
 
   // SC-09-5「削除」：中の持ち物は消さずに未分類へ戻す（D-61）
   function deleteGroup(key: string) {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
     updateDraft((current) => ({
       groups: current.groups.filter((group) => group.key !== key),
       assignment: Object.fromEntries(
@@ -607,38 +653,20 @@ export function GroupingEditor({
     <>
       {/* 画面下に固定した「キャンセル」「OK」に、最後の持ち物が隠れないよう余白をとる */}
       <div className="flex flex-col gap-6 pb-40">
-        <button
-          type="button"
-          aria-label="戻る"
-          onClick={handleCancel}
-          // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
-          className="group -mb-1 self-start back-button tap-target"
-        >
-          <BackArrow />
-        </button>
-
-        {/* SC-09-2・3 */}
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-medium">グループを整理</h1>
+        <div className="flex min-h-11 items-center gap-3">
           <button
             type="button"
-            onClick={() => setNameDialog({ mode: "add" })}
-            disabled={busy || draft.groups.length >= MAX_GROUPS}
-            className="shrink-0 btn-outline btn-sm"
+            aria-label="戻る"
+            onClick={handleCancel}
+            // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
+            className="group shrink-0 back-button tap-target"
           >
-            グループを追加
+            <BackArrow />
           </button>
+          <h1 className="min-w-0 flex-1 text-2xl font-medium">
+            グループを整理
+          </h1>
         </div>
-        {/* SC-09-2・D-95：チェック済みがあるときだけ置く。利用者の指示で、文字だけでは今の状態が分かりにくいので
-            オン・オフの形のスイッチにする（色だけでなく、つまみの位置でも示す）。隠しているときの案内文は出さない */}
-        {checkedCount > 0 && (
-          <ShowCheckedSwitch
-            on={showChecked}
-            count={checkedCount}
-            disabled={busy}
-            onToggle={() => setShowChecked((current) => !current)}
-          />
-        )}
         {conflict && (
           <div className="flex flex-col gap-2">
             <p role="alert" className="text-danger">
@@ -676,33 +704,68 @@ export function GroupingEditor({
             items={draft.groups.map((group) => circleId(group.key))}
             strategy={rectSortingStrategy}
           >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {draft.groups.map((group) => (
-                <GroupCircle
-                  key={group.key}
-                  dropKey={group.key}
-                  name={group.name}
-                  items={itemsIn(group.key)}
-                  disabled={busy}
-                  onRename={() =>
-                    setNameDialog({ mode: "rename", key: group.key })
-                  }
-                  favoriteDisabled={savingFavorite}
-                  onSaveAsFavorite={() => void saveAsFavorite(group.name)}
-                  onDelete={() => deleteGroup(group.key)}
-                  onSelectItem={openMoveDialog}
-                />
-              ))}
-              {/* SC-09-3（利用者の指示）：作ったグループが出る場所の近くでも追加できるよう、並びの最後にも置く。
-                  動きは上の「グループを追加」と同じ。20件のときは押せない */}
-              <button
-                type="button"
-                onClick={() => setNameDialog({ mode: "add" })}
-                disabled={busy || draft.groups.length >= MAX_GROUPS}
-                className="min-h-16 rounded-2xl border-2 border-dashed border-line-strong px-4 py-3 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
+            <div className="flex flex-col gap-2">
+              {/* SC-09-2（利用者の指示）：1回で切り替えられるよう、SC-07と同じ小さな文字で一覧の上に置く。
+                  押せる高さは44pxを保ち、余白を詰めて一覧が下がりすぎないようにする（D-73・D-95）。 */}
+              {(draft.groups.length > 0 || checkedCount > 0) && (
+                <div className="relative z-10 -mt-4 flex flex-wrap items-center justify-between gap-x-2">
+                  {draft.groups.length > 0 && (
+                    <button
+                      type="button"
+                      aria-controls={groupGridId}
+                      onClick={toggleAllCollapsed}
+                      disabled={busy || draggingId !== null}
+                      className="min-h-11 tap-target rounded-lg text-sm font-medium text-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
+                    >
+                      {allGroupsCollapsed ? "すべて開く" : "すべてたたむ"}
+                    </button>
+                  )}
+                  {checkedCount > 0 && (
+                    <ShowCheckedSwitch
+                      on={showChecked}
+                      count={checkedCount}
+                      disabled={busy || draggingId !== null}
+                      size="sm"
+                      align="end"
+                      className="ml-auto"
+                      onToggle={() => setShowChecked((current) => !current)}
+                    />
+                  )}
+                </div>
+              )}
+              <div
+                id={groupGridId}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
               >
-                <span aria-hidden="true">＋ </span>グループを追加
-              </button>
+                {draft.groups.map((group) => (
+                  <GroupCircle
+                    key={group.key}
+                    dropKey={group.key}
+                    name={group.name}
+                    items={itemsIn(group.key)}
+                    collapsed={collapsedGroups.has(group.key)}
+                    onToggleCollapsed={() => toggleCollapsed(group.key)}
+                    disabled={busy}
+                    onRename={() =>
+                      setNameDialog({ mode: "rename", key: group.key })
+                    }
+                    favoriteDisabled={savingFavorite}
+                    onSaveAsFavorite={() => void saveAsFavorite(group.name)}
+                    onDelete={() => deleteGroup(group.key)}
+                    onSelectItem={openMoveDialog}
+                  />
+                ))}
+                {/* SC-09-3（利用者の指示）：作ったグループが出る場所の近くで追加できるよう、並びの最後に置く。
+                  20件のときは押せない */}
+                <button
+                  type="button"
+                  onClick={() => setNameDialog({ mode: "add" })}
+                  disabled={busy || draft.groups.length >= MAX_GROUPS}
+                  className="min-h-16 rounded-2xl border-2 border-dashed border-line-strong px-4 py-3 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  <span aria-hidden="true">＋ </span>グループを追加
+                </button>
+              </div>
             </div>
           </SortableContext>
 
@@ -794,7 +857,7 @@ export function GroupingEditor({
           ]}
           onMove={(key) => {
             moveItemTo(movingItem.id, key);
-            closeMoveDialog(movingItem.id);
+            closeMoveDialog(movingItem.id, key);
           }}
           onCancel={() => closeMoveDialog(movingItem.id)}
         />
@@ -842,6 +905,8 @@ type GroupCircleProps = {
   dropKey: string;
   name: string;
   items: PackingListItem[];
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   disabled: boolean;
   // よく使うグループの保存中は押せない（D-102）
   favoriteDisabled: boolean;
@@ -858,6 +923,8 @@ function GroupCircle({
   dropKey,
   name,
   items,
+  collapsed,
+  onToggleCollapsed,
   disabled,
   favoriteDisabled,
   onRename,
@@ -865,6 +932,7 @@ function GroupCircle({
   onDelete,
   onSelectItem,
 }: GroupCircleProps) {
+  const contentId = useId();
   const menuContainer = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useDismiss(menuContainer, menuOpen, () => setMenuOpen(false));
@@ -907,11 +975,12 @@ function GroupCircle({
       {...attributes}
       {...listeners}
       aria-label={name}
+      data-group-key={dropKey}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`flex min-w-0 touch-manipulation flex-col gap-2 rounded-2xl border-2 bg-white px-4 py-3 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${dropAreaBorder(
         isOver && isItemDrag(active),
         "border-brand",
-      )} ${isDragging ? "relative z-10 cursor-grabbing shadow-md" : "cursor-grab"}`}
+      )} ${collapsed ? "self-start" : ""} ${isDragging ? "relative z-10 cursor-grabbing shadow-md" : "cursor-grab"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 font-bold wrap-break-word text-brand-deep">
@@ -930,48 +999,73 @@ function GroupCircle({
             （{items.length}件）
           </span>
         </h2>
-        <div ref={menuContainer} data-no-drag className="relative shrink-0">
+        <div data-no-drag className="-mt-2 -mr-2 flex shrink-0 items-center">
+          <div ref={menuContainer} className="relative shrink-0">
+            <button
+              type="button"
+              aria-label={`${name}の操作`}
+              aria-expanded={menuOpen}
+              disabled={disabled}
+              onClick={() => setMenuOpen((open) => !open)}
+              // 指で押しやすいよう、押せる範囲を44px四方以上にする。丸の見出しが高くなりすぎないよう、上と右の余白に重ねる
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-brand-deep disabled:opacity-50"
+            >
+              …
+            </button>
+            {menuOpen && (
+              // D-109：名前の変更は名前を押して行うので、ここには置かない
+              <ul className="absolute right-0 z-10 mt-1 w-64 menu py-1">
+                <li>
+                  {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの OK は待たない） */}
+                  <button
+                    type="button"
+                    onClick={() => choose(onSaveAsFavorite)}
+                    disabled={favoriteDisabled}
+                    className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
+                  >
+                    <Icon name="save" className="size-5 text-muted" />
+                    <span>よく使うグループに保存</span>
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => choose(onDelete)}
+                    className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-danger"
+                  >
+                    <Icon name="trash" />
+                    <span>削除</span>
+                  </button>
+                </li>
+              </ul>
+            )}
+          </div>
+          {/* SC-07と同じ位置で開閉できるよう、矢印は一番右に置く（D-110、利用者の指示）。 */}
           <button
             type="button"
-            aria-label={`${name}の操作`}
-            aria-expanded={menuOpen}
-            disabled={disabled}
-            onClick={() => setMenuOpen((open) => !open)}
-            // 指で押しやすいよう、押せる範囲を44px四方以上にする。丸の見出しが高くなりすぎないよう、上と右の余白に重ねる
-            className="-mt-2 -mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-brand-deep disabled:opacity-50"
+            aria-expanded={!collapsed}
+            aria-controls={contentId}
+            aria-label={collapsed ? `${name}を開く` : `${name}をたたむ`}
+            onClick={onToggleCollapsed}
+            disabled={disabled || active !== null}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-brand hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
           >
-            …
+            <Icon
+              name="chevron"
+              className={`size-5 transition-transform duration-200 motion-reduce:transition-none ${collapsed ? "-rotate-90" : ""}`}
+            />
           </button>
-          {menuOpen && (
-            // D-109：名前の変更は名前を押して行うので、ここには置かない
-            <ul className="absolute right-0 z-10 mt-1 w-64 menu py-1">
-              <li>
-                {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの OK は待たない） */}
-                <button
-                  type="button"
-                  onClick={() => choose(onSaveAsFavorite)}
-                  disabled={favoriteDisabled}
-                  className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
-                >
-                  <Icon name="save" className="size-5 text-muted" />
-                  <span>よく使うグループに保存</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => choose(onDelete)}
-                  className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-danger"
-                >
-                  <Icon name="trash" />
-                  <span>削除</span>
-                </button>
-              </li>
-            </ul>
-          )}
         </div>
       </div>
-      <ItemChips items={items} disabled={disabled} onSelect={onSelectItem} />
+      <div id={contentId} hidden={collapsed || items.length === 0}>
+        {!collapsed && (
+          <ItemChips
+            items={items}
+            disabled={disabled}
+            onSelect={onSelectItem}
+          />
+        )}
+      </div>
     </section>
   );
 }
