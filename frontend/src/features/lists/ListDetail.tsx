@@ -61,7 +61,7 @@ import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
 import { useCollapsedGroups } from "./useCollapsedGroups";
 import { useVisibilityToggle } from "./useVisibilityToggle";
 import { visibilityChangedNotice } from "./visibility";
-import { ModeratedNotice, PublishConfirmDialog } from "./VisibilitySwitch";
+import { ModeratedNotice } from "./VisibilitySwitch";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
@@ -1077,7 +1077,8 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
                 visibility.sending || visibilityBlocked || moderated
               }
               publishDescribedBy={moderated ? moderatedNoticeId : undefined}
-              onTogglePublic={visibility.toggle}
+              // 公開の確認も「…」の中に置き、「やめる」で「…」を開き直す（D-73）
+              visibility={visibility}
             />
           )}
         </header>
@@ -1291,9 +1292,6 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
           </div>
         </div>
       )}
-
-      {/* SC-07-2・D-42：公開にするときだけ確認する。SC-06 と同じ文言・同じ動き */}
-      <PublishConfirmDialog visibility={visibility} />
 
       {/* SC-07-19：まとめて削除の確認。元に戻せないことを伝える（D-100） */}
       <ConfirmDialog

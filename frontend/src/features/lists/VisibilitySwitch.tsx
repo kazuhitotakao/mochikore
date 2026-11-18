@@ -41,8 +41,11 @@ export function VisibilitySwitch({
 // D-42：非公開から公開にするときだけ確認する。SC-06 と SC-07 で同じ文言・同じ動き
 export function PublishConfirmDialog({
   visibility,
+  onCancel,
 }: {
   visibility: VisibilityToggle;
+  // 「やめる」・Esc・外枠で閉じた後に呼ぶ。SC-07 は「…」を開いたまま戻すのに使う（D-73）
+  onCancel?: () => void;
 }) {
   return (
     <ConfirmDialog
@@ -53,7 +56,10 @@ export function PublishConfirmDialog({
       busy={visibility.sending}
       error={visibility.dialogError}
       onConfirm={visibility.confirmPublish}
-      onCancel={visibility.cancelPublish}
+      onCancel={() => {
+        visibility.cancelPublish();
+        onCancel?.();
+      }}
     />
   );
 }
