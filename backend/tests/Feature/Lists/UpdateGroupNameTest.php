@@ -83,7 +83,7 @@ class UpdateGroupNameTest extends ListApiTestCase
     {
         $this->rename('食品')->assertOk();
 
-        // SC-09 を開いたときの revision（4）と古い名前で OK を押しても、409 で名前は戻らない
+        // SC-09 を開いたときの revision（4）と古い名前で「保存」を押しても、409 で名前は戻らない
         $this->putJson("/api/lists/{$this->list->id}/grouping", [
             'base_revision' => 4,
             'groups' => [
