@@ -58,6 +58,7 @@ import { ListMenu } from "./ListMenu";
 import { SelectionList } from "./SelectionList";
 import { SHOW_CHECKED_PARAM } from "./showChecked";
 import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
+import { useCollapsedGroups } from "./useCollapsedGroups";
 import { useVisibilityToggle } from "./useVisibilityToggle";
 import { visibilityChangedNotice } from "./visibility";
 import { ModeratedNotice, PublishConfirmDialog } from "./VisibilitySwitch";
@@ -219,6 +220,11 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる。
   // 表示したまま SC-06・SC-09 へ行って戻ったときだけ、表示を引き継ぐ（利用者の指示）
   const [showChecked, setShowChecked] = useState(initialShowChecked);
+  // D-110：たたんだグループ。この端末のブラウザにリストごとに覚えるので、開き直しても保つ
+  const collapsedGroups = useCollapsedGroups(
+    list.id,
+    groups.map((group) => group.id),
+  );
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
   const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
   // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
@@ -343,7 +349,12 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     );
     const sectionHides = sectionItems.every((existing) => existing.is_checked);
     const row = document.getElementById(itemCheckboxId(itemId))?.closest("li");
-    const area = sectionHides ? row?.closest("section") : row;
+    // D-110：たたんだグループは行を出していないので、見出しのまとめてチェックの後は区切りそのものから探す
+    const section =
+      item.group_id === null
+        ? row?.closest("section")
+        : document.getElementById(sectionId(item.group_id));
+    const area = sectionHides ? section : row;
 
     // その行（隠れるグループ）にカーソルがあるとき、またはどこにもないときだけ移す。
     // 待っている間に追加欄など別の所へ移っていたら、そのままにする
@@ -352,12 +363,18 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     const focusLost = !active || active === document.body;
     if (!focusInArea && !focusLost) return;
 
-    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ表示のスイッチへ
+    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ表示のスイッチへ。
+    // たたんだグループ（D-110）の持ち物は画面に出ていないので飛ばす
     const displayed = displayOrder();
     const last = sectionHides ? sectionItems[sectionItems.length - 1] : item;
     const next = displayed
       .slice(displayed.indexOf(last) + 1)
-      .find((other) => !other.is_checked);
+      .find(
+        (other) =>
+          !other.is_checked &&
+          (other.group_id === null ||
+            !collapsedGroups.collapsed.has(other.group_id)),
+      );
     pendingFocusId.current = next
       ? itemCheckboxId(next.id)
       : SHOW_CHECKED_SWITCH_ID;
@@ -928,6 +945,13 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     const sectionItems = sortableItems.filter(
       (item) => item.group_id === groupId,
     );
+    // D-110：たたんだグループの持ち物は出さない。ドラッグで入れようとしている持ち物だけは、
+    // 入る位置（グループの最後）が分かるよう見出しの下に出す。件数はたたむ前と同じ数を出す
+    const collapsed =
+      groupId !== null && collapsedGroups.collapsed.has(groupId);
+    const shownItems = collapsed
+      ? sectionItems.filter((item) => item.id === draggingItemId)
+      : sectionItems;
     const groupItems = items.filter((item) => item.group_id === groupId);
     const total = groupItems.length;
     // 隠れたチェック済みも含め、全件チェック済みのときだけ印を付ける（利用者の指示、D-99を変更）。
@@ -968,8 +992,12 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
             ),
           )
         }
+        collapsed={collapsed}
+        onToggleCollapsed={() => {
+          if (groupId !== null) collapsedGroups.toggle(groupId);
+        }}
       >
-        {renderItems(sectionItems, groupId !== null)}
+        {renderItems(shownItems, groupId !== null)}
         {groupId === null && (
           // 利用者の指示で、空の未分類にも入力行を残す。未保存の行は件数に含めない。
           <div className="flex flex-col">

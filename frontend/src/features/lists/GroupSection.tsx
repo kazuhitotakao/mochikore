@@ -12,6 +12,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { Icon } from "@/components/Icon";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { validateGroupName } from "@/features/grouping/validation";
@@ -44,6 +45,9 @@ type Props = {
   // D-109：見出しの名前を押して変える。同じリストのほかのグループ名は、同名の確認（V-14）に使う
   otherGroupNames?: readonly string[];
   onRenamed?: (group: PackingListGroup) => void;
+  // D-110：見出しの右端の矢印でたたむ・開く。たたんだときに出さない持ち物は、親が children から外す
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   children: ReactNode;
 };
 
@@ -76,11 +80,14 @@ function SortableGroupSection({
   onSwipeDelete = () => {},
   otherGroupNames = [],
   onRenamed = () => {},
+  collapsed = false,
+  onToggleCollapsed = () => {},
   children,
 }: Props & { groupId: number }) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const errorId = useId();
+  const contentId = useId();
   const nameButton = useRef<HTMLButtonElement>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
@@ -277,6 +284,21 @@ function SortableGroupSection({
               （{count}件）
             </span>
           </h2>
+          {/* D-110（利用者の指示）：名前を押すと名前の編集になるので、たたむ操作は右端の矢印に分ける。
+              持ち物の行の「…」と同じ列・大きさ（44px）。開いているときは下向き、たたんだときは右向き */}
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-controls={contentId}
+            aria-label={collapsed ? `${title}を開く` : `${title}をたたむ`}
+            onClick={onToggleCollapsed}
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-brand hover:bg-background/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            <Icon
+              name="chevron"
+              className={`size-5 transition-transform duration-200 ${collapsed ? "-rotate-90" : ""}`}
+            />
+          </button>
         </div>
       </div>
       {nameError && (
@@ -284,7 +306,9 @@ function SortableGroupSection({
           {nameError}
         </p>
       )}
-      {children}
+      <div id={contentId} className="flex flex-col">
+        {children}
+      </div>
     </section>
   );
 }

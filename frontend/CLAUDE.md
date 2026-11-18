@@ -21,6 +21,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 - `params`・`searchParams`・`cookies()` は `await` する（Next.js 16で必須）。
 - 本人のデータをキャッシュしない。
 - 復元候補とSC-09の下書きは `useState` に置き、ブラウザへ保存しない（D-28）。
+- SC-07のたたんだグループだけは、`useCollapsedGroups` で localStorage にリストごとのグループIDを覚える。名前などの中身は入れない（D-110）。
 - 認証が必要な画面への `Link` は `prefetch={false}` にする（D-36。先読みで期限を延ばさない）。
 
 ## API通信
