@@ -17,6 +17,8 @@ import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import type { ItemDeleteResult } from "@/types/api";
+import { bulkDeleteErrorMessage } from "./itemErrors";
 import { withShowChecked } from "./showChecked";
 import type { VisibilityToggle } from "./useVisibilityToggle";
 import { PublishConfirmDialog } from "./VisibilitySwitch";
@@ -27,6 +29,9 @@ type Props = {
   // D-94：チェック済みを表示しているか。SC-06・SC-09 へ移るときに表示を引き継ぐのに使う
   showChecked: boolean;
   onChecksReset: () => void;
+  // 非表示・たたんだグループの中も含む、チェック済みの持ち物（SC-07、利用者の指示）
+  checkedItemIds: number[];
+  onCheckedItemsDeleted: (itemIds: number[], result: ItemDeleteResult) => void;
   // SC-07-16：削除した持ち物の候補があるときは、整理画面へ移る前に案内する
   hasDeletedItems: boolean;
   // SC-07-16：並べ替えなどの自動保存が終わるまでは、整理画面へ移らない
@@ -42,10 +47,11 @@ type Props = {
   visibility: VisibilityToggle;
 };
 
-type Confirming = "grouping" | "reset-checks" | "delete" | null;
+type Confirming =
+  "grouping" | "reset-checks" | "delete-checked" | "delete" | null;
 
 // 確認で「やめる」を押した後に、カーソルを戻す「…」の項目
-type MenuItemKey = "public" | "reset-checks" | "delete";
+type MenuItemKey = "public" | "reset-checks" | "delete-checked" | "delete";
 
 // SC-07-4「…」メニュー
 export function ListMenu({
@@ -53,6 +59,8 @@ export function ListMenu({
   title,
   showChecked,
   onChecksReset,
+  checkedItemIds,
+  onCheckedItemsDeleted,
   hasDeletedItems,
   saving,
   canSelectToDelete,
@@ -72,8 +80,11 @@ export function ListMenu({
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 確認を開いた後に別の通信が完了しても、確認した対象を勝手に増やさない（D-100、利用者の指示）。
+  const [checkedDeleteIds, setCheckedDeleteIds] = useState<number[]>([]);
   // 「…」を開き直したときにカーソルを移す項目。描画に使わないので ref に置く
   const focusAfterReopen = useRef<MenuItemKey | null>(null);
+  const focusAfterCheckedDelete = useRef(false);
 
   // 確認（子の ConfirmDialog）が閉じてから項目へカーソルを移す。子の effect が先に動くので、
   // 確認を開いている間（後ろの画面を操作できない間）に移そうとして失敗することはない
@@ -85,6 +96,14 @@ export function ListMenu({
       ?.querySelector<HTMLElement>(`[data-menu-item="${item}"]`)
       ?.focus();
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (confirming !== null || sending || !focusAfterCheckedDelete.current)
+      return;
+    focusAfterCheckedDelete.current = false;
+    // 子の確認が閉じ、送信中の無効化も外れた後で「…」へ戻す（D-73）。
+    menuContainer.current?.querySelector("button")?.focus();
+  }, [confirming, sending]);
 
   // SC-07-4（利用者の指示）：「…」から開いた確認で「やめる」を押したら（Esc・外枠も同じ）、
   // 「…」を開いたまま戻し、続けて別の操作を選べるようにする。押した項目へカーソルを戻す（D-73）
@@ -166,6 +185,37 @@ export function ListMenu({
     }
   }
 
+  // チェック済みも「選んで削除」と同じAPI-38で消す。グループは消さず、戻す候補にも入れない（D-100）。
+  async function handleDeleteChecked() {
+    if (
+      sending ||
+      saving ||
+      visibility.sending ||
+      checkedDeleteIds.length === 0
+    )
+      return;
+    setSending(true);
+    setError(null);
+
+    try {
+      const result = await clientApi<ItemDeleteResult>(
+        `/lists/${listId}/items/bulk-delete`,
+        {
+          method: "POST",
+          body: { item_ids: checkedDeleteIds, group_ids: [] },
+        },
+      );
+      onCheckedItemsDeleted(checkedDeleteIds, result);
+      focusAfterCheckedDelete.current = true;
+      setConfirming(null);
+    } catch (failure) {
+      if (handleMovingError(failure)) return;
+      setError(bulkDeleteErrorMessage(failure));
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <div ref={menuContainer} className="relative">
       <button
@@ -181,13 +231,13 @@ export function ListMenu({
         …
       </button>
 
-      {/* SC-07-4（利用者の指示）：よく使う操作を上に置き、編集・整理・公開｜チェックと選んで削除｜リストの削除の
+      {/* SC-07-4（利用者の指示）：よく使う操作を上に置き、編集・整理・公開｜チェックと持ち物の削除｜リストの削除の
           3つに線で区切る。項目ごとに同じ形のアイコンを付け、削除の操作は赤で示す。押せる高さは44px以上（D-73）。
           一覧の上の「チェック済みを表示」（前面に出している）より手前に重ねる */}
       {menuOpen && (
         <div
           id={menuId}
-          className="absolute right-0 z-30 mt-1 flex w-60 flex-col menu py-1.5"
+          className="absolute right-0 z-30 mt-1 flex w-72 flex-col menu py-1.5"
         >
           <MenuSection>
             <li>
@@ -244,6 +294,24 @@ export function ListMenu({
               <button
                 type="button"
                 onClick={() => {
+                  setCheckedDeleteIds([...checkedItemIds]);
+                  openConfirm("delete-checked");
+                }}
+                disabled={
+                  saving || visibility.sending || checkedItemIds.length === 0
+                }
+                data-menu-item="delete-checked"
+                className={`${MENU_ITEM} text-danger`}
+              >
+                <MenuLabel icon="trash" danger>
+                  チェック済みを削除（{checkedItemIds.length}件）
+                </MenuLabel>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={() => {
                   setMenuOpen(false);
                   onSelectToDelete();
                 }}
@@ -294,6 +362,22 @@ export function ListMenu({
         onCancel={() => {
           setConfirming(null);
           reopenMenu("reset-checks");
+        }}
+      />
+
+      {/* SC-07（利用者の指示）：非表示も含むチェック済みの件数と、元に戻せないことを伝える（D-95・D-100）。 */}
+      <ConfirmDialog
+        open={confirming === "delete-checked"}
+        message={`チェック済みの持ち物（${checkedDeleteIds.length}件）を削除しますか？元に戻せません。`}
+        confirmLabel="削除する"
+        cancelLabel="やめる"
+        busy={sending}
+        destructive
+        error={error}
+        onConfirm={() => void handleDeleteChecked()}
+        onCancel={() => {
+          setConfirming(null);
+          reopenMenu("delete-checked");
         }}
       />
 

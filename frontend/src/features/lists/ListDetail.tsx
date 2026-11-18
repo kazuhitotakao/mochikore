@@ -37,7 +37,7 @@ import { AddItemRow } from "./AddItemRow";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
 import { ItemRow, itemCheckboxId } from "./ItemRow";
-import { isNotFound } from "./itemErrors";
+import { bulkDeleteErrorMessage, isNotFound } from "./itemErrors";
 import {
   moveItemToGroup,
   reorderVisibleGroups,
@@ -281,7 +281,10 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
         (item) => !item.is_checked || delayedIds.has(item.id),
       );
   const draggingItem = items.find((item) => item.id === draggingItemId);
-  const checkedCount = items.filter((item) => item.is_checked).length;
+  const checkedItemIds = items
+    .filter((item) => item.is_checked)
+    .map((item) => item.id);
+  const checkedCount = checkedItemIds.length;
   // D-101：チェック済みを隠しているときは、中の全有効持ち物がチェック済みのグループ（未分類を含む）を
   // 見出しごと隠す。D-106：0件のグループは保存したチェックを使い、同じ1秒の猶予を保つ。
   const hiddenSectionIds = new Set<number | null>(
@@ -866,6 +869,25 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     return `選んだ持ち物（${itemCount}件）を削除しますか？元に戻せません。${groupNote}`;
   }
 
+  // 削除の入口が違っても、API-38の結果と公開状態を同じように反映する。復元候補は増やさない（D-51・D-100）。
+  function handleBulkDeleted(
+    itemIds: number[],
+    groupIds: number[],
+    result: ItemDeleteResult,
+  ) {
+    const removedItems = new Set(itemIds);
+    const removedGroups = new Set(groupIds);
+    setItems((current) => current.filter((item) => !removedItems.has(item.id)));
+    setGroups((current) =>
+      current.filter((group) => !removedGroups.has(group.id)),
+    );
+    // D-51：公開中のリストで持ち物が0件になると、自動で非公開になる
+    if (isPublic && !result.is_public) {
+      setNotice("持ち物がなくなったため、リストを非公開にしました。");
+    }
+    setIsPublic(result.is_public);
+  }
+
   // F-26・D-100：持ち物とグループをまとめて削除する（API-38）。確認してから消すので、戻す候補には入れない。
   // 「選んで削除」と、見出しの左スワイプ（D-105）の両方で使う。消せたら true
   async function deleteItemsAndGroups(
@@ -879,19 +901,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
         `/lists/${list.id}/items/bulk-delete`,
         { method: "POST", body: { item_ids: itemIds, group_ids: groupIds } },
       );
-      const removedItems = new Set(itemIds);
-      const removedGroups = new Set(groupIds);
-      setItems((current) =>
-        current.filter((item) => !removedItems.has(item.id)),
-      );
-      setGroups((current) =>
-        current.filter((group) => !removedGroups.has(group.id)),
-      );
-      // D-51：公開中のリストで持ち物が0件になると、自動で非公開になる
-      if (isPublic && !result.is_public) {
-        setNotice("持ち物がなくなったため、リストを非公開にしました。");
-      }
-      setIsPublic(result.is_public);
+      handleBulkDeleted(itemIds, groupIds, result);
       return true;
     } catch (failure) {
       if (redirectIfAuthError(failure)) return false;
@@ -1066,6 +1076,10 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
               title={list.title}
               showChecked={showChecked}
               onChecksReset={handleChecksReset}
+              checkedItemIds={checkedItemIds}
+              onCheckedItemsDeleted={(itemIds, result) =>
+                handleBulkDeleted(itemIds, [], result)
+              }
               hasDeletedItems={deletedItems.length > 0}
               saving={reordering || groupChecking !== undefined}
               canSelectToDelete={items.length > 0 || groups.length > 0}
@@ -1323,15 +1337,6 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
       />
     </>
   );
-}
-
-// V-20：まとめて削除の送信が正しくないのは、ほかの画面で持ち物やグループが変わったときなので、読み直しを案内する
-function bulkDeleteErrorMessage(error: unknown): string {
-  if (error instanceof ApiError && error.code === "validation_error") {
-    return "削除する持ち物の情報が正しくありません。リストを読み直してください。";
-  }
-
-  return NETWORK_ERROR_MESSAGE;
 }
 
 // V-10・V-17：並べ替えの送信が正しくないのは、ほかの画面で持ち物やグループが変わったときなので、読み直しを案内する
