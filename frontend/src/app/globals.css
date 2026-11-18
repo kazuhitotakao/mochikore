@@ -352,6 +352,11 @@
   box-shadow:
     0 8px 24px rgb(61 58 51 / 0.14),
     0 1px 3px rgb(61 58 51 / 0.08);
+
+  /* D-73：Noto Sans JPの字面が行の中央より少し下にあるため、アイコンの見た目の中央もそろえる。 */
+  & svg {
+    translate: 0 1px;
+  }
 }
 
 body {

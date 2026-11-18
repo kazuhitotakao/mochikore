@@ -10,6 +10,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { Icon } from "@/components/Icon";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { trimLikeLaravel } from "@/features/auth/validation";
@@ -305,7 +306,7 @@ export function ItemRow({
               {menuOpen && (
                 <ul
                   id={menuId}
-                  className="absolute right-0 z-10 mt-1 w-48 menu py-1"
+                  className="absolute right-0 z-10 mt-1 w-60 menu py-1"
                 >
                   <li>
                     <button
@@ -314,18 +315,20 @@ export function ItemRow({
                         setMenuOpen(false);
                         onSaveAsFavorite(item);
                       }}
-                      className="block w-full px-4 py-2 text-left"
+                      className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
                     >
-                      よく使う項目に保存
+                      <Icon name="save" className="size-5 text-muted" />
+                      <span>よく使う項目に保存</span>
                     </button>
                   </li>
                   <li>
                     <button
                       type="button"
                       onClick={() => void deleteItem()}
-                      className="block w-full px-4 py-2 text-left text-danger"
+                      className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-danger"
                     >
-                      削除
+                      <Icon name="trash" />
+                      <span>削除</span>
                     </button>
                   </li>
                 </ul>
