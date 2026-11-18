@@ -21,6 +21,7 @@ import { getEventCoordinates } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Icon } from "@/components/Icon";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -53,12 +54,19 @@ import {
   sectionId,
   useItemSortSensors,
 } from "./itemSorting";
-import { LIST_MENU_BUTTON_ID, ListMenu } from "./ListMenu";
+import { ListMenu } from "./ListMenu";
 import { SelectionList } from "./SelectionList";
 import { SHOW_CHECKED_PARAM } from "./showChecked";
+import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
+import { useVisibilityToggle } from "./useVisibilityToggle";
+import { visibilityChangedNotice } from "./visibility";
+import { ModeratedNotice, PublishConfirmDialog } from "./VisibilitySwitch";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
+
+// SC-07-7：チェックで最後の行が隠れたときに、カーソルを移す先（隠れた持ち物を出し直せるスイッチ）
+const SHOW_CHECKED_SWITCH_ID = "show-checked-switch";
 
 // ItemRow が持ち物のドラッグに持たせる、どのグループの持ち物か
 type ItemSortData = { groupId: number | null };
@@ -181,7 +189,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   );
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
-  const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const moderatedNoticeId = useId();
   const [notice, setNotice] = useState<string | null>(null);
   // SC-07-12：この画面で削除した持ち物の候補（D-28）
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
@@ -214,7 +222,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
   const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
   // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
-  // チェック済みの表示切替は、開け閉めしても消えない（D-94）
+  // チェック済みの表示（SC-07-20）は、開け閉めしても消えない（D-94）
   const [panelOpen, setPanelOpen] = useState(false);
   // D-105：左スワイプで「削除」を出している行（持ち物は item-ID、グループは group-ID）。開けるのは1行だけ
   const [swipeOpenKey, setSwipeOpenKey] = useState<string | null>(null);
@@ -225,6 +233,23 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   } | null>(null);
   // 行が隠れた後にカーソルを移す先。表示が変わってから移すので、描画に使わない ref に置く
   const pendingFocusId = useRef<string | null>(null);
+  // SC-07-2・F-08：公開の切り替え（API-14）。並べ替え・まとめてチェック・まとめて削除の保存中と、
+  // 「選んで削除」の間は押せない（D-100）。まとめて削除で0件になると自動で非公開になるため（D-51）
+  const visibilityBlocked =
+    reordering || groupChecking !== undefined || bulkDeleting || selecting;
+  const visibility = useVisibilityToggle({
+    listId: list.id,
+    isPublic,
+    blocked: visibilityBlocked,
+    onChanged: (value) => {
+      setIsPublic(value);
+      setNotice(visibilityChangedNotice(value));
+    },
+    onModerated: () => {
+      setModerated(true);
+      setIsPublic(false);
+    },
+  });
   const { delayedIds, hideLater, pauseHide, cancelHide, isWaitingToHide } =
     useDelayedHide(handleHideDelayEnd);
   const {
@@ -281,7 +306,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  // SC-07-7：チェックして行が隠れたら、次の行（なければ表示切替のある「…」ボタン）へカーソルを移す
+  // SC-07-7：チェックして行が隠れたら、次の行（なければ「チェック済みを表示」のスイッチ）へカーソルを移す
   useEffect(() => {
     const targetId = pendingFocusId.current;
     if (!targetId) return;
@@ -289,7 +314,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     document.getElementById(targetId)?.focus();
   }, [items, delayedIds, groups, delayedGroupIds]);
 
-  // D-106：空の見出しが隠れるときだけ、その中のカーソルをメニューへ移す。
+  // D-106：空の見出しが隠れるときだけ、その中のカーソルを表示のスイッチへ移す。
   function handleEmptyGroupHideEnd(groupId: number) {
     if (
       showChecked ||
@@ -301,7 +326,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     const active = document.activeElement;
     // 送信中のdisabledでカーソルが外れた場合も、既存の持ち物と同じ移動先に戻す。
     if (!active || active === document.body || section?.contains(active))
-      pendingFocusId.current = LIST_MENU_BUTTON_ID;
+      pendingFocusId.current = SHOW_CHECKED_SWITCH_ID;
   }
 
   // 少し待った後、チェック済みの行が表示から外れる直前に呼ばれる
@@ -327,7 +352,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     const focusLost = !active || active === document.body;
     if (!focusInArea && !focusLost) return;
 
-    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ「…」ボタンへ
+    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ表示のスイッチへ
     const displayed = displayOrder();
     const last = sectionHides ? sectionItems[sectionItems.length - 1] : item;
     const next = displayed
@@ -335,7 +360,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
       .find((other) => !other.is_checked);
     pendingFocusId.current = next
       ? itemCheckboxId(next.id)
-      : LIST_MENU_BUTTON_ID;
+      : SHOW_CHECKED_SWITCH_ID;
   }
 
   // 画面に出す並び。グループがあるときはグループ順に並べ、未分類を最後に置く（SC-07-6）
@@ -947,8 +972,20 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
         {renderItems(sectionItems, groupId !== null)}
         {groupId === null && (
           // 利用者の指示で、空の未分類にも入力行を残す。未保存の行は件数に含めない。
-          <div>
+          <div className="flex flex-col">
             <AddItemRow listId={list.id} onAdded={handleAdded} />
+            {/* SC-07-5（利用者の指示）：追加欄のすぐ下に控えめに置く。空のリスト・全部チェック済みでも使える。
+                アイコンを追加欄のチェック欄と同じ列に置き、文字を「持ち物を追加…」とそろえる */}
+            <button
+              type="button"
+              onClick={() => setPanelOpen(true)}
+              className="group flex min-h-11 items-center gap-2 self-start rounded-lg pr-2 text-brand hover:text-brand-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              <Icon name="saved-add" />
+              <span className="text-sm font-medium underline-offset-4 group-hover:underline">
+                よく使う項目から追加
+              </span>
+            </button>
           </div>
         )}
       </GroupSection>
@@ -969,82 +1006,50 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
             <h1 className="text-2xl font-medium wrap-break-word">
               {list.title}
             </h1>
-            {/* 利用者の指示で、持ち物の件数は出さない（D-95） */}
-            <p className="flex flex-wrap gap-2">
-              <span className="tag">{list.category.name}</span>
-              <span className={isPublic ? "tag" : "tag-muted"}>
-                {isPublic ? "公開" : "非公開"}
-              </span>
-            </p>
+            {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しにはカテゴリーと公開・非公開のラベルだけを置く。
+                切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
+            <div className="flex flex-col gap-1">
+              <p className="flex flex-wrap gap-2">
+                <span className="tag">{list.category.name}</span>
+                <span className={isPublic ? "tag" : "tag-muted"}>
+                  {isPublic ? "公開" : "非公開"}
+                </span>
+              </p>
+              {/* 非公開にできなかった理由はラベルの下に出す。公開の失敗は確認の中に出す */}
+              {visibility.error && (
+                <p role="alert" className="text-sm text-danger">
+                  {visibility.error}
+                </p>
+              )}
+              {moderated && <ModeratedNotice id={moderatedNoticeId} />}
+            </div>
           </div>
           {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
           {!selecting && (
             <ListMenu
               listId={list.id}
               title={list.title}
-              isPublic={isPublic}
-              moderated={moderated}
-              onVisibilityChanged={(value) => {
-                setIsPublic(value);
-                setNotice(
-                  value
-                    ? "リストを公開しました。"
-                    : "リストを非公開にしました。",
-                );
-              }}
-              onVisibilityError={setVisibilityError}
-              onModerated={() => {
-                setModerated(true);
-                setIsPublic(false);
-                setVisibilityError(null);
-              }}
               showChecked={showChecked}
-              checkedCount={checkedCount}
-              onToggleChecked={() => setShowChecked((shown) => !shown)}
               onChecksReset={handleChecksReset}
               hasDeletedItems={deletedItems.length > 0}
               saving={reordering || groupChecking !== undefined}
               canSelectToDelete={items.length > 0 || groups.length > 0}
               onSelectToDelete={() => setSelectingMode(true)}
+              // SC-07-4・F-08：SC-06 と同じ処理（useVisibilityToggle）。画面を移らないので、
+              // チェック済みの表示と削除した持ち物の候補はそのまま残る（D-28）
+              isPublic={isPublic}
+              publishDisabled={
+                visibility.sending || visibilityBlocked || moderated
+              }
+              publishDescribedBy={moderated ? moderatedNoticeId : undefined}
+              onTogglePublic={visibility.toggle}
             />
           )}
         </header>
 
-        {visibilityError && (
-          <p role="alert" className="text-danger">
-            {visibilityError}
-          </p>
-        )}
-        {moderated && (
-          <p
-            id="list-moderated-notice"
-            role="alert"
-            className="text-sm text-muted"
-          >
-            このリストは運営により非公開になっています。 お問い合わせ：
-            <a
-              href="mailto:simasyam@gmail.com"
-              className="text-link tap-target"
-            >
-              simasyam@gmail.com
-            </a>
-          </p>
-        )}
-
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
         {list.description && (
           <p className="whitespace-pre-wrap">{list.description}</p>
-        )}
-
-        {/* SC-07-5 */}
-        {!selecting && (
-          <button
-            type="button"
-            onClick={() => setPanelOpen(true)}
-            className="self-start btn-outline btn-sm"
-          >
-            よく使う項目から追加
-          </button>
         )}
 
         {selecting && (
@@ -1066,14 +1071,29 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
         )}
 
         {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
-        <div className={selecting ? "hidden" : "flex flex-col gap-6"}>
+        <div className={selecting ? "hidden" : "flex flex-col gap-4"}>
+          {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、0件でも出す（チェック済みの空グループだけを
+              隠しているときも出し直せるように）。画面の表示だけを変え、通信しない。
+              「選んで削除」の間は、選ぶ対象が変わらないよう、この入れ物ごと出さない（D-100） */}
+          <ShowCheckedSwitch
+            id={SHOW_CHECKED_SWITCH_ID}
+            on={showChecked}
+            count={checkedCount}
+            size="sm"
+            // 利用者の指示で上下の余白を詰める：文字の上は16px・下は12pxにし、押せる範囲（44px）は余白に重ねる。
+            // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
+            // 利用者の指示で右端にそろえる
+            align="end"
+            className="relative z-10 -mt-5 -mb-4"
+            onToggle={() => setShowChecked((shown) => !shown)}
+          />
           {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
               未チェックの空リストは追加行で分かるので、案内文を出さない。 */}
           {(items.length > 0 || groups.some((group) => group.is_checked)) &&
             visibleItems.length === 0 &&
             visibleGroups.length === 0 && (
               <p>
-                すべてチェック済みです。右上の「…」の『チェック済みを表示』から確認できます。
+                すべてチェック済みです。上の「チェック済みを表示」をオンにすると確認できます。
               </p>
             )}
           <DndContext
@@ -1110,7 +1130,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
                 // 縁取りは ring にして、元の行と高さを変えない（D-98）
                 <div
                   aria-hidden="true"
-                  className="flex items-center gap-2 rounded-lg bg-background py-2 pl-1.5 shadow-md ring-1 ring-line"
+                  className="flex items-center gap-2 rounded-lg bg-background py-0.5 pl-1.5 shadow-md ring-1 ring-line"
                 >
                   <input
                     type="checkbox"
@@ -1234,6 +1254,9 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
           </div>
         </div>
       )}
+
+      {/* SC-07-2・D-42：公開にするときだけ確認する。SC-06 と同じ文言・同じ動き */}
+      <PublishConfirmDialog visibility={visibility} />
 
       {/* SC-07-19：まとめて削除の確認。元に戻せないことを伝える（D-100） */}
       <ConfirmDialog

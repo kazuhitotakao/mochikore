@@ -2,28 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Icon, type IconName } from "@/components/Icon";
+import { SwitchIndicator } from "@/components/SwitchIndicator";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
-import type { PackingList } from "@/types/api";
 import { withShowChecked } from "./showChecked";
-import { PUBLISH_MESSAGE, visibilityErrorMessage } from "./visibility";
 
 type Props = {
   listId: number;
   title: string;
-  isPublic: boolean;
-  moderated: boolean;
-  onVisibilityChanged: (isPublic: boolean) => void;
-  onVisibilityError: (message: string | null) => void;
-  onModerated: () => void;
-  // D-94：チェック済みの表示切替。画面の中の表示だけを変え、通信しない
+  // D-94：チェック済みを表示しているか。SC-06・SC-09 へ移るときに表示を引き継ぐのに使う
   showChecked: boolean;
-  checkedCount: number;
-  onToggleChecked: () => void;
   onChecksReset: () => void;
   // SC-07-16：削除した持ち物の候補があるときは、整理画面へ移る前に案内する
   hasDeletedItems: boolean;
@@ -32,30 +25,30 @@ type Props = {
   // SC-07-18・D-100：「選んで削除」で、この画面のまま選ぶ表示にする。選ぶものがなければ押せない
   canSelectToDelete: boolean;
   onSelectToDelete: () => void;
+  // SC-07-4・F-08：公開の切り替え。処理（確認・送信・エラー）は画面側の useVisibilityToggle が持つ
+  isPublic: boolean;
+  publishDisabled: boolean;
+  // 運営による非公開の案内の id。押せない理由として読み上げる
+  publishDescribedBy?: string;
+  onTogglePublic: () => void;
 };
 
-// チェックで最後の行が隠れたときに、カーソルを移す先（SC-07-7）
-export const LIST_MENU_BUTTON_ID = "list-menu-button";
-
-type Confirming = "grouping" | "reset-checks" | "delete" | "publish" | null;
+type Confirming = "grouping" | "reset-checks" | "delete" | null;
 
 // SC-07-4「…」メニュー
 export function ListMenu({
   listId,
   title,
-  isPublic,
-  moderated,
-  onVisibilityChanged,
-  onVisibilityError,
-  onModerated,
   showChecked,
-  checkedCount,
-  onToggleChecked,
   onChecksReset,
   hasDeletedItems,
   saving,
   canSelectToDelete,
   onSelectToDelete,
+  isPublic,
+  publishDisabled,
+  publishDescribedBy,
+  onTogglePublic,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -141,42 +134,10 @@ export function ListMenu({
     }
   }
 
-  async function handleVisibilityChange(isPublic: boolean) {
-    if (saving || sending) return;
-    setMenuOpen(false);
-    setSending(true);
-    setError(null);
-    onVisibilityError(null);
-
-    try {
-      const saved = await clientApi<Pick<PackingList, "is_public">>(
-        `/lists/${listId}/visibility`,
-        { method: "PATCH", body: { is_public: isPublic } },
-      );
-      // D-28：画面を移動せず、削除した持ち物やチェック済みの表示を保つ
-      onVisibilityChanged(saved.is_public);
-      setConfirming(null);
-    } catch (failure) {
-      if (handleMovingError(failure)) return;
-
-      if (failure instanceof ApiError && failure.code === "list_moderated") {
-        onModerated();
-        setConfirming(null);
-      } else if (isPublic) {
-        setError(visibilityErrorMessage(failure));
-      } else {
-        onVisibilityError(visibilityErrorMessage(failure));
-      }
-    } finally {
-      setSending(false);
-    }
-  }
-
   return (
     <div ref={menuContainer} className="relative">
       <button
         type="button"
-        id={LIST_MENU_BUTTON_ID}
         aria-label="リストの操作"
         aria-expanded={menuOpen}
         aria-controls={menuId}
@@ -188,99 +149,94 @@ export function ListMenu({
         …
       </button>
 
+      {/* SC-07-4（利用者の指示）：よく使う操作を上に置き、編集・整理・公開｜チェックと選んで削除｜リストの削除の
+          3つに線で区切る。項目ごとに同じ形のアイコンを付け、削除の操作は赤で示す。押せる高さは44px以上（D-73）。
+          一覧の上の「チェック済みを表示」（前面に出している）より手前に重ねる */}
       {menuOpen && (
-        <ul
+        <div
           id={menuId}
-          className="absolute right-0 z-10 mt-1 flex w-48 flex-col menu py-1"
+          className="absolute right-0 z-30 mt-1 flex w-60 flex-col menu py-1.5"
         >
-          <li>
-            <Link href={editHref} prefetch={false} className="block px-4 py-2">
-              リストを編集
-            </Link>
-          </li>
-          <li>
-            <button
-              type="button"
-              disabled={saving || sending || moderated}
-              aria-describedby={moderated ? "list-moderated-notice" : undefined}
-              onClick={() => {
-                if (isPublic) void handleVisibilityChange(false);
-                else openConfirm("publish");
-              }}
-              className="block w-full px-4 py-2 text-left disabled:opacity-50"
-            >
-              {isPublic ? "非公開にする" : "公開にする"}
-            </button>
-          </li>
-          <li>
-            {/* 利用者の指示で、説明文と一覧の間からこのメニューの中へ移した。0件でも出す */}
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onToggleChecked();
-              }}
-              className="block w-full px-4 py-2 text-left"
-            >
-              {showChecked ? "チェック済みを隠す" : "チェック済みを表示"}（
-              {checkedCount}件）
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              onClick={openGrouping}
-              disabled={saving}
-              className="block w-full px-4 py-2 text-left disabled:opacity-50"
-            >
-              グループを整理
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onSelectToDelete();
-              }}
-              disabled={saving || !canSelectToDelete}
-              className="block w-full px-4 py-2 text-left disabled:opacity-50"
-            >
-              選んで削除
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              onClick={() => openConfirm("reset-checks")}
-              disabled={saving}
-              className="block w-full px-4 py-2 text-left disabled:opacity-50"
-            >
-              チェックを全部外す
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              onClick={() => openConfirm("delete")}
-              className="block w-full px-4 py-2 text-left text-danger"
-            >
-              このリストを削除
-            </button>
-          </li>
-        </ul>
+          <MenuSection>
+            <li>
+              <Link href={editHref} prefetch={false} className={MENU_ITEM}>
+                <MenuLabel icon="edit">リストを編集</MenuLabel>
+              </Link>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={openGrouping}
+                disabled={saving}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="group">グループを整理</MenuLabel>
+              </button>
+            </li>
+            {/* SC-07-4（利用者の指示）：リストをシンプルに見せるため、公開の切り替えはここに置く。
+                SC-06 と同じオン・オフの形と動き（D-73・D-85）。公開にするときは閉じてから確認を出す（D-42） */}
+            <li>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isPublic}
+                aria-describedby={publishDescribedBy}
+                disabled={publishDisabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onTogglePublic();
+                }}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="public">リストを公開</MenuLabel>
+                <span className="ml-auto flex">
+                  <SwitchIndicator on={isPublic} />
+                </span>
+              </button>
+            </li>
+          </MenuSection>
+          <MenuSection divided>
+            <li>
+              <button
+                type="button"
+                onClick={() => openConfirm("reset-checks")}
+                disabled={saving}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="reset">チェックを全部外す</MenuLabel>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onSelectToDelete();
+                }}
+                disabled={saving || !canSelectToDelete}
+                className={`${MENU_ITEM} text-danger`}
+              >
+                <MenuLabel icon="select" danger>
+                  選んで削除
+                </MenuLabel>
+              </button>
+            </li>
+          </MenuSection>
+          <MenuSection divided>
+            <li>
+              <button
+                type="button"
+                onClick={() => openConfirm("delete")}
+                className={`${MENU_ITEM} text-danger`}
+              >
+                <MenuLabel icon="trash" danger>
+                  このリストを削除
+                </MenuLabel>
+              </button>
+            </li>
+          </MenuSection>
+        </div>
       )}
-
-      <ConfirmDialog
-        open={confirming === "publish"}
-        message={PUBLISH_MESSAGE}
-        confirmLabel="公開する"
-        cancelLabel="やめる"
-        busy={sending}
-        error={error}
-        onConfirm={() => void handleVisibilityChange(true)}
-        onCancel={() => setConfirming(null)}
-      />
 
       {/* SC-07-16・D-61：整理画面は別の画面なので、移ると削除した持ち物の候補は消える */}
       <ConfirmDialog
@@ -316,5 +272,44 @@ export function ListMenu({
         onCancel={() => setConfirming(null)}
       />
     </div>
+  );
+}
+
+// 「…」の1項目。行全体を押せるようにし、高さは44px以上（D-73）
+const MENU_ITEM =
+  "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-canvas focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:opacity-50";
+
+// 区切り線で分けたまとまり。線の上下に同じ余白をとる
+function MenuSection({
+  divided = false,
+  children,
+}: {
+  divided?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <ul
+      className={`flex flex-col ${divided ? "mt-1.5 border-t border-line-soft pt-1.5" : ""}`}
+    >
+      {children}
+    </ul>
+  );
+}
+
+// アイコンは補足なので、ふだんは控えめな色にする。削除の操作は文字と同じ赤
+function MenuLabel({
+  icon,
+  danger = false,
+  children,
+}: {
+  icon: IconName;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <Icon name={icon} className={`size-5 ${danger ? "" : "text-muted"}`} />
+      <span>{children}</span>
+    </>
   );
 }
