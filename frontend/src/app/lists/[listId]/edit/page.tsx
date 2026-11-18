@@ -17,11 +17,16 @@ export default async function EditListPage(
 
   // SC-06-1：編集のときはリストの内容（API-07）とカテゴリー（API-18）を読む。
   // D-43：他人のリストと存在しないリストは、どちらも「ページが見つかりません」
-  const list = await readAsUser<PackingListDetail>(
-    `/lists/${listId}`,
-    `/lists/${listId}/edit`,
-  );
-  const categories = await serverApi<Category[]>("/categories");
+  // D-73：独立している取得を同時に始め、編集画面を開くまでの待ち時間を減らす。
+  const [listRead, categoryRead] = await Promise.allSettled([
+    readAsUser<PackingListDetail>(`/lists/${listId}`, `/lists/${listId}/edit`),
+    serverApi<Category[]>("/categories"),
+  ]);
+  // D-43：同時に失敗しても、本人確認とリストのエラーを先に扱う。
+  if (listRead.status === "rejected") throw listRead.reason;
+  if (categoryRead.status === "rejected") throw categoryRead.reason;
+  const list = listRead.value;
+  const categories = categoryRead.value;
   // D-94：SC-07 でチェック済みを表示したまま来たときは、戻ったときも表示したままにする
   const showChecked = isShowChecked((await props.searchParams).show_checked);
 

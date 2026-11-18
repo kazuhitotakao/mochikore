@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { LoadingRows } from "@/components/LoadingRows";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -68,71 +69,71 @@ export function SavedGroupCandidates({
   return (
     <section aria-label="よく使うグループ" className="flex flex-col gap-2">
       <h3 className="text-sm font-bold">よく使うグループ</h3>
-      {candidates === null ? (
-        // 共通3：応答を待つ間だけ出す
-        <p role="status" className="text-sm">
-          読み込み中…
-        </p>
-      ) : "error" in candidates ? (
-        // SC-09-1：候補を読めなくても、名前を入力して追加できる
-        <div className="flex items-center gap-3">
-          <p role="alert" className="text-sm text-danger">
-            {candidates.error}
+      {/* D-73（利用者の指示）：候補が届いても、名前の入力欄や追加ボタンの位置を変えない。 */}
+      <div aria-busy={candidates === null} className="h-48 overflow-y-auto">
+        {candidates === null ? (
+          <LoadingRows />
+        ) : "error" in candidates ? (
+          // SC-09-1：候補を読めなくても、名前を入力して追加できる
+          <div className="flex items-center gap-3">
+            <p role="alert" className="text-sm text-danger">
+              {candidates.error}
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="shrink-0 btn-outline btn-sm"
+            >
+              もう一度読み込む
+            </button>
+          </div>
+        ) : candidates.savedGroups.length === 0 ? (
+          <p className="text-sm text-muted">
+            保存したグループはありません。丸の「…」から保存できます。
           </p>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="shrink-0 btn-outline btn-sm"
-          >
-            もう一度読み込む
-          </button>
-        </div>
-      ) : candidates.savedGroups.length === 0 ? (
-        <p className="text-sm text-muted">
-          保存したグループはありません。丸の「…」から保存できます。
-        </p>
-      ) : (
-        <ul className="flex max-h-48 flex-col overflow-y-auto">
-          {candidates.savedGroups.map((savedGroup) => {
-            const taken = takenNames.includes(savedGroup.name);
-            return (
-              <li
-                key={savedGroup.id}
-                className="flex items-center gap-3 border-b border-line-soft"
-              >
-                {/* 指で押しやすいよう、候補と「削除」は高さ44px以上にする（利用者の指示） */}
-                <button
-                  type="button"
-                  onClick={() => onPick(savedGroup.name)}
-                  disabled={taken || full}
-                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left disabled:opacity-50"
+        ) : (
+          <ul className="flex flex-col">
+            {candidates.savedGroups.map((savedGroup) => {
+              const taken = takenNames.includes(savedGroup.name);
+              return (
+                <li
+                  key={savedGroup.id}
+                  className="flex items-center gap-3 border-b border-line-soft"
                 >
-                  <span className="min-w-0 flex-1 wrap-break-word">
-                    {savedGroup.name}
-                  </span>
-                  {/* 色だけでなく文字でも、追加できない理由を示す */}
-                  {taken && (
-                    <span className="shrink-0 text-xs text-muted">
-                      追加済み
+                  {/* 指で押しやすいよう、候補と「削除」は高さ44px以上にする（利用者の指示） */}
+                  <button
+                    type="button"
+                    onClick={() => onPick(savedGroup.name)}
+                    disabled={taken || full}
+                    className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left disabled:opacity-50"
+                  >
+                    <span className="min-w-0 flex-1 wrap-break-word">
+                      {savedGroup.name}
                     </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`${savedGroup.name}を候補から削除`}
-                  onClick={() => {
-                    setDeleteError(null);
-                    setDeleteTarget(savedGroup);
-                  }}
-                  className="min-h-11 shrink-0 rounded px-3 text-sm text-danger underline underline-offset-4"
-                >
-                  削除
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                    {/* 色だけでなく文字でも、追加できない理由を示す */}
+                    {taken && (
+                      <span className="shrink-0 text-xs text-muted">
+                        追加済み
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${savedGroup.name}を候補から削除`}
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleteTarget(savedGroup);
+                    }}
+                    className="min-h-11 shrink-0 rounded px-3 text-sm text-danger underline underline-offset-4"
+                  >
+                    削除
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       <ConfirmDialog
         open={deleteTarget !== null}

@@ -359,6 +359,24 @@
   }
 }
 
+/* D-73：速い応答では仮の行も出さず、待つ場合だけ静かに表示する。点滅や繰り返す動きは付けない。 */
+@utility loading-rows {
+  animation: show-loading-rows 120ms ease-out 180ms both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes show-loading-rows {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 body {
   background: var(--color-canvas);
   color: var(--color-foreground);
