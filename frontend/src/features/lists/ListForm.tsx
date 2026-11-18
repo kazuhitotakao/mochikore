@@ -38,9 +38,6 @@ import {
 // 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う
 const FIELDS = ["title", "category_id", "description"] as const;
 
-// C-04：空のPATCHのとき。Laravel の errors._form と同じ文言
-const NO_CHANGES_MESSAGE = "変更する項目を入力してください。";
-
 type EditableList = Pick<
   PackingList,
   "id" | "title" | "description" | "category" | "is_public" | "moderated_at"
@@ -160,12 +157,15 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
     const changes = savedList
       ? changedFields(savedList, { title, categoryId, description })
       : null;
-    if (changes && Object.keys(changes).length === 0) {
-      setFormError(NO_CHANGES_MESSAGE);
+
+    setSubmitting(true);
+    // SC-06-6：編集で何も変えていなければ、送らずに SC-07 へ戻る（SC-09 の「保存」と同じ。更新日時も変えない、D-24）。
+    // 移動が終わるまで送信中のままにして、連打で二重に移動しない
+    if (savedList && changes && Object.keys(changes).length === 0) {
+      router.replace(withShowChecked(`/lists/${savedList.id}`, showChecked));
       return;
     }
 
-    setSubmitting(true);
     fieldErrors.reset();
 
     try {
