@@ -182,6 +182,9 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   // D-98：グループの順番は見出しを動かして変えるので、画面の状態として持つ
   const [groups, setGroups] = useState(list.groups);
   const [draggingItemId, setDraggingItemId] = useState<number | null>(null);
+  // グループの見出しを動かしている間は DragOverlay を置かない（SC-09 と同じ）。置いたままだと、
+  // 離したときの動きの間だけ元のグループが透明になり、一度消えてから移動先に出る（利用者の指示）
+  const [draggingGroup, setDraggingGroup] = useState(false);
   const [itemDropAllowed, setItemDropAllowed] = useState(false);
   const [itemPreview, setItemPreview] = useState<ItemDragPreview | null>(null);
   const itemPreviewRef = useRef<ItemDragPreview | null>(null);
@@ -461,7 +464,10 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   }
 
   function handleDragStart({ active }: DragStartEvent) {
-    if (isSectionId(active.id)) return;
+    if (isSectionId(active.id)) {
+      setDraggingGroup(true);
+      return;
+    }
     setDraggingItemId(Number(active.id));
     setItemDropAllowed(true);
   }
@@ -521,6 +527,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     itemPreviewRef.current = null;
     setItemPreview(null);
     setDraggingItemId(null);
+    setDraggingGroup(false);
   }
 
   // 仮表示は保存済みitemsと分け、Esc・対象外へのドロップでは通信せず元へ戻す。
@@ -1152,31 +1159,33 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
               )}
             </SortableContext>
             {renderSection(null, "未分類")}
-            <DragOverlay adjustScale={false}>
-              {draggingItem && (
-                // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
-                // 縁取りは ring にして、元の行と高さを変えない（D-98）
-                <div
-                  aria-hidden="true"
-                  className="flex items-center gap-2 rounded-lg bg-background py-0.5 pl-1.5 shadow-md ring-1 ring-line"
-                >
-                  <input
-                    type="checkbox"
-                    checked={draggingItem.is_checked}
-                    readOnly
-                    tabIndex={-1}
-                    className="size-5 shrink-0"
-                  />
-                  <span className="min-w-0 flex-1 wrap-break-word">
-                    {draggingItem.name}
-                  </span>
-                  {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
-                  <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted">
-                    …
-                  </span>
-                </div>
-              )}
-            </DragOverlay>
+            {!draggingGroup && (
+              <DragOverlay adjustScale={false}>
+                {draggingItem && (
+                  // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
+                  // 縁取りは ring にして、元の行と高さを変えない（D-98）
+                  <div
+                    aria-hidden="true"
+                    className="flex items-center gap-2 rounded-lg bg-background py-0.5 pl-1.5 shadow-md ring-1 ring-line"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draggingItem.is_checked}
+                      readOnly
+                      tabIndex={-1}
+                      className="size-5 shrink-0"
+                    />
+                    <span className="min-w-0 flex-1 wrap-break-word">
+                      {draggingItem.name}
+                    </span>
+                    {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
+                    <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted">
+                      …
+                    </span>
+                  </div>
+                )}
+              </DragOverlay>
+            )}
           </DndContext>
         </div>
 
