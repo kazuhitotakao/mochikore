@@ -237,7 +237,7 @@ type Props = {
   includeChecked: boolean;
 };
 
-// SC-09 グループ整理（F-19）。分類・順番は下書きで、「OK」でまとめて保存する（D-59）。
+// SC-09 グループ整理（F-19）。分類・順番は下書きで、「保存」を押したときにまとめて保存する（D-59）。
 // チェック・持ち物の追加/削除/並べ替えはここではしない（D-60）
 export function GroupingEditor({
   listId,
@@ -346,7 +346,7 @@ export function GroupingEditor({
   }, [notice]);
 
   // SC-09-5「よく使うグループに保存」：丸の今の名前を、このリストのカテゴリーでその場で保存する（API-40）。
-  // 下書きの OK は待たない。同じ名前がすでにあれば、既存の候補が返る（D-102）
+  // 下書きの「保存」は待たない。同じ名前がすでにあれば、既存の候補が返る（D-102）
   async function saveAsFavorite(name: string) {
     if (savingFavorite) return;
 
@@ -594,7 +594,7 @@ export function GroupingEditor({
     void reload();
   }
 
-  // SC-09-9「OK」：構成・順番・所属をまとめて保存する（API-30）。成功したら SC-07 へ戻る
+  // SC-09-9「保存」：構成・順番・所属をまとめて保存する（API-30）。成功したら SC-07 へ戻る
   async function handleSave() {
     if (busy) return;
     // 何も変えていなければ保存せずに戻る（revision・更新日時は変わらない、28-05）
@@ -651,7 +651,7 @@ export function GroupingEditor({
 
   return (
     <>
-      {/* 画面下に固定した「キャンセル」「OK」に、最後の持ち物が隠れないよう余白をとる */}
+      {/* 画面下に固定した「キャンセル」「保存」に、最後の持ち物が隠れないよう余白をとる */}
       <div className="flex flex-col gap-6 pb-40">
         <div className="flex min-h-11 items-center gap-3">
           <button
@@ -789,7 +789,7 @@ export function GroupingEditor({
         </DndContext>
       </div>
 
-      {/* SC-09-9：「キャンセル」「OK」は画面下に固定する */}
+      {/* SC-09-9：「キャンセル」「保存」は画面下に固定する */}
       <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
         <div className="flex flex-col gap-2 px-5 py-3">
           {/* SC-09-5：よく使うグループに保存した結果 */}
@@ -818,7 +818,7 @@ export function GroupingEditor({
               disabled={busy}
               className="btn-primary"
             >
-              OK
+              保存
             </button>
           </div>
         </div>
@@ -1016,7 +1016,7 @@ function GroupCircle({
               // D-109：名前の変更は名前を押して行うので、ここには置かない
               <ul className="absolute right-0 z-10 mt-1 w-64 menu py-1">
                 <li>
-                  {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの OK は待たない） */}
+                  {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの「保存」は待たない） */}
                   <button
                     type="button"
                     onClick={() => choose(onSaveAsFavorite)}

@@ -42,7 +42,7 @@ class GroupingService
                 $keyToId[$group['key']] = $group['id'];
             }
 
-            // 28-05：何も変わっていない OK では、revision も更新日時も変えない
+            // 28-05：何も変わっていない「保存」では、revision も更新日時も変えない
             if ($this->isUnchanged($groups, $assignments, $currentGroups, $currentItems->all(), $keyToId)) {
                 return $keyToId;
             }
@@ -185,7 +185,7 @@ class GroupingService
             $locked = PackingList::whereKey($group->packing_list_id)->lockForUpdate()->firstOrFail();
             $target = $locked->groups()->whereKey($group->id)->firstOrFail();
 
-            // 同じ名前のままなら、revision も更新日時も変えない（28-05 の変化なしの OK と同じ）
+            // 同じ名前のままなら、revision も更新日時も変えない（28-05 の変化なしの「保存」と同じ）
             if ($target->name === $name) {
                 return $target;
             }

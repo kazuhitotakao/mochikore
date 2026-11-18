@@ -23,7 +23,7 @@ class PackingListGroupingController extends Controller
     }
 
     /**
-     * API-30 グループ整理の保存（F-19）。OKでグループの構成・順番・所属をまとめて置き換える（D-59）。
+     * API-30 グループ整理の保存（F-19）。「保存」でグループの構成・順番・所属をまとめて置き換える（D-59）。
      */
     public function update(UpdateGroupingRequest $request, PackingList $list, GroupingService $service): JsonResponse
     {
