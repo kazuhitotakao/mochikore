@@ -31,6 +31,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BackArrow } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useDragSensors } from "@/components/dragSensors";
+import { Icon } from "@/components/Icon";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
@@ -969,15 +970,16 @@ function GroupCircle({
           </button>
           {menuOpen && (
             // D-109：名前の変更は名前を押して行うので、ここには置かない
-            <ul className="absolute right-0 z-10 mt-1 w-48 menu py-1">
+            <ul className="absolute right-0 z-10 mt-1 w-64 menu py-1">
               {canMoveUp && (
                 <li>
                   <button
                     type="button"
                     onClick={() => choose(onMoveUp)}
-                    className="block w-full px-4 py-2 text-left"
+                    className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
                   >
-                    上へ
+                    <Icon name="arrow-up" className="size-5 text-muted" />
+                    <span>上へ</span>
                   </button>
                 </li>
               )}
@@ -986,9 +988,10 @@ function GroupCircle({
                   <button
                     type="button"
                     onClick={() => choose(onMoveDown)}
-                    className="block w-full px-4 py-2 text-left"
+                    className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
                   >
-                    下へ
+                    <Icon name="arrow-down" className="size-5 text-muted" />
+                    <span>下へ</span>
                   </button>
                 </li>
               )}
@@ -998,18 +1001,20 @@ function GroupCircle({
                   type="button"
                   onClick={() => choose(onSaveAsFavorite)}
                   disabled={favoriteDisabled}
-                  className="block w-full px-4 py-2 text-left disabled:opacity-50"
+                  className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
                 >
-                  よく使うグループに保存
+                  <Icon name="save" className="size-5 text-muted" />
+                  <span>よく使うグループに保存</span>
                 </button>
               </li>
               <li>
                 <button
                   type="button"
                   onClick={() => choose(onDelete)}
-                  className="block w-full px-4 py-2 text-left text-danger"
+                  className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-danger"
                 >
-                  削除
+                  <Icon name="trash" />
+                  <span>削除</span>
                 </button>
               </li>
             </ul>
