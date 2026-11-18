@@ -113,8 +113,9 @@ export function SelectionList({
   );
 }
 
-// 完了チェック（四角）と見分けられるよう、丸い印にする。選ぶと塗りつぶして ✓ を出す（色だけで示さない）
-function SelectMark({ selected }: { selected: boolean }) {
+// 完了チェック（四角）と見分けられるよう、丸い印にする。選ぶと塗りつぶして ✓ を出す（色だけで示さない）。
+// SC-09 の「選んで移す」（D-112）でも同じ印を使う
+export function SelectMark({ selected }: { selected: boolean }) {
   return (
     <span
       aria-hidden="true"
