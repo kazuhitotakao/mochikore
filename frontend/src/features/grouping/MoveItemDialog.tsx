@@ -7,9 +7,10 @@ import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 export type MoveTarget = { key: string | null; name: string };
 
 type Props = {
-  itemName: string;
-  // 今の所属。null なら未分類
-  currentKey: string | null;
+  // 見出し。1件なら「（持ち物名）」の移し先、2件以上は「選んだ持ち物（n件）の移し先」（D-112）
+  title: string;
+  // 今の所属。null なら未分類。選んだ持ち物の所属がばらばらのときは undefined（どれも押せる）
+  currentKey: string | null | undefined;
   // 画面と同じ順（グループの順、最後に未分類）
   targets: MoveTarget[];
   onMove: (key: string | null) => void;
@@ -17,10 +18,10 @@ type Props = {
   onCancel: () => void;
 };
 
-// SC-09-7：持ち物を押したときに、移し先を選ぶ（利用者の指示）。遠くの丸までドラッグしなくても移せるようにする。
+// SC-09-13：選んだ持ち物を、画面下の「移し先を選ぶ」から移す（D-58・D-112、利用者の指示）。遠くの丸までドラッグしなくても移せるようにする。
 // ドラッグと同じく下書きに入れるだけで、「保存」を押すまで保存しない（D-59）。開くたびに作り直すので、親は開いている間だけ表示する
 export function MoveItemDialog({
-  itemName,
+  title,
   currentKey,
   targets,
   onMove,
@@ -47,12 +48,13 @@ export function MoveItemDialog({
     >
       <div className="flex flex-col gap-4">
         <h2 id={titleId} className="text-lg font-bold wrap-break-word">
-          「{itemName}」の移し先
+          {title}
         </h2>
         <ul className="flex flex-col gap-2">
           {targets.map((target) => {
             // 今の所属は選べない。色だけでなく「今ここ」の文字と点線で示す
-            const current = target.key === currentKey;
+            const current =
+              currentKey !== undefined && target.key === currentKey;
             return (
               <li key={target.key ?? "ungrouped"}>
                 <button
