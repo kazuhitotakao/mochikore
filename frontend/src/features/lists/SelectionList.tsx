@@ -45,7 +45,7 @@ export function SelectionList({
                 aria-pressed={selected}
                 disabled={disabled || byGroup}
                 onClick={() => onToggleItem(item.id)}
-                className="flex min-h-12 w-full items-center gap-2 py-1 text-left disabled:cursor-default"
+                className="flex min-h-11 w-full items-center gap-2 text-left disabled:cursor-default"
               >
                 <SelectMark selected={selected} />
                 <span className="min-w-0 flex-1 wrap-break-word">
@@ -85,7 +85,7 @@ export function SelectionList({
                   aria-label={`${group.name}（グループごと選ぶ）`}
                   disabled={disabled}
                   onClick={() => onToggleGroup(group.id)}
-                  className="flex min-h-12 w-full items-center gap-2 px-2 py-1 text-left"
+                  className="flex min-h-11 w-full items-center gap-2 px-2 text-left"
                 >
                   <SelectMark selected={selected} />
                   <span className="min-w-0 flex-1">

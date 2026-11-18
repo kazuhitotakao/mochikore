@@ -718,14 +718,14 @@ export function GroupingEditor({
   return (
     <>
       {/* 画面下に固定した「キャンセル」「保存」に、最後の持ち物が隠れないよう余白をとる */}
-      <div className="flex flex-col gap-6 pb-40">
+      <div className="flex flex-col gap-4 pb-40">
         {/* SC-07と同じく、戻るボタンの下に見出しを左寄せで置く（D-73、利用者の指示）。 */}
         <button
           type="button"
           aria-label="戻る"
           onClick={handleCancel}
           // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
-          className="group -mb-1 self-start back-button tap-target"
+          className="group mb-1 self-start back-button tap-target"
         >
           <BackArrow />
         </button>
@@ -771,7 +771,7 @@ export function GroupingEditor({
               {/* SC-09-2・14：SC-07のチェック済み表示と同じ枠なしのスイッチにそろえ、右にまとめる（利用者の指示）。
                   一覧を広く使えるよう上下の余白を詰め、押せる範囲は44pxを保つ（D-73・D-95・D-112） */}
               {(draft.groups.length > 0 || checkedCount > 0) && (
-                <div className="relative z-10 -mt-6 flex flex-wrap items-center justify-end gap-x-4">
+                <div className="relative z-10 -mt-4 flex flex-wrap items-center justify-end gap-x-4">
                   {draft.groups.length > 0 && (
                     <button
                       type="button"
@@ -829,7 +829,7 @@ export function GroupingEditor({
                   type="button"
                   onClick={() => setNameDialog({ mode: "add" })}
                   disabled={busy || draft.groups.length >= MAX_GROUPS}
-                  className="min-h-16 rounded-2xl border-2 border-dashed border-line-strong px-4 py-3 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
+                  className="min-h-12 rounded-2xl border-2 border-dashed border-line-strong px-4 py-2 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
                 >
                   <span aria-hidden="true">＋ </span>グループを追加
                 </button>
@@ -1112,11 +1112,13 @@ function GroupCircle({
             {name}
             <span className="sr-only">（名前を変更）</span>
           </button>
-          <span className="inline-block whitespace-nowrap">
+          {/* 件数はSC-07の見出しと同じ控えめな14pxにし、名前と見分けやすくする（D-73、利用者の指示） */}
+          <span className="inline-block text-sm font-normal whitespace-nowrap text-muted">
             （{items.length}件）
           </span>
         </h2>
-        <div data-no-drag className="-mt-2 -mr-2 flex shrink-0 items-center">
+        {/* 押せる範囲（44px）は保ったまま上下を余白に重ね、名前と持ち物の間を詰める（D-73、利用者の指示） */}
+        <div data-no-drag className="-my-2 -mr-2 flex shrink-0 items-center">
           <div ref={menuContainer} className="relative shrink-0">
             <button
               type="button"
@@ -1218,7 +1220,7 @@ function UnclassifiedArea({
     >
       <h2 className="font-bold text-muted">
         未分類
-        <span className="inline-block whitespace-nowrap">
+        <span className="inline-block text-sm font-normal whitespace-nowrap">
           （{items.length}件）
         </span>
       </h2>
@@ -1253,9 +1255,9 @@ function ItemChips({
 
   if (items.length === 0) return null;
 
-  // 利用者の指示：スマホの指でつかみやすいよう、持ち物の間をあける
+  // 利用者の指示：スマホの指でつかみやすいよう、持ち物の左右の間をあける。上下は画面を広く使えるよう詰める（D-73）
   return (
-    <ul className="flex flex-wrap gap-3">
+    <ul className="flex flex-wrap gap-x-3 gap-y-2">
       {items.map((item) => (
         <ItemChip
           key={item.id}

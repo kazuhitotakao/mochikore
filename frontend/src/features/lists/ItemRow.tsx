@@ -254,7 +254,7 @@ export function ItemRow({
               ? { transform: `translateX(${swipe.offset}px)` }
               : undefined
           }
-          className={`relative flex flex-col gap-1 bg-background py-0.5 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
+          className={`relative flex flex-col gap-1 bg-background ${swipe.swiping ? "" : "transition-transform duration-200"}`}
         >
           <div
             className={`flex items-center gap-2 ${isDragging ? "opacity-0" : ""}`}

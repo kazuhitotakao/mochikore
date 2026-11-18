@@ -1092,7 +1092,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     <>
       {/* 選ぶ表示の操作や通知を出している間は、最後の行が固定表示に隠れないよう余白をとる。 */}
       <div
-        className={`flex flex-col gap-6 ${footerVisible ? "pb-40" : "pb-8"}`}
+        className={`flex flex-col gap-4 ${footerVisible ? "pb-40" : "pb-8"}`}
       >
         {/* SC-07-2・4 */}
         <header className="flex items-start justify-between gap-3">
@@ -1170,7 +1170,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
         )}
 
         {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
-        <div className={selecting ? "hidden" : "flex flex-col gap-4"}>
+        <div className={selecting ? "hidden" : "flex flex-col gap-3"}>
           {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、0件でも出す（チェック済みの空グループだけを
               隠しているときも出し直せるように）。画面の表示だけを変え、通信しない。
               「選んで削除」の間は、選ぶ対象が変わらないよう、この入れ物ごと出さない（D-100） */}
@@ -1179,11 +1179,11 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
             on={showChecked}
             count={checkedCount}
             size="sm"
-            // 利用者の指示で上下の余白を詰める：文字の上は16px・下は12pxにし、押せる範囲（44px）は余白に重ねる。
+            // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
             // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
             // 利用者の指示で右端にそろえる
             align="end"
-            className="relative z-10 -mt-5 -mb-4"
+            className="relative z-10 -mt-4 -mb-4"
             onToggle={() => setShowChecked((shown) => !shown)}
           />
           {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
@@ -1229,7 +1229,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
                   // 縁取りは ring にして、元の行と高さを変えない（D-98）
                   <div
                     aria-hidden="true"
-                    className="flex items-center gap-2 rounded-lg bg-background py-0.5 pl-1.5 shadow-md ring-1 ring-line"
+                    className="flex items-center gap-2 rounded-lg bg-background pl-1.5 shadow-md ring-1 ring-line"
                   >
                     <input
                       type="checkbox"

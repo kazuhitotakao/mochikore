@@ -223,7 +223,7 @@ function SortableGroupSection({
           }}
         />
         {/* 見出しだけを薄く塗り、持ち物の行と見分けられるようにする（利用者の指示）。
-            持ち物の行と同じ高さ（48px）にし、赤い「削除」の縦幅もそろえる（D-105） */}
+            持ち物の行と同じ高さ（44px）にし、赤い「削除」の縦幅もそろえる（D-105） */}
         <div
           {...swipe.handlers}
           style={
@@ -231,7 +231,7 @@ function SortableGroupSection({
               ? { transform: `translateX(${swipe.offset}px)` }
               : undefined
           }
-          className={`relative flex min-h-12 items-center gap-2 rounded-lg bg-brand-soft px-2 py-1 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
+          className={`relative flex min-h-11 items-center gap-2 rounded-lg bg-brand-soft px-2 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
         >
           <GroupCheckbox
             title={title}
@@ -324,7 +324,7 @@ function UngroupedSection({ children }: Pick<Props, "children">) {
     <section
       ref={setNodeRef}
       aria-label="グループに入っていない持ち物"
-      className="-mt-4 flex flex-col gap-1 rounded pt-4"
+      className="-mt-3 flex flex-col gap-1 rounded pt-3"
     >
       {children}
     </section>
