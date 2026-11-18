@@ -14,7 +14,8 @@ export function SwitchIndicator({ on, size = "md" }: Props) {
   return (
     <span
       aria-hidden="true"
-      className={`relative inline-flex shrink-0 items-center rounded-full motion-safe:transition-colors ${small ? "h-5 w-9" : "h-7 w-12"} ${on ? "bg-brand" : "bg-line-strong"}`}
+      // D-73：Noto Sans JPの字面は行の中央より少し下にあるため、スイッチも1px下げて見た目をそろえる。
+      className={`relative inline-flex translate-y-px shrink-0 items-center rounded-full motion-safe:transition-colors ${small ? "h-5 w-9" : "h-7 w-12"} ${on ? "bg-brand" : "bg-line-strong"}`}
     >
       <span
         className={`rounded-full bg-white shadow-sm motion-safe:transition-transform ${small ? "size-4" : "size-6"} ${on ? (small ? "translate-x-4.5" : "translate-x-5.5") : "translate-x-0.5"}`}
