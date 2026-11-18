@@ -30,7 +30,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { BackArrow } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { SwitchIndicator } from "@/components/SwitchIndicator";
 import { useDragSensors } from "@/components/dragSensors";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
@@ -48,6 +47,7 @@ import {
   SavedGroupCandidates,
   type CandidatesState,
 } from "./SavedGroupCandidates";
+import { ShowCheckedSwitch } from "@/features/lists/ShowCheckedSwitch";
 import { withShowChecked } from "@/features/lists/showChecked";
 import { MAX_GROUPS } from "./validation";
 
@@ -645,17 +645,12 @@ export function GroupingEditor({
         {/* SC-09-2・D-95：チェック済みがあるときだけ置く。利用者の指示で、文字だけでは今の状態が分かりにくいので
             オン・オフの形のスイッチにする（色だけでなく、つまみの位置でも示す）。隠しているときの案内文は出さない */}
         {checkedCount > 0 && (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={showChecked}
-            onClick={() => setShowChecked((current) => !current)}
+          <ShowCheckedSwitch
+            on={showChecked}
+            count={checkedCount}
             disabled={busy}
-            className="flex min-h-11 items-center gap-3 self-start rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
-          >
-            <span>チェック済みを表示（{checkedCount}件）</span>
-            <SwitchIndicator on={showChecked} />
-          </button>
+            onToggle={() => setShowChecked((current) => !current)}
+          />
         )}
         {conflict && (
           <div className="flex flex-col gap-2">

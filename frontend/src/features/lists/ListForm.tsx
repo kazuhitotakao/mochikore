@@ -1,10 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
-import { SwitchIndicator } from "@/components/SwitchIndicator";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { useFieldErrors } from "@/features/auth/useFieldErrors";
 import {
@@ -26,7 +24,16 @@ import {
   validateTitle,
 } from "./validation";
 import { withShowChecked } from "./showChecked";
-import { PUBLISH_MESSAGE, visibilityErrorMessage } from "./visibility";
+import {
+  type BeforePublishResult,
+  useVisibilityToggle,
+} from "./useVisibilityToggle";
+import { visibilityChangedNotice, visibilityErrorMessage } from "./visibility";
+import {
+  ModeratedNotice,
+  PublishConfirmDialog,
+  VisibilitySwitch,
+} from "./VisibilitySwitch";
 
 // 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う
 const FIELDS = ["title", "category_id", "description"] as const;
@@ -54,7 +61,7 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
   // D-85：入力の保存後に公開できなかった場合も、次の送信は保存済みの内容と比較する
   const [savedList, setSavedList] = useState(list);
   const [moderated, setModerated] = useState(Boolean(list?.moderated_at));
-  const [confirmPublic, setConfirmPublic] = useState(false);
+  const moderatedNoticeId = useId();
   const [notice, setNotice] = useState<string | null>(null);
   const [title, setTitle] = useState(list?.title ?? "");
   const [categoryId, setCategoryId] = useState<number | null>(
@@ -65,14 +72,35 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
   const fieldErrors = useFieldErrors(FIELDS);
   const focusRequested = useRef(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // SC-06-7・9：公開の切り替えは SC-07 と共通の処理を使う（D-73）。公開する前に未保存の入力を保存する（D-85）
+  const visibility = useVisibilityToggle({
+    listId: savedList?.id ?? 0,
+    isPublic: savedList?.is_public ?? false,
+    blocked: submitting,
+    beforePublish: savePendingChanges,
+    onStart: () => {
+      setFormError(null);
+      setNotice(null);
+    },
+    onChanged: (isPublic) => {
+      setSavedList((current) => current && { ...current, is_public: isPublic });
+      setNotice(visibilityChangedNotice(isPublic));
+    },
+    onModerated: () => {
+      setModerated(true);
+      setSavedList((current) => current && { ...current, is_public: false });
+    },
+  });
+  // 保存中・公開の切り替え中は、入力も保存ボタンも止める
+  const busy = submitting || visibility.sending;
 
   useEffect(() => {
     // C-04：確認が閉じ、送信中の無効化が解けてから、入力欄へフォーカスする
-    if (!submitting && !confirmPublic && focusRequested.current) {
+    if (!busy && !visibility.confirming && focusRequested.current) {
       focusRequested.current = false;
       focusFirstError(fieldErrors.errors, FIELDS);
     }
-  }, [submitting, confirmPublic, fieldErrors.errors]);
+  }, [busy, visibility.confirming, fieldErrors.errors]);
 
   useEffect(() => {
     if (!notice) return;
@@ -123,7 +151,7 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting) return;
+    if (busy) return;
     setFormError(null);
     setNotice(null);
     if (!validateInputs()) return;
@@ -160,51 +188,46 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
     }
   }
 
-  async function changeVisibility(isPublic: boolean) {
-    if (!savedList || submitting) return;
-    setConfirmPublic(false);
-    setFormError(null);
-    setNotice(null);
+  // D-85：公開の確認で「公開する」を押したとき、API-14 の前に未保存の入力を API-08 で保存する。
+  // 非公開への切り替えでは呼ばない（編集中の入力が不正でもすぐに非公開にし、入力は画面に残す）
+  async function savePendingChanges(): Promise<BeforePublishResult> {
+    if (!savedList) return { proceed: false };
+    // 入力が正しくなければ公開しない。確認を閉じてから、最初のエラーの欄へカーソルを移す（C-04）
+    if (!validateInputs()) return { proceed: false };
 
-    // D-85：非公開への切り替えは、編集中の入力が不正でもすぐに行う
-    if (isPublic && !validateInputs()) return;
+    const changes = changedFields(savedList, {
+      title,
+      categoryId,
+      description,
+    });
+    if (Object.keys(changes).length === 0) {
+      return { proceed: true, saved: false };
+    }
 
-    setSubmitting(true);
-    let contentSaved = false;
     try {
-      if (isPublic) {
-        const changes = changedFields(savedList, {
-          title,
-          categoryId,
-          description,
-        });
-        if (Object.keys(changes).length > 0) {
-          const saved = await clientApi<PackingList>(`/lists/${savedList.id}`, {
-            method: "PATCH",
-            body: changes,
-          });
-          setSavedList(saved);
-          contentSaved = true;
-        }
-      }
-
-      const result = await clientApi<Pick<PackingList, "is_public">>(
-        `/lists/${savedList.id}/visibility`,
-        { method: "PATCH", body: { is_public: isPublic } },
-      );
-      setSavedList(
-        (current) => current && { ...current, is_public: result.is_public },
-      );
-      setNotice(
-        result.is_public
-          ? "リストを公開しました。"
-          : "リストを非公開にしました。",
-      );
+      const saved = await clientApi<PackingList>(`/lists/${savedList.id}`, {
+        method: "PATCH",
+        body: changes,
+      });
+      setSavedList(saved);
+      return { proceed: true, saved: true };
     } catch (error) {
-      // D-85：公開だけ失敗した場合も、先に保存できた変更を利用者に伝える
-      showError(error, contentSaved ? "変更内容は保存しました。" : "");
-    } finally {
-      setSubmitting(false);
+      if (redirectIfAuthError(error)) return { proceed: false };
+      if (error instanceof ApiError && error.status === 404) {
+        router.refresh();
+        return { proceed: false };
+      }
+      // 入力欄のエラーは確認を閉じて欄の下に出す。それ以外（通信の失敗など）は確認の中に出す
+      const serverErrors =
+        error instanceof ApiError && error.code === "validation_error"
+          ? firstErrors(error.errors, FIELDS)
+          : {};
+      if (fieldErrors.hasAny(serverErrors)) {
+        focusRequested.current = true;
+        fieldErrors.show(serverErrors);
+        return { proceed: false };
+      }
+      return { proceed: false, error: listErrorMessage(error) };
     }
   }
 
@@ -225,7 +248,7 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
           name="title"
           type="text"
           value={title}
-          disabled={submitting}
+          disabled={busy}
           aria-describedby="title-count title-error"
           aria-invalid={Boolean(fieldErrors.errors.title)}
           onChange={(event) => {
@@ -245,7 +268,7 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
       {/* SC-06-4：10種類から1つだけ選ぶ。名前の下に短い例を添える */}
       <fieldset
         id="category_id"
-        disabled={submitting}
+        disabled={busy}
         tabIndex={-1}
         aria-describedby="category_id-error"
         aria-invalid={Boolean(fieldErrors.errors.category_id)}
@@ -293,7 +316,7 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
           name="description"
           rows={4}
           value={description}
-          disabled={submitting}
+          disabled={busy}
           aria-describedby="description-count description-error"
           aria-invalid={Boolean(fieldErrors.errors.description)}
           onChange={(event) => {
@@ -317,36 +340,22 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
         <section aria-label="公開設定" className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <span>公開設定：{savedList.is_public ? "公開" : "非公開"}</span>
-            {/* SC-06-7（利用者の指示）：文字のボタンではなく、オン・オフの形のスイッチにする。オンが公開。
+            {/* SC-06-7（利用者の指示）：オン・オフのスイッチ。オンが公開。SC-07 の見出しと同じ部品・同じ動き（D-73）。
                 公開にするときだけ確認し、非公開に戻すときはすぐ切り替える（D-42・D-85） */}
-            <button
-              type="button"
-              role="switch"
-              aria-label="リストを公開する"
-              aria-checked={savedList.is_public}
-              aria-describedby={moderated ? "moderated-notice" : undefined}
-              disabled={submitting || moderated}
-              onClick={() => {
-                if (savedList.is_public) void changeVisibility(false);
-                else setConfirmPublic(true);
-              }}
-              // 押せる範囲は44px四方以上にする（D-73）
-              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
-            >
-              <SwitchIndicator on={savedList.is_public} />
-            </button>
+            <VisibilitySwitch
+              isPublic={savedList.is_public}
+              disabled={busy || moderated}
+              describedBy={moderated ? moderatedNoticeId : undefined}
+              onToggle={visibility.toggle}
+            />
           </div>
-          {moderated && (
-            <p id="moderated-notice" className="text-sm text-muted">
-              このリストは運営により非公開になっています。 お問い合わせ：
-              <a
-                href="mailto:simasyam@gmail.com"
-                className="text-link tap-target"
-              >
-                simasyam@gmail.com
-              </a>
+          {/* 非公開にできなかった理由はスイッチの下に出す。公開の失敗は確認の中に出す */}
+          {visibility.error && (
+            <p role="alert" className="text-sm text-danger">
+              {visibility.error}
             </p>
           )}
+          {moderated && <ModeratedNotice id={moderatedNoticeId} />}
           {/* 利用者の指示：保存ボタンに重ならないよう、公開設定の下に通知の場所を確保する */}
           <p role="status" className="min-h-6 text-sm">
             {notice}
@@ -354,18 +363,10 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
         </section>
       )}
 
-      <button type="submit" disabled={submitting} className="btn-primary">
+      <button type="submit" disabled={busy} className="btn-primary">
         保存
       </button>
-      <ConfirmDialog
-        open={confirmPublic}
-        message={PUBLISH_MESSAGE}
-        confirmLabel="公開する"
-        cancelLabel="やめる"
-        busy={submitting}
-        onConfirm={() => void changeVisibility(true)}
-        onCancel={() => setConfirmPublic(false)}
-      />
+      <PublishConfirmDialog visibility={visibility} />
     </form>
   );
 }
