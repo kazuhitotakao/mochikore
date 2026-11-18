@@ -484,20 +484,6 @@ export function GroupingEditor({
     setNameDialog(null);
   }
 
-  // SC-09-5「上へ」「下へ」：丸とチェックリストの見出しの順番（D-57）
-  function moveGroup(key: string, offset: -1 | 1) {
-    updateDraft((current) => {
-      const index = current.groups.findIndex((group) => group.key === key);
-      const target = index + offset;
-      if (index < 0 || target < 0 || target >= current.groups.length) {
-        return current;
-      }
-      const groups = [...current.groups];
-      [groups[index], groups[target]] = [groups[target], groups[index]];
-      return { ...current, groups };
-    });
-  }
-
   // SC-09-5「削除」：中の持ち物は消さずに未分類へ戻す（D-61）
   function deleteGroup(key: string) {
     updateDraft((current) => ({
@@ -691,20 +677,16 @@ export function GroupingEditor({
             strategy={rectSortingStrategy}
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {draft.groups.map((group, index) => (
+              {draft.groups.map((group) => (
                 <GroupCircle
                   key={group.key}
                   dropKey={group.key}
                   name={group.name}
                   items={itemsIn(group.key)}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < draft.groups.length - 1}
                   disabled={busy}
                   onRename={() =>
                     setNameDialog({ mode: "rename", key: group.key })
                   }
-                  onMoveUp={() => moveGroup(group.key, -1)}
-                  onMoveDown={() => moveGroup(group.key, 1)}
                   favoriteDisabled={savingFavorite}
                   onSaveAsFavorite={() => void saveAsFavorite(group.name)}
                   onDelete={() => deleteGroup(group.key)}
@@ -860,14 +842,10 @@ type GroupCircleProps = {
   dropKey: string;
   name: string;
   items: PackingListItem[];
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   disabled: boolean;
   // よく使うグループの保存中は押せない（D-102）
   favoriteDisabled: boolean;
   onRename: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onSaveAsFavorite: () => void;
   onDelete: () => void;
   // 中の持ち物を押したとき（移し先を選ぶ）
@@ -880,13 +858,9 @@ function GroupCircle({
   dropKey,
   name,
   items,
-  canMoveUp,
-  canMoveDown,
   disabled,
   favoriteDisabled,
   onRename,
-  onMoveUp,
-  onMoveDown,
   onSaveAsFavorite,
   onDelete,
   onSelectItem,
@@ -971,30 +945,6 @@ function GroupCircle({
           {menuOpen && (
             // D-109：名前の変更は名前を押して行うので、ここには置かない
             <ul className="absolute right-0 z-10 mt-1 w-64 menu py-1">
-              {canMoveUp && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => choose(onMoveUp)}
-                    className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
-                  >
-                    <Icon name="arrow-up" className="size-5 text-muted" />
-                    <span>上へ</span>
-                  </button>
-                </li>
-              )}
-              {canMoveDown && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => choose(onMoveDown)}
-                    className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
-                  >
-                    <Icon name="arrow-down" className="size-5 text-muted" />
-                    <span>下へ</span>
-                  </button>
-                </li>
-              )}
               <li>
                 {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの OK は待たない） */}
                 <button
