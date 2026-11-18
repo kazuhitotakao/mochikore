@@ -28,7 +28,14 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { BackArrow } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useDragSensors } from "@/components/dragSensors";
@@ -214,8 +221,11 @@ type Draft = {
 };
 
 type NameDialog = { mode: "add" } | { mode: "rename"; key: string } | null;
-// 破棄の確認の後に行うこと
-type AfterDiscard = "leave" | "reload" | null;
+
+// D-113（利用者の指示）：この画面を開いたときまで何回でも戻せ、戻した分は「やり直す」で進められるよう、
+// 下書きを変えるたびに前の下書きを積む。戻した後に新しく変えたら、進める分は捨てる
+type DraftHistory = { past: Draft[]; future: Draft[] };
+const EMPTY_HISTORY: DraftHistory = { past: [], future: [] };
 
 // 既存のグループは IDから key を作る。新しいグループは new1・new2…（06_API一覧「キーと削除の意味」）
 function groupKey(id: number): string {
@@ -249,7 +259,7 @@ type Props = {
   includeChecked: boolean;
 };
 
-// SC-09 グループ整理（F-19）。分類・順番は下書きで、「保存」を押したときにまとめて保存する（D-59）。
+// SC-09 グループ整理（F-19）。分類・順番は下書きで、「←」やブラウザの戻るで画面を離れるときにまとめて保存する（D-59・D-113）。
 // チェック・持ち物の追加/削除/並べ替えはここではしない（D-60）
 export function GroupingEditor({
   listId,
@@ -266,7 +276,13 @@ export function GroupingEditor({
     new Set(),
   );
   const [nameDialog, setNameDialog] = useState<NameDialog>(null);
-  const [afterDiscard, setAfterDiscard] = useState<AfterDiscard>(null);
+  // SC-09-10：変更があるまま「読み直す」を押したときの破棄の確認
+  const [confirmingReload, setConfirmingReload] = useState(false);
+  const [history, setHistory] = useState<DraftHistory>(EMPTY_HISTORY);
+  // 「元に戻す」「やり直す」の結果を読み上げる（画面には出さない）
+  const [historyNotice, setHistoryNotice] = useState("");
+  const undoButtonId = useId();
+  const redoButtonId = useId();
   const [saving, setSaving] = useState(false);
   const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -274,6 +290,11 @@ export function GroupingEditor({
   const newGroupCount = useRef(0);
   // 保存できて SC-07 へ戻るときは、離脱の確認を出さない
   const leaving = useRef(false);
+  // D-113：変更したら同じ画面の履歴を1つ足しておく。ブラウザの戻る・スマホのスワイプはまずこの分を戻すので、
+  // 画面を離れる前に保存できる
+  const historyGuard = useRef(false);
+  // 保存できた後に足した履歴を戻すとき。戻り終わったら SC-07 へ移る
+  const leaveAfterPop = useRef(false);
   // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
   const dndId = useId();
   const groupGridId = useId();
@@ -334,7 +355,38 @@ export function GroupingEditor({
     (group) => circleId(group.key) === draggingId,
   );
 
-  // 29-04：変更があるまま再読み込み・タブを閉じようとしたら、ブラウザの確認を出す
+  // D-113：最初に変更したときに、同じURLの履歴を1つ足す（Next.js の履歴の情報は引き継がれる）
+  useEffect(() => {
+    if (!dirty || historyGuard.current) return;
+    historyGuard.current = true;
+    window.history.pushState(null, "", window.location.href);
+  }, [dirty]);
+
+  // D-113：足した履歴から戻ったとき（ブラウザの戻る・スワイプ、または「←」で保存できた後）
+  const onHistoryBack = useEffectEvent(() => {
+    if (!historyGuard.current) return;
+    historyGuard.current = false;
+    if (leaveAfterPop.current) {
+      backToList();
+      return;
+    }
+    if (!dirty && !busy) {
+      backToList();
+      return;
+    }
+    // 保存が終わるまで（失敗したときも）この画面に残るよう、履歴を足し直す
+    historyGuard.current = true;
+    window.history.pushState(null, "", window.location.href);
+    if (!busy) void saveAndLeave();
+  });
+
+  useEffect(() => {
+    const handlePopState = () => onHistoryBack();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // 29-04：変更があるまま再読み込み・タブを閉じようとしたら、ブラウザの確認を出す（このときは保存できない、D-113）
   useEffect(() => {
     if (!dirty) return;
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -369,7 +421,7 @@ export function GroupingEditor({
   }, [notice]);
 
   // SC-09-5「よく使うグループに保存」：丸の今の名前を、このリストのカテゴリーでその場で保存する（API-40）。
-  // 下書きの「保存」は待たない。同じ名前がすでにあれば、既存の候補が返る（D-102）
+  // 画面を離れるときの下書きの保存は待たない。同じ名前がすでにあれば、既存の候補が返る（D-102）
   async function saveAsFavorite(name: string) {
     if (savingFavorite) return;
 
@@ -419,9 +471,46 @@ export function GroupingEditor({
     );
   }
 
-  function updateDraft(change: (current: Draft) => Draft) {
+  // D-113：下書きを変える操作（移動・並べ替え・追加・名前の変更・削除）はすべてここを通し、変える前の下書きを積む
+  function changeDraft(next: Draft) {
+    if (sameDraft(next, draft)) return;
     setError(null);
-    setDraft(change);
+    setHistory((current) => ({ past: [...current.past, draft], future: [] }));
+    setDraft(next);
+    setHistoryNotice("");
+  }
+
+  // 押せなくなったボタンからカーソルが外れないよう、反対のボタンへ移す
+  function focusLater(id: string) {
+    requestAnimationFrame(() => document.getElementById(id)?.focus());
+  }
+
+  // 「元に戻す」：1つ前の下書きに戻す。開いたときの下書きまで戻せる
+  function handleUndo() {
+    const previous = history.past[history.past.length - 1];
+    if (!previous || busy) return;
+    setError(null);
+    setHistory({
+      past: history.past.slice(0, -1),
+      future: [draft, ...history.future],
+    });
+    setDraft(previous);
+    setHistoryNotice("1つ前に戻しました");
+    if (history.past.length === 1) focusLater(redoButtonId);
+  }
+
+  // 「やり直す」：戻した下書きを1つ先へ進める
+  function handleRedo() {
+    const next = history.future[0];
+    if (!next || busy) return;
+    setError(null);
+    setHistory({
+      past: [...history.past, draft],
+      future: history.future.slice(1),
+    });
+    setDraft(next);
+    setHistoryNotice("1つ先へ進めました");
+    if (history.future.length === 1) focusLater(undoButtonId);
   }
 
   function toggleCollapsed(key: string) {
@@ -447,21 +536,19 @@ export function GroupingEditor({
   // 持ち物を丸（または未分類）へ移す。1件につき1グループまで（D-56）。順番とチェックは変えない（D-60）
   function moveItemTo(itemId: number, key: string | null) {
     if (busy) return;
-    updateDraft((current) => ({
-      ...current,
-      assignment: { ...current.assignment, [itemId]: key },
-    }));
+    changeDraft({
+      ...draft,
+      assignment: { ...draft.assignment, [itemId]: key },
+    });
   }
 
   // D-98：丸を別の丸の位置へ動かして、グループの順番を変える（下書き）。チェックリストの見出しも同じ順になる
   function moveGroupTo(fromKey: string, toKey: string) {
     if (busy) return;
-    updateDraft((current) => {
-      const from = current.groups.findIndex((group) => group.key === fromKey);
-      const to = current.groups.findIndex((group) => group.key === toKey);
-      if (from < 0 || to < 0 || from === to) return current;
-      return { ...current, groups: arrayMove(current.groups, from, to) };
-    });
+    const from = draft.groups.findIndex((group) => group.key === fromKey);
+    const to = draft.groups.findIndex((group) => group.key === toKey);
+    if (from < 0 || to < 0 || from === to) return;
+    changeDraft({ ...draft, groups: arrayMove(draft.groups, from, to) });
   }
 
   // SC-09-4・6・D-58：持ち物をドラッグして丸（または未分類）に置いたら移す
@@ -548,11 +635,9 @@ export function GroupingEditor({
   function moveSelectedTo(key: string | null, { focus = false } = {}) {
     const ids = selectedItems.map((item) => item.id);
     if (ids.every((id) => (draft.assignment[id] ?? null) === key)) return;
-    updateDraft((current) => {
-      const assignment = { ...current.assignment };
-      for (const id of ids) assignment[id] = key;
-      return { ...current, assignment };
-    });
+    const assignment = { ...draft.assignment };
+    for (const id of ids) assignment[id] = key;
+    changeDraft({ ...draft, assignment });
     setSelectedIds(new Set());
     // 移し先の一覧から選んだとき・たたんだ丸へ置いたときは、移した持ち物（見えなければ丸）へカーソルを移す
     if (focus || (key !== null && collapsedGroups.has(key))) {
@@ -571,20 +656,20 @@ export function GroupingEditor({
   function addGroup(name: string) {
     newGroupCount.current += 1;
     const key = `new${newGroupCount.current}`;
-    updateDraft((current) => ({
-      ...current,
-      groups: [...current.groups, { key, id: null, name }],
-    }));
+    changeDraft({
+      ...draft,
+      groups: [...draft.groups, { key, id: null, name }],
+    });
     setNameDialog(null);
   }
 
   function renameGroup(key: string, name: string) {
-    updateDraft((current) => ({
-      ...current,
-      groups: current.groups.map((group) =>
+    changeDraft({
+      ...draft,
+      groups: draft.groups.map((group) =>
         group.key === key ? { ...group, name } : group,
       ),
-    }));
+    });
     setNameDialog(null);
   }
 
@@ -595,15 +680,15 @@ export function GroupingEditor({
       next.delete(key);
       return next;
     });
-    updateDraft((current) => ({
-      groups: current.groups.filter((group) => group.key !== key),
+    changeDraft({
+      groups: draft.groups.filter((group) => group.key !== key),
       assignment: Object.fromEntries(
-        Object.entries(current.assignment).map(([itemId, groupKeyValue]) => [
+        Object.entries(draft.assignment).map(([itemId, groupKeyValue]) => [
           itemId,
           groupKeyValue === key ? null : groupKeyValue,
         ]),
       ),
-    }));
+    });
   }
 
   function backToList() {
@@ -612,14 +697,21 @@ export function GroupingEditor({
     router.replace(withShowChecked(`/lists/${listId}`, showChecked));
   }
 
-  // SC-09-9「キャンセル」と「←」。変更がなければそのまま戻り、あれば破棄を確かめる（SC-09-10）
-  function handleCancel() {
-    if (busy) return;
-    if (dirty) {
-      setAfterDiscard("leave");
+  // 足した履歴が残っていれば先に戻し（戻り終わったら SC-07 へ）、なければそのまま SC-07 へ移る。
+  // 足した履歴を残したまま移ると、SC-07 からブラウザで戻ったときに古いこの画面が開くため
+  function leaveToList() {
+    if (historyGuard.current) {
+      leaveAfterPop.current = true;
+      window.history.back();
       return;
     }
     backToList();
+  }
+
+  // SC-09-9「←」（D-113、利用者の指示）：変更があれば保存してから戻る。ブラウザの戻る・スワイプも同じ
+  function handleBack() {
+    if (busy) return;
+    void saveAndLeave();
   }
 
   // SC-09-1・10：最新の分類を読み直す（API-29）。下書きは捨てる
@@ -634,6 +726,8 @@ export function GroupingEditor({
       const fresh = draftFrom(latest);
       setSavedDraft(fresh);
       setDraft(fresh);
+      // 読み直した内容が新しい出発点になるので、戻す・進める分は捨てる（D-113）
+      setHistory(EMPTY_HISTORY);
       setDraggingId(null);
       setConflict(false);
       // 読み直した持ち物と合わないので、選んでいた持ち物は外す（D-112）
@@ -654,18 +748,18 @@ export function GroupingEditor({
   function handleReload() {
     if (busy) return;
     if (dirty) {
-      setAfterDiscard("reload");
+      setConfirmingReload(true);
       return;
     }
     void reload();
   }
 
-  // SC-09-9「保存」：構成・順番・所属をまとめて保存する（API-30）。成功したら SC-07 へ戻る
-  async function handleSave() {
-    if (busy) return;
+  // SC-09-9（D-113）：構成・順番・所属をまとめて保存し（API-30）、成功したら SC-07 へ戻る。
+  // 失敗したら戻らずに理由を出し、下書きを残す。もう一度「←」で送り直せる
+  async function saveAndLeave() {
     // 何も変えていなければ保存せずに戻る（revision・更新日時は変わらない、28-05）
     if (!dirty) {
-      backToList();
+      leaveToList();
       return;
     }
 
@@ -685,14 +779,16 @@ export function GroupingEditor({
         },
       });
       // 移動が終わるまで保存中のままにして、二重に保存しない（28-02）
-      backToList();
+      leaveToList();
     } catch (failure) {
       setSaving(false);
       if (redirectIfAuthError(failure)) return;
+      if (failure instanceof ApiError && failure.status === 404) {
+        router.refresh();
+        return;
+      }
       if (!(failure instanceof ApiError)) {
         setError(NETWORK_ERROR_MESSAGE);
-      } else if (failure.status === 404) {
-        router.refresh();
       } else if (failure.code === "grouping_conflict") {
         // 上書きせず、破棄を確かめてから読み直してもらう（D-59）
         setConflict(true);
@@ -702,6 +798,8 @@ export function GroupingEditor({
       } else {
         setError(NETWORK_ERROR_MESSAGE);
       }
+      // ブラウザの戻るで下の方から保存したときも、「←」の下に出した理由が見えるようにする
+      window.scrollTo(0, 0);
     }
   }
 
@@ -714,16 +812,24 @@ export function GroupingEditor({
       ? draft.groups.find((group) => group.key === nameDialog.key)
       : undefined;
   const unclassified = itemsIn(null);
+  // D-113：一度でも下書きを変えたら「元に戻す」「やり直す」を出す。持ち物を選んでいる間は選んだ操作を出す
+  const showHistory =
+    !hasSelection && (history.past.length > 0 || history.future.length > 0);
+  // 画面下は、選んでいる間・「元に戻す」「やり直す」・よく使うグループの保存結果があるときだけ出す（利用者の指示）
+  const footerVisible =
+    hasSelection || showHistory || notice !== null || favoriteError !== null;
 
   return (
     <>
-      {/* 画面下に固定した「キャンセル」「保存」に、最後の持ち物が隠れないよう余白をとる */}
-      <div className="flex flex-col gap-4 pb-40">
+      {/* 画面下の表示に、最後の持ち物が隠れないよう余白をとる */}
+      <div
+        className={`flex flex-col gap-4 ${footerVisible ? "pb-40" : "pb-8"}`}
+      >
         {/* SC-07と同じく、戻るボタンの下に見出しを左寄せで置く（D-73、利用者の指示）。 */}
         <button
           type="button"
           aria-label="戻る"
-          onClick={handleCancel}
+          onClick={handleBack}
           // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
           className="group mb-1 self-start back-button tap-target"
         >
@@ -865,67 +971,79 @@ export function GroupingEditor({
         </DndContext>
       </div>
 
-      {/* SC-09-9：「キャンセル」「保存」は画面下に固定する */}
-      <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
-        <div className="flex flex-col gap-2 px-5 py-3">
-          {/* SC-09-5：よく使うグループに保存した結果 */}
-          {notice && (
-            <p role="status" className="text-sm">
-              {notice}
-            </p>
-          )}
-          {favoriteError && (
-            <p role="alert" className="text-sm text-danger">
-              {favoriteError}
-            </p>
-          )}
-          {/* SC-09-15・D-112：持ち物を選んでいる間だけ、選んだ件数と「選択を解除」「移し先を選ぶ」を出す。
+      {/* SC-09-15（D-113、利用者の指示）：「キャンセル」「保存」は置かず、必要なときだけ画面下に出す */}
+      {footerVisible && (
+        <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
+          <div className="flex flex-col gap-2 px-5 py-3">
+            {/* SC-09-5：よく使うグループに保存した結果 */}
+            {notice && (
+              <p role="status" className="text-sm">
+                {notice}
+              </p>
+            )}
+            {favoriteError && (
+              <p role="alert" className="text-sm text-danger">
+                {favoriteError}
+              </p>
+            )}
+            {/* SC-09-15・D-112：持ち物を選んでいる間だけ、選んだ件数と「選択を解除」「移し先を選ぶ」を出す。
               ふだんはドラッグで移し、ドラッグしづらいときは「移し先を選ぶ」から移せる（利用者の指示）。
               たたんだ丸の中で選んだ持ち物も数える */}
-          {hasSelection && (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <p role="status">{selectedIds.size}件選択中</p>
-              <div className="flex gap-2">
+            {hasSelection && (
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p role="status">{selectedIds.size}件選択中</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    disabled={busy}
+                    className="btn-outline btn-sm tap-target"
+                  >
+                    選択を解除
+                  </button>
+                  <button
+                    id={chooseTargetButtonId}
+                    type="button"
+                    onClick={() => setChoosingTarget(true)}
+                    disabled={busy}
+                    className="btn-outline btn-sm tap-target"
+                  >
+                    移し先を選ぶ
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* D-113（利用者の指示）：開いたときまで1つずつ戻せ、戻した分は進められる。何をしたかの文は出さない */}
+            {showHistory && (
+              <div className="flex items-center justify-end gap-2">
+                <p role="status" className="sr-only">
+                  {historyNotice}
+                </p>
                 <button
+                  id={undoButtonId}
                   type="button"
-                  onClick={clearSelection}
-                  disabled={busy}
-                  className="btn-outline btn-sm tap-target"
+                  onClick={handleUndo}
+                  disabled={busy || history.past.length === 0}
+                  className="btn-outline btn-sm tap-target gap-1.5"
                 >
-                  選択を解除
+                  <Icon name="undo" className="size-4" />
+                  元に戻す
                 </button>
                 <button
-                  id={chooseTargetButtonId}
+                  id={redoButtonId}
                   type="button"
-                  onClick={() => setChoosingTarget(true)}
-                  disabled={busy}
-                  className="btn-outline btn-sm tap-target"
+                  onClick={handleRedo}
+                  disabled={busy || history.future.length === 0}
+                  className="btn-outline btn-sm tap-target gap-1.5"
                 >
-                  移し先を選ぶ
+                  やり直す
+                  <Icon name="redo" className="size-4" />
                 </button>
               </div>
-            </div>
-          )}
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={busy}
-              className="btn-outline"
-            >
-              キャンセル
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={busy}
-              className="btn-primary"
-            >
-              保存
-            </button>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {nameDialog?.mode === "add" && (
         <GroupNameDialog
@@ -981,20 +1099,18 @@ export function GroupingEditor({
         />
       )}
 
-      {/* SC-09-10：変更があるときのキャンセル・戻る・読み直し */}
+      {/* SC-09-10：変更があるまま読み直すと下書きが消えるので確かめる（戻るときは保存する、D-113） */}
       <ConfirmDialog
-        open={afterDiscard !== null}
+        open={confirmingReload}
         message="変更を破棄しますか？"
         confirmLabel="破棄する"
         cancelLabel="編集を続ける"
         destructive
         onConfirm={() => {
-          const next = afterDiscard;
-          setAfterDiscard(null);
-          if (next === "leave") backToList();
-          if (next === "reload") void reload();
+          setConfirmingReload(false);
+          void reload();
         }}
-        onCancel={() => setAfterDiscard(null)}
+        onCancel={() => setConfirmingReload(false)}
       />
     </>
   );
@@ -1135,7 +1251,7 @@ function GroupCircle({
               // D-109：名前の変更は名前を押して行うので、ここには置かない
               <ul className="absolute right-0 z-10 mt-1 w-64 menu py-1">
                 <li>
-                  {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの「保存」は待たない） */}
+                  {/* SC-09-5・D-102：名前だけを、その場で保存する（下書きの保存は待たない） */}
                   <button
                     type="button"
                     onClick={() => choose(onSaveAsFavorite)}

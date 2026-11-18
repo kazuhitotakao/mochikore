@@ -61,7 +61,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 
 - 375px 基準の1列、パソコンでは中央に最大 640px（D-73）。
 - SC-09のグループ枠は640px未満で1列、640px以上で同じ幅の2列にする。最後が1つでも枠を広げず、件数の「（n件）」は途中で改行しない。長い名前は枠内で折り返す（D-73）。
-- SC-09のグループは枠全体を元と同じ寸法・内容で動かし、影を付ける。グループを動かす間はDragOverlayを外し、持ち物を動かすときだけ名前を重ねて表示する。並べ替えは下書きにし、「保存」（API-30）で保存する（D-58・D-59・D-98）。
+- SC-09のグループは枠全体を元と同じ寸法・内容で動かし、影を付ける。グループを動かす間はDragOverlayを外し、持ち物を動かすときだけ名前を重ねて表示する。並べ替えは下書きにし、画面を離れるとき（「←」・ブラウザの戻る）にAPI-30で保存する。ブラウザの戻るは、最初に変更したときに同じURLの履歴を1つ足して受け止め、保存できてから足した分を戻してSC-07へ移る（D-58・D-59・D-98・D-113）。
 - 指で押すボタン・リンクは、押せる範囲を44px四方以上にする。文字だけのリンク・ボタンには `tap-target`（globals.css）を付け、縦並び（flex-col）の中では `self-start` も付けて横いっぱいに広げない（D-73）。
 - 押せるボタン・チェック欄・選択肢の指の形は globals.css でそろえている。部品ごとに `cursor-pointer` を付けない。dnd-kit の `role="button"` は対象外（D-73）。
 - 配色は生成り色の地と深い緑（02_画面の絵、D-73）。色は globals.css の名前（`bg-brand`・`text-muted`・`border-line`・`text-danger` など）、ボタン・入力欄・リンク・枠・ラベルは `btn-primary`・`btn-outline`・`btn-danger`・`field`・`text-link`・`card`・`tag` を使う。戻るボタン「←」は `BackLink`（見た目は `back-button`）を使う。オン・オフの切り替えは `SwitchIndicator` を使い、ボタンに `role="switch"`・`aria-checked` を付ける。アイコンは `Icon`（components/Icon.tsx）を使う。`zinc` などの色や色の値を部品に直接書かない。暗い表示用の配色は作らない。書体は Noto Sans JP（`layout.tsx` の `next/font/google`。自分のサイトから配る）。
