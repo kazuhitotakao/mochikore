@@ -15,6 +15,15 @@ export function itemErrorMessage(error: unknown): string {
   }
 }
 
+// V-20：ほかの画面で持ち物やグループが変わった場合は、どの一括削除からでも読み直しを案内する。
+export function bulkDeleteErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === "validation_error") {
+    return "削除する持ち物の情報が正しくありません。リストを読み直してください。";
+  }
+
+  return NETWORK_ERROR_MESSAGE;
+}
+
 /**
  * 404：ほかの画面で持ち物やリストが消えていた。読み直すと、リストがあれば最新の内容、
  * なければ「ページが見つかりません」（共通9）になる。
