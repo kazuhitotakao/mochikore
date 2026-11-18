@@ -65,6 +65,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "DELETE", path: /^\/saved-groups\/\d+$/ },
   // API-25
   { method: "POST", path: /^\/items\/\d+\/restore$/ },
+  // API-45：持ち物を重ねてグループにする（D-111）
+  { method: "POST", path: /^\/items\/\d+\/group$/ },
 ];
 
 export function isAllowedRoute(method: string, path: string): boolean {

@@ -6,6 +6,8 @@ use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\PackingList;
 use App\Models\PackingListGroup;
+use App\Models\PackingListItem;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -205,6 +207,73 @@ class GroupingService
             $locked->increment('grouping_revision');
 
             return $target;
+        });
+    }
+
+    /**
+     * API-45 持ち物を重ねてグループにする（D-111）。重ねられた未分類の持ち物の名前でグループを作って名前付きグループの最後に置き、
+     * 重ねた持ち物をその中へ移す。重ねられた持ち物は見出しに変わるので一時削除し（D-35）、戻す候補にはしない。
+     *
+     * @return array{group: PackingListGroup, item: PackingListItem}
+     */
+    public function createFromItem(PackingListItem $base, int $itemId): array
+    {
+        return DB::transaction(function () use ($base, $itemId) {
+            $locked = PackingList::whereKey($base->packing_list_id)->lockForUpdate()->firstOrFail();
+
+            // 同時に削除・グループにされていたら存在しない持ち物と同じ404にし、グループを二重に作らない
+            $target = $locked->items()->whereKey($base->id)->first()
+                ?? throw (new ModelNotFoundException)->setModel(PackingListItem::class);
+
+            // V-24：重ねた持ち物は、同じリストの削除していない別の持ち物だけ
+            $moved = $itemId === $target->id ? null : $locked->items()->whereKey($itemId)->first();
+            if ($moved === null) {
+                throw ValidationException::withMessages([
+                    'item_id' => [__('validation.group_from_item.item')],
+                ]);
+            }
+
+            // D-111：グループの中にグループは作れないので、重ねられるのは未分類の持ち物だけ。
+            // 画面は未分類の持ち物にだけ重ねさせるので、ここに来るのは別の端末で移した後。読み直しを案内する
+            if ($target->group_id !== null) {
+                throw ValidationException::withMessages([
+                    '_form' => [__('validation.grouping.reload')],
+                ]);
+            }
+
+            // D-57：持ち物名とグループ名は同じ1〜50文字・改行なしなので、予約名・同名・件数だけを確かめる。
+            // 同名は照合順序に頼らず、PHP で完全一致を比べる（API-44 と同じ）
+            $names = $locked->groups()->pluck('name');
+            if ($target->name === PackingListGroup::RESERVED_NAME) {
+                throw ValidationException::withMessages([
+                    'name' => [__('validation.group_name.not_in')],
+                ]);
+            }
+            if ($names->contains(fn (string $name) => $name === $target->name)) {
+                throw ValidationException::withMessages([
+                    'name' => [__('validation.group_name.duplicate')],
+                ]);
+            }
+            if ($names->count() >= PackingListGroup::MAX_PER_LIST) {
+                throw ValidationException::withMessages([
+                    '_form' => [__('validation.group_from_item.limit')],
+                ]);
+            }
+
+            // 未分類のすぐ上（名前付きグループの最後）に置く。sort_order は0から（API-30・36 と同じ）
+            $group = $locked->groups()->create([
+                'name' => $target->name,
+                'sort_order' => (int) ($locked->groups()->max('sort_order') ?? -1) + 1,
+            ]);
+
+            // group_id は Fillable に入れていないので、クエリで直接変える。全体の順番とチェックは変えない（D-60）
+            $locked->items()->whereKey($moved->id)->update(['group_id' => $group->id]);
+            $target->delete();
+
+            // D-24・D-59：構造の変更なので revision を増やし、一覧の上に戻す（increment は updated_at も更新する）
+            $locked->increment('grouping_revision');
+
+            return ['group' => $group->refresh(), 'item' => $moved->refresh()];
         });
     }
 }

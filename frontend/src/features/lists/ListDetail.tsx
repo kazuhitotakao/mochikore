@@ -9,6 +9,7 @@ import {
   type Active,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
   type Over,
@@ -29,6 +30,7 @@ import { SaveItemDialog } from "@/features/saved-items/SaveItemDialog";
 import { SavedItemPanel } from "@/features/saved-items/SavedItemPanel";
 import type {
   Category,
+  GroupFromItemResult,
   ItemDeleteResult,
   PackingListDetail,
   PackingListItem,
@@ -46,6 +48,8 @@ import {
 import { useDelayedHide } from "./useDelayedHide";
 import { applyItemDragPreview, type ItemDragPreview } from "./itemDragPreview";
 import {
+  combineTargetOf,
+  detectUngroupedTarget,
   groupIdOfSection,
   isSectionId,
   itemSortAnnouncements,
@@ -75,13 +79,11 @@ type ItemSortData = { groupId: number | null };
 /**
  * D-98：グループの見出しを動かしているときは、ほかのグループの区切りと入れ替える（未分類は最後のまま）。
  * 持ち物を動かしているときは、指やマウスがあるグループの中でいちばん近い持ち物を相手にする。
+ * 未分類の欄では、持ち物の行の真ん中に重ねるとグループにする相手にもなる（D-111、detectUngroupedTarget）。
  * そのグループに見えている持ち物がなければ（空のグループ・全部チェック済みで隠している未分類）、グループそのものを相手にする。
- * キーボードは指の位置がないので、いちばん近い持ち物を相手にする。
+ * キーボードは指の位置がないので、いちばん近い持ち物を相手にする（重ねる操作はしない）。
  */
-const detectSortTarget = (
-  args: Parameters<CollisionDetection>[0],
-  ungroupedStartLimit: number | null,
-): ReturnType<CollisionDetection> => {
+const detectSortTarget: CollisionDetection = (args) => {
   const sections = args.droppableContainers.filter((container) =>
     isSectionId(container.id),
   );
@@ -106,26 +108,11 @@ const detectSortTarget = (
           (container.data.current as ItemSortData | undefined)?.groupId ===
           groupId,
       );
-      // 元のグループが縮んでも、先頭を狙った指の位置を2番目として扱わない。
-      // ページ内の座標で比べ、ドラッグ中のスクロールにも追従する。
-      if (
-        groupId === null &&
-        ungroupedStartLimit !== null &&
-        args.pointerCoordinates.y + window.scrollY <= ungroupedStartLimit
-      ) {
-        const activeTarget = inSection.filter(
-          (container) => container.id === args.active.id,
-        );
-        if (activeTarget.length > 0) {
-          return closestCenter({
-            ...args,
-            droppableContainers: activeTarget,
-          });
-        }
-      }
-      return inSection.length > 0
-        ? closestCenter({ ...args, droppableContainers: inSection })
-        : [section];
+      if (inSection.length === 0) return [section];
+      // 未分類では行の端まで入ってから入れ替えるので、元のグループが縮んでも先頭を狙った位置を2番目として扱わない
+      return groupId === null
+        ? detectUngroupedTarget(args, inSection)
+        : closestCenter({ ...args, droppableContainers: inSection });
     }
   }
   // 指がリストの外に出たときは、仮表示の位置へ勝手に保存しない。
@@ -188,9 +175,8 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   const [itemDropAllowed, setItemDropAllowed] = useState(false);
   const [itemPreview, setItemPreview] = useState<ItemDragPreview | null>(null);
   const itemPreviewRef = useRef<ItemDragPreview | null>(null);
-  const [ungroupedStartLimit, setUngroupedStartLimit] = useState<number | null>(
-    null,
-  );
+  // D-111：持ち物を重ねている未分類の持ち物。離すとこの持ち物の名前のグループになる
+  const [combineTargetId, setCombineTargetId] = useState<number | null>(null);
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
   const moderatedNoticeId = useId();
@@ -494,21 +480,6 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
 
     const overItem = current.find((item) => item.id === over.id);
     const before = dropsBefore(active, over, activatorEvent);
-    const firstUngrouped = current.find(
-      (item) =>
-        item.group_id === null &&
-        item.id !== activeItem.id &&
-        (showChecked || !item.is_checked || delayedIds.has(item.id)),
-    );
-    setUngroupedStartLimit(
-      to === null &&
-        overItem !== undefined &&
-        firstUngrouped !== undefined &&
-        overItem.id === firstUngrouped.id &&
-        before
-        ? over.rect.top + over.rect.height / 2 + window.scrollY
-        : null,
-    );
     const moved = moveItemToGroup(
       current,
       activeItem.id,
@@ -524,9 +495,14 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     setItemPreview(preview);
   }
 
+  // D-111：重ねている相手を、緑の枠で示すために画面の状態へ移す
+  function handleDragMove({ collisions }: DragMoveEvent) {
+    setCombineTargetId(combineTargetOf(collisions));
+  }
+
   function clearDragState() {
     setItemDropAllowed(false);
-    setUngroupedStartLimit(null);
+    setCombineTargetId(null);
     itemPreviewRef.current = null;
     setItemPreview(null);
     setDraggingItemId(null);
@@ -534,9 +510,22 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   }
 
   // 仮表示は保存済みitemsと分け、Esc・対象外へのドロップでは通信せず元へ戻す。
-  async function handleDragEnd({ active, over, activatorEvent }: DragEndEvent) {
+  async function handleDragEnd({
+    active,
+    over,
+    activatorEvent,
+    collisions,
+  }: DragEndEvent) {
     const current = applyItemDragPreview(items, itemPreviewRef.current);
+    const combineWith = isSectionId(active.id)
+      ? null
+      : combineTargetOf(collisions);
     clearDragState();
+    // D-111：未分類の持ち物の真ん中で離したら、並べ替えずにその持ち物をグループにする
+    if (combineWith !== null) {
+      await saveGroupFromItem(Number(active.id), combineWith);
+      return;
+    }
     if (!over) return;
 
     if (isSectionId(active.id)) {
@@ -676,6 +665,42 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     }
   }
 
+  // D-111：重ねられた持ち物の名前でグループを作り、名前付きグループの最後に置く。重ねた持ち物はその中へ移り、
+  // 重ねられた持ち物は見出しに変わるので一覧から外す（「削除した持ち物」には入れない）。保存できてから表示を変える（API-45）
+  async function saveGroupFromItem(itemId: number, baseId: number) {
+    const base = items.find((item) => item.id === baseId);
+    if (!base || base.group_id !== null || itemId === baseId) return;
+
+    setReordering(true);
+    setReorderError(null);
+    try {
+      const result = await clientApi<GroupFromItemResult>(
+        `/items/${baseId}/group`,
+        { method: "POST", body: { item_id: itemId } },
+      );
+      cancelHide(baseId);
+      // D-106：新しいグループのチェックは付いていない
+      setGroups((current) => [
+        ...current,
+        { ...result.group, is_checked: false },
+      ]);
+      setItems((current) =>
+        current
+          .filter((item) => item.id !== baseId)
+          .map((item) => (item.id === result.item.id ? result.item : item)),
+      );
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      setReorderError(groupFromItemErrorMessage(failure));
+    } finally {
+      setReordering(false);
+    }
+  }
+
   // 名前付きグループの中だけ1段下げ、末尾の持ち物は見出しと同じ列にそろえる（利用者の指示）。
   // pl-7 はチェック欄（size-5）と見出しとのすき間（gap-2）を合わせた幅
   function renderItems(sectionItems: PackingListItem[], indented = false) {
@@ -693,7 +718,9 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
               onDeleted={handleDeleted}
               onSaveAsFavorite={setSavingItem}
               sortDisabled={reordering}
-              dropAllowed={itemDropAllowed}
+              // D-111：重ねている間はすき間の枠を出さず、重ねられた行だけを枠で示す
+              dropAllowed={itemDropAllowed && combineTargetId === null}
+              combineTarget={item.id === combineTargetId}
               {...swipeProps(`item-${item.id}`)}
             />
           ))}
@@ -1149,9 +1176,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
           <DndContext
             id={dndId}
             sensors={sensors}
-            collisionDetection={(args) =>
-              detectSortTarget(args, ungroupedStartLimit)
-            }
+            collisionDetection={detectSortTarget}
             // 表示件数が変わった未分類も、持ち物の移動先として測り直す（D-98）。
             measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
             modifiers={[restrictToVerticalAxis]}
@@ -1161,6 +1186,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
             }}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
+            onDragMove={handleDragMove}
             onDragEnd={(event) => void handleDragEnd(event)}
             onDragCancel={clearDragState}
           >
@@ -1343,6 +1369,20 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
 function reorderErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code === "validation_error") {
     return "並べ替える持ち物の情報が正しくありません。リストを読み直してください。";
+  }
+
+  return NETWORK_ERROR_MESSAGE;
+}
+
+// V-24・D-111：グループ名にできない名前（予約名・同名）とグループの数は、その理由を出す。ほかは読み直しを案内する
+function groupFromItemErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === "validation_error") {
+    return (
+      error.errors.name?.[0] ??
+      error.errors._form?.[0] ??
+      error.errors.item_id?.[0] ??
+      "リストの情報を読み直してください。"
+    );
   }
 
   return NETWORK_ERROR_MESSAGE;

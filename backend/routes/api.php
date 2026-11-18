@@ -5,6 +5,7 @@ use App\Http\Controllers\BulkCheckItemsController;
 use App\Http\Controllers\BulkDeleteItemsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CopyPublicPackingListController;
+use App\Http\Controllers\CreateGroupFromItemController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -83,6 +84,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
         // 削除済みの持ち物を読み込めるよう withTrashed を付ける。完全に削除されたものは404
         Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed();
+        // API-45・D-111：重ねられた持ち物（URL）をグループにし、重ねた持ち物を中へ移す
+        Route::post('/items/{item}/group', CreateGroupFromItemController::class);
 
         // F-21・F-22：よく使う項目も、メール認証が済んでから使える
         Route::get('/saved-items', [SavedItemController::class, 'index']);

@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * グループ1件。API-44 の応答で、画面はこの値で見出しを更新する（D-109）。
+ * グループ1件。API-44・45 の応答で、画面はこの値で見出しを更新する（D-109・D-111）。
  * 項目は API-29 の groups と同じ。
  */
 class PackingListGroupResource extends JsonResource
