@@ -147,7 +147,7 @@ export function AddItemRow({ listId, onAdded }: Props) {
 
   return (
     <div
-      className="flex flex-col gap-1 border-b border-line-soft py-0.5"
+      className="flex flex-col gap-1 border-b border-line-soft"
       role="group"
       aria-label="持ち物の追加"
     >
