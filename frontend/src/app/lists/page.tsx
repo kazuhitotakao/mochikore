@@ -25,30 +25,6 @@ export default async function ListsPage(props: PageProps<"/lists">) {
         <p role="status">メール認証が完了しました。</p>
       )}
 
-      {/* SC-05-3：100件のときは押せない */}
-      {isFull ? (
-        <div className="flex flex-col gap-1">
-          <button type="button" disabled className="self-start btn-primary">
-            <span aria-hidden="true" className="mr-1.5">
-              ＋
-            </span>
-            新しいリスト
-          </button>
-          <p>リストは100件までです。</p>
-        </div>
-      ) : (
-        <Link
-          href="/lists/new"
-          prefetch={false}
-          className="self-start btn-primary"
-        >
-          <span aria-hidden="true" className="mr-1.5">
-            ＋
-          </span>
-          新しいリスト
-        </Link>
-      )}
-
       {lists.length === 0 ? (
         <p>リストはまだありません。</p>
       ) : (
@@ -79,6 +55,30 @@ export default async function ListsPage(props: PageProps<"/lists">) {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* SC-05-3（D-73）：利用者の指示で、リストの一覧の下に置く。100件のときは押せない */}
+      {isFull ? (
+        <div className="flex flex-col gap-1">
+          <button type="button" disabled className="self-start btn-primary">
+            <span aria-hidden="true" className="mr-1.5">
+              ＋
+            </span>
+            新しいリスト
+          </button>
+          <p>リストは100件までです。</p>
+        </div>
+      ) : (
+        <Link
+          href="/lists/new"
+          prefetch={false}
+          className="self-start btn-primary"
+        >
+          <span aria-hidden="true" className="mr-1.5">
+            ＋
+          </span>
+          新しいリスト
+        </Link>
       )}
 
       <Link
