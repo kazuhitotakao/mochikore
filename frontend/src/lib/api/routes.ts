@@ -34,12 +34,13 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/lists\/\d+\/visibility$/ },
   // API-13
   { method: "POST", path: /^\/lists\/\d+\/reset-checks$/ },
-  // API-10・11・12
+  // API-10
   { method: "POST", path: /^\/lists\/\d+\/items$/ },
-  // API-29・34
+  // API-29。SC-08 も一括追加（API-34）の前に最新の grouping_revision を読む
   { method: "GET", path: /^\/lists\/\d+\/grouping$/ },
   // API-30
   { method: "PUT", path: /^\/lists\/\d+\/grouping$/ },
+  // API-34
   { method: "POST", path: /^\/lists\/\d+\/items\/bulk$/ },
   // API-19
   { method: "PATCH", path: /^\/lists\/\d+\/items\/order$/ },
@@ -53,6 +54,7 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/groups\/\d+$/ },
   // API-38
   { method: "POST", path: /^\/lists\/\d+\/items\/bulk-delete$/ },
+  // API-11・12
   { method: "PATCH", path: /^\/items\/\d+$/ },
   { method: "DELETE", path: /^\/items\/\d+$/ },
   // API-31・32・33。API-31 の category_id はクエリで送る（Laravel が確かめる）

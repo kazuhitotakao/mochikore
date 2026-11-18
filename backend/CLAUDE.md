@@ -22,7 +22,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 - `$request->all()` を使わず、`validated()` だけを渡す。
 - FormRequest の `authorize()` は `true` のまま。認可は Controller の `Gate::authorize()` で行う。
-- 入力条件は `06_API詳細` に合わせる。API-11 で `group_id` を受け取らない。
+- 入力条件は `09_バリデーション` の対象行・J列のセルメモ・共通C-01〜08、送受信の形は `06_API詳細` に合わせる。API-11 で `group_id` を受け取らない。
 - 入力エラーの文言は `lang/ja/validation.php` に日本語で用意する。
 - 応答は Resource で返し、Model をそのまま返さない。公開用は別の Resource にする。
 - 公開APIに作成者の情報と `is_checked` を返さない（F-09・F-10）。
