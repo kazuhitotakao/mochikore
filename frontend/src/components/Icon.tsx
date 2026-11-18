@@ -51,6 +51,8 @@ const PATHS = {
       <path d="M12 7.5v5M9.5 10h5" />
     </>
   ),
+  // 下向きの矢印：グループをたたむ・開く（たたんだときは右へ回して使う、D-110）
+  chevron: <path d="M6 9.5l6 6 6-6" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

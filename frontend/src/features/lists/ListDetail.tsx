@@ -58,6 +58,7 @@ import { ListMenu } from "./ListMenu";
 import { SelectionList } from "./SelectionList";
 import { SHOW_CHECKED_PARAM } from "./showChecked";
 import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
+import { useCollapsedGroups } from "./useCollapsedGroups";
 import { useVisibilityToggle } from "./useVisibilityToggle";
 import { visibilityChangedNotice } from "./visibility";
 import { ModeratedNotice, PublishConfirmDialog } from "./VisibilitySwitch";
@@ -181,6 +182,9 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   // D-98：グループの順番は見出しを動かして変えるので、画面の状態として持つ
   const [groups, setGroups] = useState(list.groups);
   const [draggingItemId, setDraggingItemId] = useState<number | null>(null);
+  // グループの見出しを動かしている間は DragOverlay を置かない（SC-09 と同じ）。置いたままだと、
+  // 離したときの動きの間だけ元のグループが透明になり、一度消えてから移動先に出る（利用者の指示）
+  const [draggingGroup, setDraggingGroup] = useState(false);
   const [itemDropAllowed, setItemDropAllowed] = useState(false);
   const [itemPreview, setItemPreview] = useState<ItemDragPreview | null>(null);
   const itemPreviewRef = useRef<ItemDragPreview | null>(null);
@@ -219,6 +223,11 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   // D-94：チェック済みは初めは隠す。画面の中だけの状態で、開き直すと隠した状態から始まる。
   // 表示したまま SC-06・SC-09 へ行って戻ったときだけ、表示を引き継ぐ（利用者の指示）
   const [showChecked, setShowChecked] = useState(initialShowChecked);
+  // D-110：たたんだグループ。この端末のブラウザにリストごとに覚えるので、開き直しても保つ
+  const collapsedGroups = useCollapsedGroups(
+    list.id,
+    groups.map((group) => group.id),
+  );
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
   const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
   // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
@@ -343,7 +352,12 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     );
     const sectionHides = sectionItems.every((existing) => existing.is_checked);
     const row = document.getElementById(itemCheckboxId(itemId))?.closest("li");
-    const area = sectionHides ? row?.closest("section") : row;
+    // D-110：たたんだグループは行を出していないので、見出しのまとめてチェックの後は区切りそのものから探す
+    const section =
+      item.group_id === null
+        ? row?.closest("section")
+        : document.getElementById(sectionId(item.group_id));
+    const area = sectionHides ? section : row;
 
     // その行（隠れるグループ）にカーソルがあるとき、またはどこにもないときだけ移す。
     // 待っている間に追加欄など別の所へ移っていたら、そのままにする
@@ -352,12 +366,18 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     const focusLost = !active || active === document.body;
     if (!focusInArea && !focusLost) return;
 
-    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ表示のスイッチへ
+    // 画面の並びで、隠れる所より後ろにある未チェックの持ち物へ移す。なければ表示のスイッチへ。
+    // たたんだグループ（D-110）の持ち物は画面に出ていないので飛ばす
     const displayed = displayOrder();
     const last = sectionHides ? sectionItems[sectionItems.length - 1] : item;
     const next = displayed
       .slice(displayed.indexOf(last) + 1)
-      .find((other) => !other.is_checked);
+      .find(
+        (other) =>
+          !other.is_checked &&
+          (other.group_id === null ||
+            !collapsedGroups.collapsed.has(other.group_id)),
+      );
     pendingFocusId.current = next
       ? itemCheckboxId(next.id)
       : SHOW_CHECKED_SWITCH_ID;
@@ -444,7 +464,10 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
   }
 
   function handleDragStart({ active }: DragStartEvent) {
-    if (isSectionId(active.id)) return;
+    if (isSectionId(active.id)) {
+      setDraggingGroup(true);
+      return;
+    }
     setDraggingItemId(Number(active.id));
     setItemDropAllowed(true);
   }
@@ -504,6 +527,7 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     itemPreviewRef.current = null;
     setItemPreview(null);
     setDraggingItemId(null);
+    setDraggingGroup(false);
   }
 
   // 仮表示は保存済みitemsと分け、Esc・対象外へのドロップでは通信せず元へ戻す。
@@ -928,6 +952,13 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
     const sectionItems = sortableItems.filter(
       (item) => item.group_id === groupId,
     );
+    // D-110：たたんだグループの持ち物は出さない。ドラッグで入れようとしている持ち物だけは、
+    // 入る位置（グループの最後）が分かるよう見出しの下に出す。件数はたたむ前と同じ数を出す
+    const collapsed =
+      groupId !== null && collapsedGroups.collapsed.has(groupId);
+    const shownItems = collapsed
+      ? sectionItems.filter((item) => item.id === draggingItemId)
+      : sectionItems;
     const groupItems = items.filter((item) => item.group_id === groupId);
     const total = groupItems.length;
     // 隠れたチェック済みも含め、全件チェック済みのときだけ印を付ける（利用者の指示、D-99を変更）。
@@ -968,8 +999,12 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
             ),
           )
         }
+        collapsed={collapsed}
+        onToggleCollapsed={() => {
+          if (groupId !== null) collapsedGroups.toggle(groupId);
+        }}
       >
-        {renderItems(sectionItems, groupId !== null)}
+        {renderItems(shownItems, groupId !== null)}
         {groupId === null && (
           // 利用者の指示で、空の未分類にも入力行を残す。未保存の行は件数に含めない。
           <div className="flex flex-col">
@@ -1124,31 +1159,33 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
               )}
             </SortableContext>
             {renderSection(null, "未分類")}
-            <DragOverlay adjustScale={false}>
-              {draggingItem && (
-                // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
-                // 縁取りは ring にして、元の行と高さを変えない（D-98）
-                <div
-                  aria-hidden="true"
-                  className="flex items-center gap-2 rounded-lg bg-background py-0.5 pl-1.5 shadow-md ring-1 ring-line"
-                >
-                  <input
-                    type="checkbox"
-                    checked={draggingItem.is_checked}
-                    readOnly
-                    tabIndex={-1}
-                    className="size-5 shrink-0"
-                  />
-                  <span className="min-w-0 flex-1 wrap-break-word">
-                    {draggingItem.name}
-                  </span>
-                  {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
-                  <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted">
-                    …
-                  </span>
-                </div>
-              )}
-            </DragOverlay>
+            {!draggingGroup && (
+              <DragOverlay adjustScale={false}>
+                {draggingItem && (
+                  // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
+                  // 縁取りは ring にして、元の行と高さを変えない（D-98）
+                  <div
+                    aria-hidden="true"
+                    className="flex items-center gap-2 rounded-lg bg-background py-0.5 pl-1.5 shadow-md ring-1 ring-line"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draggingItem.is_checked}
+                      readOnly
+                      tabIndex={-1}
+                      className="size-5 shrink-0"
+                    />
+                    <span className="min-w-0 flex-1 wrap-break-word">
+                      {draggingItem.name}
+                    </span>
+                    {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
+                    <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted">
+                      …
+                    </span>
+                  </div>
+                )}
+              </DragOverlay>
+            )}
           </DndContext>
         </div>
 
