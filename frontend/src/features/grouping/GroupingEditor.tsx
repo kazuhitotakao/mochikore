@@ -343,6 +343,10 @@ export function GroupingEditor({
     ? state.items
     : state.items.filter((item) => !item.is_checked);
   const checkedCount = state.items.filter((item) => item.is_checked).length;
+  // SC-09-2・14：「←」の右のスイッチ。2つとも出すときは、640px未満で上下に重ねる（D-73）
+  const hasCollapseSwitch = draft.groups.length > 0;
+  const hasCheckedSwitch = checkedCount > 0;
+  const stackSwitches = hasCollapseSwitch && hasCheckedSwitch;
   const draggingItem = shownItems.find((item) => item.id === draggingId);
   // D-112：持ち物を選んでいる間は、名前の変更・丸の並べ替え・「…」・チェック済みの表示の切り替えを止める
   const hasSelection = selectedIds.size > 0;
@@ -825,16 +829,57 @@ export function GroupingEditor({
       <div
         className={`flex flex-col gap-4 ${footerVisible ? "pb-40" : "pb-8"}`}
       >
+        {/* SC-09-2・14（D-73、利用者の指示）：「←」と同じ行の右に、表示のスイッチをまとめる。
+            行の高さは「←」の丸に固定し、スイッチのまとまりの中央を「←」の中央にそろえる（はみ出す分は上下へ均等に出す）。
+            見出しの位置は「←」だけのときと変えない */}
+        <div className="mb-1 flex h-9 items-center justify-between gap-3">
+          <button
+            type="button"
+            aria-label="戻る"
+            onClick={handleBack}
+            // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
+            className="group shrink-0 back-button tap-target"
+          >
+            <BackArrow />
+          </button>
+          {(hasCollapseSwitch || hasCheckedSwitch) && (
+            // 640px未満は2つを上下に重ねる。幅がある画面は横に並べる。
+            // 下のスイッチの押せる範囲は見出しの上の余白まで届くので、見出しより前面に出す
+            <div className="relative z-10 flex min-w-0 flex-col items-end sm:flex-row sm:items-center sm:gap-x-4">
+              {hasCollapseSwitch && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={allGroupsCollapsed}
+                  aria-controls={groupGridId}
+                  onClick={toggleAllCollapsed}
+                  disabled={busy || draggingId !== null}
+                  // 重ねるときは、文字とスイッチを下のスイッチ寄せにして2つの間を8pxに詰める。
+                  // 押せる範囲（44px）は上へ広げ、下のスイッチと重ねない（D-73）
+                  className={`flex min-h-11 items-center gap-2 rounded-lg text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50 ${stackSwitches ? "pt-5 pb-1 sm:py-0" : ""}`}
+                >
+                  <span>すべてたたむ</span>
+                  <SwitchIndicator on={allGroupsCollapsed} size="sm" />
+                </button>
+              )}
+              {/* D-112：持ち物を選んでいる間は、選ぶ対象が変わらないよう押せなくする。
+                  隠すと「すべてたたむ」の位置が動くので、出したままにする */}
+              {hasCheckedSwitch && (
+                <ShowCheckedSwitch
+                  on={showChecked}
+                  count={checkedCount}
+                  disabled={busy || draggingId !== null || hasSelection}
+                  size="sm"
+                  align="end"
+                  // 重ねるときは上のスイッチ寄せにし、押せる範囲（44px）は下へ広げる（D-73）
+                  className={stackSwitches ? "pt-1 pb-5 sm:py-0" : ""}
+                  onToggle={() => setShowChecked((current) => !current)}
+                />
+              )}
+            </div>
+          )}
+        </div>
         {/* SC-07と同じく、戻るボタンの下に見出しを左寄せで置く（D-73、利用者の指示）。 */}
-        <button
-          type="button"
-          aria-label="戻る"
-          onClick={handleBack}
-          // 共通2の「←」（BackLink）と同じ白い丸にする。押せる範囲は44px四方（D-73）
-          className="group mb-1 self-start back-button tap-target"
-        >
-          <BackArrow />
-        </button>
         <h1 className="text-2xl font-medium">グループを整理</h1>
         {conflict && (
           <div className="flex flex-col gap-2">
@@ -873,73 +918,39 @@ export function GroupingEditor({
             items={draft.groups.map((group) => circleId(group.key))}
             strategy={rectSortingStrategy}
           >
-            <div className="flex flex-col">
-              {/* SC-09-2・14：SC-07のチェック済み表示と同じ枠なしのスイッチにそろえ、右にまとめる（利用者の指示）。
-                  一覧を広く使えるよう上下の余白を詰め、押せる範囲は44pxを保つ（D-73・D-95・D-112） */}
-              {(draft.groups.length > 0 || checkedCount > 0) && (
-                <div className="relative z-10 -mt-4 flex flex-wrap items-center justify-end gap-x-4">
-                  {draft.groups.length > 0 && (
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={allGroupsCollapsed}
-                      aria-controls={groupGridId}
-                      onClick={toggleAllCollapsed}
-                      disabled={busy || draggingId !== null}
-                      className="flex min-h-11 items-center gap-2 self-end rounded-lg text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50"
-                    >
-                      <span>すべてたたむ</span>
-                      <SwitchIndicator on={allGroupsCollapsed} size="sm" />
-                    </button>
-                  )}
-                  {/* D-112：持ち物を選んでいる間は、選ぶ対象が変わらないよう押せなくする。
-                      隠すとスマホ幅で一覧が1行分上に跳ねるので、出したままにする */}
-                  {checkedCount > 0 && (
-                    <ShowCheckedSwitch
-                      on={showChecked}
-                      count={checkedCount}
-                      disabled={busy || draggingId !== null || hasSelection}
-                      size="sm"
-                      align="end"
-                      onToggle={() => setShowChecked((current) => !current)}
-                    />
-                  )}
-                </div>
-              )}
-              <div
-                id={groupGridId}
-                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-              >
-                {draft.groups.map((group) => (
-                  <GroupCircle
-                    key={group.key}
-                    dropKey={group.key}
-                    name={group.name}
-                    items={itemsIn(group.key)}
-                    collapsed={collapsedGroups.has(group.key)}
-                    onToggleCollapsed={() => toggleCollapsed(group.key)}
-                    disabled={busy}
-                    onRename={() =>
-                      setNameDialog({ mode: "rename", key: group.key })
-                    }
-                    favoriteDisabled={savingFavorite}
-                    onSaveAsFavorite={() => void saveAsFavorite(group.name)}
-                    onDelete={() => deleteGroup(group.key)}
-                    selection={selectedIds}
-                    onSelectItem={toggleSelected}
-                  />
-                ))}
-                {/* SC-09-3（利用者の指示）：作ったグループが出る場所の近くで追加できるよう、並びの最後に置く。
+            <div
+              id={groupGridId}
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+            >
+              {draft.groups.map((group) => (
+                <GroupCircle
+                  key={group.key}
+                  dropKey={group.key}
+                  name={group.name}
+                  items={itemsIn(group.key)}
+                  collapsed={collapsedGroups.has(group.key)}
+                  onToggleCollapsed={() => toggleCollapsed(group.key)}
+                  disabled={busy}
+                  onRename={() =>
+                    setNameDialog({ mode: "rename", key: group.key })
+                  }
+                  favoriteDisabled={savingFavorite}
+                  onSaveAsFavorite={() => void saveAsFavorite(group.name)}
+                  onDelete={() => deleteGroup(group.key)}
+                  selection={selectedIds}
+                  onSelectItem={toggleSelected}
+                />
+              ))}
+              {/* SC-09-3（利用者の指示）：作ったグループが出る場所の近くで追加できるよう、並びの最後に置く。
                   20件のときは押せない */}
-                <button
-                  type="button"
-                  onClick={() => setNameDialog({ mode: "add" })}
-                  disabled={busy || draft.groups.length >= MAX_GROUPS}
-                  className="min-h-12 rounded-2xl border-2 border-dashed border-line-strong px-4 py-2 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
-                >
-                  <span aria-hidden="true">＋ </span>グループを追加
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setNameDialog({ mode: "add" })}
+                disabled={busy || draft.groups.length >= MAX_GROUPS}
+                className="min-h-12 rounded-2xl border-2 border-dashed border-line-strong px-4 py-2 text-brand hover:bg-brand-soft disabled:opacity-50 disabled:hover:bg-transparent"
+              >
+                <span aria-hidden="true">＋ </span>グループを追加
+              </button>
             </div>
           </SortableContext>
 

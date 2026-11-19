@@ -28,9 +28,7 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
   const searchParams = await props.searchParams;
 
   return (
-    <main className="flex flex-col gap-6 py-8">
-      <BackLink href="/lists" />
-      {searchParams.copied === "1" && <CopyPublicListNotice key={list.id} />}
+    <main className="flex flex-col py-8">
       {/* 操作が404になって読み直したとき（ほかの画面で持ち物が消えていたなど）は、
           画面の状態を最新の内容で作り直す。持ち物の構造が変わると revision が増える（D-59） */}
       <ListDetail
@@ -38,6 +36,11 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
         list={list}
         categories={categories}
         initialShowChecked={isShowChecked(searchParams.show_checked)}
+        // SC-07-4・D-73：「…」を「←」と同じ行に置くので、「←」と通知も ListDetail の中に並べる
+        backLink={<BackLink href="/lists" />}
+        notice={
+          searchParams.copied === "1" && <CopyPublicListNotice key={list.id} />
+        }
       />
     </main>
   );
