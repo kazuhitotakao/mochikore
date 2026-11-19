@@ -8,7 +8,7 @@ use App\Models\User;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * F-09・SC-10・API-15、V-15・C-01〜08、D-18・23・32・53・63・81・92。
+ * F-09・SC-10・API-15、V-15・V-25・C-01〜08、D-18・23・32・53・63・81・92・117。
  */
 class PublicPackingListIndexTest extends ListApiTestCase
 {
@@ -109,6 +109,80 @@ class PublicPackingListIndexTest extends ListApiTestCase
         $this->assertSame($lists->pluck('id')->reverse()->values()->all(), array_column($response->json('data'), 'id'));
     }
 
+    public function test_よくコピーされている順はコピーした人の数が多い順で、同じ数なら新しい順(): void
+    {
+        [$owner, $a, $b, $c] = User::factory()->count(4)->create()->all();
+        $public = fn (int $daysAgo) => PackingList::factory()->for($owner)->create(['is_public' => true, 'created_at' => now()->subDays($daysAgo)]);
+        $copy = fn (User $user, PackingList $source) => PackingList::factory()->for($user)->create(['source_list_id' => $source->id]);
+        $oldest = $public(5);
+        $most = $public(4);
+        $deletedCopy = $public(3);
+        $none = $public(2);
+        $newest = $public(1);
+        // 同じ人が何回コピーしても1人。本人のコピーは数えない
+        $copy($a, $oldest);
+        $copy($a, $oldest);
+        $copy($b, $oldest);
+        $copy($owner, $oldest);
+        $copy($owner, $none);
+        // D-116：本人の複製はコピー元を記録しないので数えない
+        $this->actingAsUser($owner)->postJson("/api/lists/{$none->id}/duplicate", ['title' => '本人の複製'])->assertCreated();
+        foreach ([$a, $b, $c] as $user) {
+            $copy($user, $most);
+        }
+        // コピーを削除すると減る
+        $copy($a, $deletedCopy);
+        $copy($b, $deletedCopy)->delete();
+        // 限定公開のリンクからのコピー（API-49）も、コピー元を記録するので数える
+        $newest->forceFill(['share_token' => str_repeat('s', PackingList::SHARE_TOKEN_LENGTH)])->save();
+        $this->app['auth']->forgetGuards();
+        $this->actingAsUser($c)->postJson('/api/shared/lists/'.$newest->share_token.'/copy')->assertCreated();
+        $this->app['auth']->forgetGuards();
+        // 非公開のリストは、コピーが多くても一覧に出さない
+        $private = PackingList::factory()->for($owner)->create();
+        foreach ([$a, $b, $c] as $user) {
+            $copy($user, $private);
+        }
+
+        $response = $this->getJson($this->url(['sort' => 'most_copied']))->assertOk();
+        $this->assertSame(
+            [$most->id, $oldest->id, $newest->id, $deletedCopy->id, $none->id],
+            array_column($response->json('data'), 'id'),
+        );
+        // D-63：コピーした数は返さない
+        $this->assertSame(['id', 'title', 'description', 'category', 'created_at'], array_keys($response->json('data.0')));
+
+        // 新しい順（省略と newest は同じ）は、コピーの数に関係なく作成が新しい順
+        $newestOrder = [$newest->id, $none->id, $deletedCopy->id, $most->id, $oldest->id];
+        foreach ([[], ['sort' => 'newest']] as $filters) {
+            $this->assertSame($newestOrder, array_column($this->getJson($this->url($filters))->json('data'), 'id'));
+        }
+    }
+
+    public function test_よくコピーされている順も検索条件と組み合わせ、ページ移動に並び順を保つ(): void
+    {
+        $owner = User::factory()->create();
+        $copier = User::factory()->create();
+        $category = $this->categoryId('旅行・お泊まり');
+        $lists = PackingList::factory()->count(21)->for($owner)->sequence(fn ($sequence) => [
+            'title' => '旅行'.$sequence->index,
+            'created_at' => now()->subDays(30 - $sequence->index),
+        ])->create(['is_public' => true, 'category_id' => $category]);
+        PackingList::factory()->create(['is_public' => true, 'title' => '旅行（別のカテゴリー）', 'category_id' => $this->categoryId('買い物')]);
+        PackingList::factory()->for($copier)->create(['source_list_id' => $lists[0]->id]);
+        $filters = ['keyword' => '旅行', 'category_id' => $category, 'sort' => ' most_copied '];
+
+        $first = $this->getJson($this->url($filters))->assertOk()->assertJsonCount(20, 'data')->assertJsonPath('meta.total', 21);
+        // コピーされた一番古いリストが先頭で、残りは新しい順
+        $this->assertSame($lists[0]->id, $first->json('data.0.id'));
+        $this->assertSame($lists[20]->id, $first->json('data.1.id'));
+        parse_str(parse_url($first->json('links.next'), PHP_URL_QUERY), $query);
+        $this->assertSame('most_copied', $query['sort']);
+        $this->assertSame('2', $query['page']);
+        $this->getJson($this->url([...$filters, 'page' => 2]))->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $lists[1]->id);
+    }
+
     public function test_空の検索語と標準の前後空白は条件なしとして扱う(): void
     {
         PackingList::factory()->create(['is_public' => true]);
@@ -145,6 +219,10 @@ class PublicPackingListIndexTest extends ListApiTestCase
             }
         }
         $cases['unknown-category'] = [['category_id' => '999999'], 'category_id'];
+        // V-25：並び順は newest・most_copied だけ。大文字・空・配列も拒否する
+        foreach (['', ' ', 'popular', 'NEWEST', 'most-copied', ['most_copied']] as $index => $value) {
+            $cases['sort-'.$index] = [['sort' => $value], 'sort'];
+        }
 
         return $cases;
     }
@@ -159,6 +237,7 @@ class PublicPackingListIndexTest extends ListApiTestCase
             'page' => 'ページ番号が正しくありません。',
             'category_id' => '有効なカテゴリーを選択してください。',
             'keyword' => 'キーワードを文字で入力してください。',
+            'sort' => '並び順が正しくありません。',
         };
         $this->getJson($this->url($filters))->assertUnprocessable()
             ->assertJsonPath('code', 'validation_error')->assertJsonPath('errors.'.$field, [$message]);

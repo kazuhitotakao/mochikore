@@ -3,7 +3,9 @@ import { BackLink } from "@/components/BackLink";
 import { optionalUser } from "@/features/auth/optionalUser";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { PublicListSearch } from "@/features/lists/PublicListSearch";
+import { PublicListSortLinks } from "@/features/lists/PublicListSortLinks";
 import {
+  currentPublicListSort,
   publicListDetailHref,
   publicListHref,
   publicListQuery,
@@ -61,6 +63,8 @@ export default async function PublicListsPage(
       ? selectedCategory
       : "";
 
+  const sort = currentPublicListSort(params.sort);
+
   return (
     <>
       <main className="flex flex-col gap-6 py-8">
@@ -75,9 +79,11 @@ export default async function PublicListsPage(
           categories={categories}
           initialKeyword={keyword}
           initialCategory={category}
+          sort={sort}
           serverErrors={serverErrors}
           serverMessage={serverMessage}
         />
+        <PublicListSortLinks query={query} current={sort} />
         {result && !failure && (
           <>
             {result.data.length === 0 ? (

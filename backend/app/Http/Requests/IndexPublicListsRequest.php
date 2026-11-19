@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PackingList;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +25,8 @@ class IndexPublicListsRequest extends FormRequest
             'keyword' => ['bail', 'sometimes', 'nullable', 'string', 'max:50'],
             'category_id' => [...$integer, Rule::exists('categories', 'id')],
             'page' => $integer,
+            // V-25・D-117：並び順。省略は新しい順（D-23）。空文字・配列・定義外の値は拒否する
+            'sort' => ['bail', 'sometimes', 'required', 'string', Rule::in(PackingList::PUBLIC_SORTS)],
         ];
     }
 
@@ -35,6 +38,7 @@ class IndexPublicListsRequest extends FormRequest
         return [
             'category_id.*' => __('validation.custom.category_id.exists'),
             'page.*' => __('validation.public_search.page'),
+            'sort.*' => __('validation.public_search.sort'),
         ];
     }
 }
