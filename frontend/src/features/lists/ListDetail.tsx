@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Icon } from "@/components/Icon";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
@@ -155,11 +155,21 @@ type Props = {
   categories: Category[];
   // D-94：チェック済みを表示したまま SC-06・SC-09 へ行って戻ったときだけ true
   initialShowChecked: boolean;
+  // 共通2の「←」。SC-07-4・D-73：同じ行の右端に「…」を置く
+  backLink: ReactNode;
+  // 「←」の下、見出しの上に出す通知（公開リストをコピーした直後など）
+  notice?: ReactNode;
 };
 
 // SC-07 自分のリストの内容（通常画面）。持ち物の追加・削除で件数や公開の表示が変わるので、
 // 画面の状態として持ち、保存できた値（D-71）で表示を更新する
-export function ListDetail({ list, categories, initialShowChecked }: Props) {
+export function ListDetail({
+  list,
+  categories,
+  initialShowChecked,
+  backLink,
+  notice: topNotice,
+}: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
@@ -1094,56 +1104,60 @@ export function ListDetail({ list, categories, initialShowChecked }: Props) {
       <div
         className={`flex flex-col gap-4 ${footerVisible ? "pb-40" : "pb-8"}`}
       >
-        {/* SC-07-2・4 */}
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-2">
-            <h1 className="text-2xl font-medium wrap-break-word">
-              {list.title}
-            </h1>
-            {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しにはカテゴリーと公開・非公開のラベルだけを置く。
-                切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
-            <div className="flex flex-col gap-1">
-              <p className="flex flex-wrap gap-2">
-                <span className="tag">{list.category.name}</span>
-                <span className={isPublic ? "tag" : "tag-muted"}>
-                  {isPublic ? "公開" : "非公開"}
-                </span>
-              </p>
-              {/* 非公開にできなかった理由はラベルの下に出す。公開の失敗は確認の中に出す */}
-              {visibility.error && (
-                <p role="alert" className="text-sm text-danger">
-                  {visibility.error}
-                </p>
-              )}
-              {moderated && <ModeratedNotice id={moderatedNoticeId} />}
-            </div>
-          </div>
+        {/* SC-07-4・D-73：「…」は「←」と同じ行の右端に置き、リスト名に横幅をすべて使う。
+            「…」の押せる範囲（44px）は上下の余白に重ね、見出しの位置は「←」だけのときと変えない */}
+        <div className="mb-2 flex items-start justify-between gap-3">
+          {backLink}
           {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
           {!selecting && (
-            <ListMenu
-              listId={list.id}
-              title={list.title}
-              showChecked={showChecked}
-              onChecksReset={handleChecksReset}
-              checkedItemIds={checkedItemIds}
-              onCheckedItemsDeleted={(itemIds, result) =>
-                handleBulkDeleted(itemIds, [], result)
-              }
-              hasDeletedItems={deletedItems.length > 0}
-              saving={reordering || groupChecking !== undefined}
-              canSelectToDelete={items.length > 0 || groups.length > 0}
-              onSelectToDelete={() => setSelectingMode(true)}
-              // SC-07-4・F-08：SC-06 と同じ処理（useVisibilityToggle）。画面を移らないので、
-              // チェック済みの表示と削除した持ち物の候補はそのまま残る（D-28）
-              isPublic={isPublic}
-              publishDisabled={
-                visibility.sending || visibilityBlocked || moderated
-              }
-              publishDescribedBy={moderated ? moderatedNoticeId : undefined}
-              // 公開の確認も「…」の中に置き、「やめる」で「…」を開き直す（D-73）
-              visibility={visibility}
-            />
+            <div className="-mt-1 -mb-2">
+              <ListMenu
+                listId={list.id}
+                title={list.title}
+                showChecked={showChecked}
+                onChecksReset={handleChecksReset}
+                checkedItemIds={checkedItemIds}
+                onCheckedItemsDeleted={(itemIds, result) =>
+                  handleBulkDeleted(itemIds, [], result)
+                }
+                hasDeletedItems={deletedItems.length > 0}
+                saving={reordering || groupChecking !== undefined}
+                canSelectToDelete={items.length > 0 || groups.length > 0}
+                onSelectToDelete={() => setSelectingMode(true)}
+                // SC-07-4・F-08：SC-06 と同じ処理（useVisibilityToggle）。画面を移らないので、
+                // チェック済みの表示と削除した持ち物の候補はそのまま残る（D-28）
+                isPublic={isPublic}
+                publishDisabled={
+                  visibility.sending || visibilityBlocked || moderated
+                }
+                publishDescribedBy={moderated ? moderatedNoticeId : undefined}
+                // 公開の確認も「…」の中に置き、「やめる」で「…」を開き直す（D-73）
+                visibility={visibility}
+              />
+            </div>
           )}
+        </div>
+        {topNotice}
+
+        {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しにはカテゴリーと公開・非公開のラベルだけを置く。
+            切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
+        <header className="flex flex-col gap-2">
+          <h1 className="text-2xl font-medium wrap-break-word">{list.title}</h1>
+          <div className="flex flex-col gap-1">
+            <p className="flex flex-wrap gap-2">
+              <span className="tag">{list.category.name}</span>
+              <span className={isPublic ? "tag" : "tag-muted"}>
+                {isPublic ? "公開" : "非公開"}
+              </span>
+            </p>
+            {/* 非公開にできなかった理由はラベルの下に出す。公開の失敗は確認の中に出す */}
+            {visibility.error && (
+              <p role="alert" className="text-sm text-danger">
+                {visibility.error}
+              </p>
+            )}
+            {moderated && <ModeratedNotice id={moderatedNoticeId} />}
+          </div>
         </header>
 
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
