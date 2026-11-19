@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { readAsUser } from "@/features/auth/requireUser";
+import { PublicBadge } from "@/features/lists/PublicBadge";
 import { MAX_LISTS } from "@/features/lists/validation";
 import { formatDate } from "@/lib/format";
 import type { PackingListSummary } from "@/types/api";
@@ -46,9 +47,8 @@ export default async function ListsPage(props: PageProps<"/lists">) {
                 <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                   {/* 利用者の指示で、持ち物の件数は出さない（D-63） */}
                   <span className="tag">{list.category.name}</span>
-                  <span className={list.is_public ? "tag" : "tag-muted"}>
-                    {list.is_public ? "公開" : "非公開"}
-                  </span>
+                  {/* D-73（利用者の指示）：SC-07と同じく、公開しているリストにだけ「公開中」を付ける */}
+                  {list.is_public && <PublicBadge />}
                   <span>更新 {formatDate(list.updated_at)}</span>
                 </span>
               </Link>

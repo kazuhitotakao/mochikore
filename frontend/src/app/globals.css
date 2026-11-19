@@ -299,18 +299,6 @@
   overflow-wrap: anywhere;
 }
 
-/* 非公開のラベル（控えめな生成り）。色だけでなく「公開」「非公開」の文字でも示す */
-@utility tag-muted {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.625rem;
-  border-radius: 9999px;
-  background-color: var(--color-sand);
-  color: var(--color-muted);
-  font-size: 0.8125rem;
-  line-height: 1.25rem;
-}
-
 /*
   共通2の「←」（前の画面へ戻る）。白い丸に深い緑の線の矢印（利用者の指示、D-73）。
   入力欄・カードと同じ白い地と生成りの枠にして、画面から浮かないようにする。
