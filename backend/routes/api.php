@@ -6,6 +6,7 @@ use App\Http\Controllers\BulkDeleteItemsController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CopyPublicPackingListController;
 use App\Http\Controllers\CreateGroupFromItemController;
+use App\Http\Controllers\DuplicatePackingListController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
@@ -76,6 +77,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // API-46・47・D-114：限定公開のリンクを作る・止める
         Route::post('/lists/{list}/share-link', [ShareLinkController::class, 'store']);
         Route::delete('/lists/{list}/share-link', [ShareLinkController::class, 'destroy']);
+        // API-50・D-116：自分のリストを、入力した名前の新しいリストに複製する
+        Route::post('/lists/{list}/duplicate', DuplicatePackingListController::class);
 
         Route::post('/lists/{list}/reset-checks', ResetChecksController::class);
         Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);

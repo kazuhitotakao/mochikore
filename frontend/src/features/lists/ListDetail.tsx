@@ -1139,6 +1139,7 @@ export function ListDetail({
                 shareToken={shareToken}
                 onShareTokenChange={setShareToken}
                 shareDisabled={moderated}
+                duplicateDisabled={moderated}
                 onModerated={() => {
                   setModerated(true);
                   setIsPublic(false);
