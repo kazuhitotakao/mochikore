@@ -27,6 +27,7 @@ use App\Http\Controllers\SavedGroupController;
 use App\Http\Controllers\SavedItemController;
 use App\Http\Controllers\SharedPackingListController;
 use App\Http\Controllers\ShareLinkController;
+use App\Http\Controllers\TransferItemsController;
 use App\Http\Controllers\UpdateEmptyGroupCheckController;
 use App\Http\Controllers\UpdateGroupNameController;
 use App\Http\Controllers\UpdateListVisibilityController;
@@ -86,6 +87,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/lists/{list}/items/checks', BulkCheckItemsController::class);
         Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class);
         Route::post('/lists/{list}/items/bulk-delete', BulkDeleteItemsController::class);
+        // API-51・52・D-118：選んだ持ち物を自分の別のリストへコピー・移動する
+        Route::post('/lists/{list}/items/copy', [TransferItemsController::class, 'copy']);
+        Route::post('/lists/{list}/items/move', [TransferItemsController::class, 'move']);
         Route::get('/lists/{list}/grouping', [PackingListGroupingController::class, 'show']);
         Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
         Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class);

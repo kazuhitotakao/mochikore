@@ -141,6 +141,13 @@ export type ItemDeleteResult = {
   is_public: boolean;
 };
 
+// API-51・52 選んだ持ち物を別のリストへコピー・移動した結果（D-118）。is_public は元のリストの公開状態（D-51）
+export type ItemTransferResult = {
+  list: { id: number; title: string };
+  count: number;
+  is_public: boolean;
+};
+
 // API-07 自分のリストの内容。削除済みの持ち物は含まない
 export type PackingListDetail = PackingList & {
   grouping_revision: number;

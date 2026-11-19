@@ -41,6 +41,9 @@ type Props = {
   // SC-07-18・D-100：「選んで削除」で、この画面のまま選ぶ表示にする。選ぶものがなければ押せない
   canSelectToDelete: boolean;
   onSelectToDelete: () => void;
+  // SC-07-21・D-118：「選んでコピー・移動」で同じ選ぶ表示にする。持ち物がなければ押せない
+  canSelectToTransfer: boolean;
+  onSelectToTransfer: () => void;
   // SC-07-4・F-08：公開の切り替え。処理（確認・送信・エラー）は画面側の useVisibilityToggle が持つ
   isPublic: boolean;
   publishDisabled: boolean;
@@ -53,6 +56,8 @@ type Props = {
   shareDisabled: boolean;
   // SC-07-4・F-30：運営が非公開にしたリストは複製できない（D-116）
   duplicateDisabled: boolean;
+  // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない（複製と同じ）
+  transferDisabled: boolean;
   onModerated: () => void;
 };
 
@@ -75,6 +80,8 @@ export function ListMenu({
   saving,
   canSelectToDelete,
   onSelectToDelete,
+  canSelectToTransfer,
+  onSelectToTransfer,
   isPublic,
   publishDisabled,
   publishDescribedBy,
@@ -83,6 +90,7 @@ export function ListMenu({
   onShareTokenChange,
   shareDisabled,
   duplicateDisabled,
+  transferDisabled,
   onModerated,
 }: Props) {
   const router = useRouter();
@@ -258,14 +266,16 @@ export function ListMenu({
         …
       </button>
 
-      {/* SC-07-4（利用者の指示）：よく使う操作を上に置き、編集・整理・公開｜チェックと持ち物の削除｜リストの削除の
-          3つに線で区切る。項目ごとに同じ形のアイコンを付け、削除の操作は赤で示す。押せる高さは44px以上（D-73）。
+      {/* SC-07-4（利用者の指示）：操作の種類ごとに、編集・整理｜公開・共有｜チェックと持ち物の削除｜リストの削除の
+          4つに線で区切る。項目ごとに同じ形のアイコンを付け、削除の操作は赤で示す。押せる高さは44px（D-73）。
+          画面の高さに収まらないときは、メニューの中だけを動かす。
           一覧の上の「チェック済みを表示」（前面に出している）より手前に重ねる */}
       {menuOpen && (
         <div
           id={menuId}
-          className="absolute right-0 z-30 mt-1 flex w-72 flex-col menu py-1.5"
+          className="absolute right-0 z-30 mt-1 flex max-h-[calc(100dvh-6rem)] w-72 flex-col overflow-y-auto overscroll-contain menu py-1"
         >
+          {/* ① 編集・整理 */}
           <MenuSection>
             <li>
               <Link href={editHref} prefetch={false} className={MENU_ITEM}>
@@ -282,6 +292,26 @@ export function ListMenu({
                 <MenuLabel icon="group">グループを整理</MenuLabel>
               </button>
             </li>
+            {/* SC-07-21・D-118：選んだ持ち物を自分の別のリストへコピー・移動する。選ぶ表示は「選んで削除」と同じ */}
+            <li>
+              <button
+                type="button"
+                aria-describedby={
+                  transferDisabled ? publishDescribedBy : undefined
+                }
+                disabled={saving || transferDisabled || !canSelectToTransfer}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onSelectToTransfer();
+                }}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="transfer">選んでコピー・移動</MenuLabel>
+              </button>
+            </li>
+          </MenuSection>
+          {/* ② 公開・共有 */}
+          <MenuSection divided>
             {/* SC-07-4（利用者の指示）：リストをシンプルに見せるため、公開の切り替えはここに置く。
                 SC-06 と同じオン・オフの形と動き（D-73・D-85）。公開にするときは閉じてから確認を出す（D-42） */}
             <li>
@@ -319,6 +349,14 @@ export function ListMenu({
                 className={MENU_ITEM}
               >
                 <MenuLabel icon="link">リンクで共有</MenuLabel>
+                {/* D-114（利用者の指示）：ダイアログを開かなくても共有中か分かるよう、行の右端に出す。
+                    運営が非公開にしたリストはリンクが開けなくなるので出さない（D-48）。
+                    公開のスイッチの右端は丸く、端をそろえると文字が右に出て見えるので、4px内側に置く（利用者の指示） */}
+                {shareToken !== null && !shareDisabled && (
+                  <span className="mr-1 ml-auto text-sm text-brand">
+                    共有中
+                  </span>
+                )}
               </button>
             </li>
             {/* SC-07-4・D-116：自分のリストを丸ごと新しいリストにする。並べ替えなどの保存中は、
@@ -341,6 +379,7 @@ export function ListMenu({
               </button>
             </li>
           </MenuSection>
+          {/* ③ チェック操作・持ち物の削除 */}
           <MenuSection divided>
             <li>
               <button
@@ -353,24 +392,25 @@ export function ListMenu({
                 <MenuLabel icon="reset">チェックを全部外す</MenuLabel>
               </button>
             </li>
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  setCheckedDeleteIds([...checkedItemIds]);
-                  openConfirm("delete-checked");
-                }}
-                disabled={
-                  saving || visibility.sending || checkedItemIds.length === 0
-                }
-                data-menu-item="delete-checked"
-                className={`${MENU_ITEM} text-danger`}
-              >
-                <MenuLabel icon="trash" danger>
-                  チェック済みを削除（{checkedItemIds.length}件）
-                </MenuLabel>
-              </button>
-            </li>
+            {/* SC-07-4（利用者の指示）：チェック済みが0件のときは出さない。項目が減り、メニューが短くなる */}
+            {checkedItemIds.length > 0 && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckedDeleteIds([...checkedItemIds]);
+                    openConfirm("delete-checked");
+                  }}
+                  disabled={saving || visibility.sending}
+                  data-menu-item="delete-checked"
+                  className={`${MENU_ITEM} text-danger`}
+                >
+                  <MenuLabel icon="trash" danger>
+                    チェック済みを削除（{checkedItemIds.length}件）
+                  </MenuLabel>
+                </button>
+              </li>
+            )}
             <li>
               <button
                 type="button"
@@ -387,6 +427,7 @@ export function ListMenu({
               </button>
             </li>
           </MenuSection>
+          {/* ④ リスト自体の削除 */}
           <MenuSection divided>
             <li>
               <button
@@ -500,7 +541,7 @@ export function ListMenu({
 const MENU_ITEM =
   "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-canvas focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:opacity-50";
 
-// 区切り線で分けたまとまり。線の上下に同じ余白をとる
+// 区切り線で分けたまとまり。線は薄い色で、上下の余白は4pxに詰める（利用者の指示）
 function MenuSection({
   divided = false,
   children,
@@ -510,7 +551,7 @@ function MenuSection({
 }) {
   return (
     <ul
-      className={`flex flex-col ${divided ? "mt-1.5 border-t border-line-soft pt-1.5" : ""}`}
+      className={`flex flex-col ${divided ? "mt-1 border-t border-line-soft pt-1" : ""}`}
     >
       {children}
     </ul>
