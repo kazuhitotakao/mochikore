@@ -24,6 +24,8 @@ use App\Http\Controllers\ResetPasswordController;
 use App\Http\Controllers\RestorePackingListItemController;
 use App\Http\Controllers\SavedGroupController;
 use App\Http\Controllers\SavedItemController;
+use App\Http\Controllers\SharedPackingListController;
+use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\UpdateEmptyGroupCheckController;
 use App\Http\Controllers\UpdateGroupNameController;
 use App\Http\Controllers\UpdateListVisibilityController;
@@ -31,6 +33,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsurePackingListIsPublic;
+use App\Models\PackingList;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', RegisterController::class)->middleware('throttle:register');
@@ -61,12 +64,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/public/lists/{list}/copy', CopyPublicPackingListController::class)
             ->middleware(EnsurePackingListIsPublic::class);
+        // API-49・D-114：限定公開のリンクのリストを自分用にコピーする（ログインとメール認証が必要）
+        Route::post('/shared/lists/{token}/copy', [SharedPackingListController::class, 'copy'])
+            ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}');
         Route::get('/lists', [PackingListController::class, 'index']);
         Route::post('/lists', [PackingListController::class, 'store']);
         Route::get('/lists/{list}', [PackingListController::class, 'show']);
         Route::patch('/lists/{list}', [PackingListController::class, 'update']);
         Route::delete('/lists/{list}', [PackingListController::class, 'destroy']);
         Route::patch('/lists/{list}/visibility', UpdateListVisibilityController::class);
+        // API-46・47・D-114：限定公開のリンクを作る・止める
+        Route::post('/lists/{list}/share-link', [ShareLinkController::class, 'store']);
+        Route::delete('/lists/{list}/share-link', [ShareLinkController::class, 'destroy']);
 
         Route::post('/lists/{list}/reset-checks', ResetChecksController::class);
         Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);
@@ -100,6 +109,9 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::get('/categories', CategoryController::class);
+// API-48・D-114：限定公開のリンクを知っている人は、ログインなしで見られる。形の違うリンクは経路に合わず404
+Route::get('/shared/lists/{token}', [SharedPackingListController::class, 'show'])
+    ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}');
 // D-01：公開一覧はログイン・メール認証なしで利用できる
 Route::get('/public/lists', [PublicPackingListController::class, 'index']);
 Route::middleware(EnsurePackingListIsPublic::class)->group(function () {

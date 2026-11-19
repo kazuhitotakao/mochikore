@@ -189,6 +189,8 @@ export function ListDetail({
   const [combineTargetId, setCombineTargetId] = useState<number | null>(null);
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
+  // D-114：限定公開のリンク。作る・止めるの結果をこの画面の中で持ち、開き直したときは API-07 の値から始める
+  const [shareToken, setShareToken] = useState(list.share_token);
   const moderatedNoticeId = useId();
   const [notice, setNotice] = useState<string | null>(null);
   // SC-07-12：この画面で削除した持ち物の候補（D-28）
@@ -1133,6 +1135,14 @@ export function ListDetail({
                 publishDescribedBy={moderated ? moderatedNoticeId : undefined}
                 // 公開の確認も「…」の中に置き、「やめる」で「…」を開き直す（D-73）
                 visibility={visibility}
+                // SC-07-4・F-29：限定公開のリンク。運営が非公開にしたリストでは作れない（D-114）
+                shareToken={shareToken}
+                onShareTokenChange={setShareToken}
+                shareDisabled={moderated}
+                onModerated={() => {
+                  setModerated(true);
+                  setIsPublic(false);
+                }}
               />
             </div>
           )}

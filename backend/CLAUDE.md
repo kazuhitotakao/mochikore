@@ -25,7 +25,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 入力条件は `09_バリデーション` の対象行・J列のセルメモ・共通C-01〜08、送受信の形は `06_API詳細` に合わせる。API-11 で `group_id` を受け取らない。
 - 入力エラーの文言は `lang/ja/validation.php` に日本語で用意する。
 - 応答は Resource で返し、Model をそのまま返さない。公開用は別の Resource にする。
-- 公開APIに作成者の情報と `is_checked` を返さない（F-09・F-10）。
+- 公開APIに作成者の情報と `is_checked` を返さない（F-09・F-10）。限定公開のリンク（API-48）も同じ。`share_token` は本人用の API-07 だけに返す（D-114）。
 - 項目名は snake_case のまま（D-55）。返すものがなければ `response()->noContent()`（D-62）。
 - Resource の `data`・`links`・`meta` の形は変えない（D-53）。
 
