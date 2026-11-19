@@ -115,9 +115,42 @@ class RestorePackingListItemTest extends ListApiTestCase
         $this->assertSame(6, $this->list->fresh()->grouping_revision);
     }
 
-    public function test_200件あっても、件数の上限なく戻せる(): void
+    public function test_2000件あれば422で戻さない(): void
     {
-        // D-34：持ち物の件数に上限は設けない（利用者の指示で200件から変更）
+        // D-97：戻すと安全上限を超えるので、削除したままにする。12_手動テスト 04-16
+        $this->fillItems($this->list, 2000);
+        $item = PackingListItem::factory()->for($this->list)->create(['deleted_at' => now()]);
+
+        $this->actingAsUser($this->user)
+            ->postJson("/api/items/{$item->id}/restore")
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => '1つのリストに入れられる持ち物は2,000件までです。', 'code' => 'item_limit_reached']);
+
+        $this->assertSoftDeleted($item);
+        $this->assertSame(5, $this->list->fresh()->grouping_revision);
+        $this->assertSame(0, $this->itemAdditions($this->user));
+    }
+
+    public function test_1時間の回数を超えていれば429で戻さず、すでに戻っていれば数えずに成功にする(): void
+    {
+        // D-97：戻すも1件と数える。送り直し（すでに戻っている）は増えないので数えない
+        $this->useItemAdditions($this->user, 1000);
+        $deleted = PackingListItem::factory()->for($this->list)->create(['deleted_at' => now()]);
+        $restored = PackingListItem::factory()->for($this->list)->create();
+
+        $this->actingAsUser($this->user)
+            ->postJson("/api/items/{$deleted->id}/restore")
+            ->assertTooManyRequests()
+            ->assertJsonPath('code', 'too_many_requests');
+        $this->assertSoftDeleted($deleted);
+
+        $this->postJson("/api/items/{$restored->id}/restore")->assertOk();
+        $this->assertSame(1000, $this->itemAdditions($this->user));
+    }
+
+    public function test_200件あっても、安全上限より少なければ戻せる(): void
+    {
+        // D-34・D-97：ふだん意識する上限は設けない（利用者の指示で200件から変更）。安全上限は2,000件
         PackingListItem::factory()->count(200)->for($this->list)->create();
         $item = PackingListItem::factory()->for($this->list)->create(['deleted_at' => now()]);
 

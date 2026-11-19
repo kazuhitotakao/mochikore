@@ -149,7 +149,7 @@ export type PackingListDetail = PackingList & {
   items: PackingListItem[];
 };
 
-// 06_API一覧「エラーコード一覧」のうち Laravel が返す16種類と、Next.js の窓口だけが返す origin_not_allowed
+// 06_API一覧「エラーコード一覧」のうち Laravel が返す17種類と、Next.js の窓口だけが返す origin_not_allowed
 export type ApiErrorCode =
   | "validation_error"
   | "email_already_registered"
@@ -158,6 +158,7 @@ export type ApiErrorCode =
   | "list_limit_reached"
   | "saved_item_limit_reached"
   | "saved_group_limit_reached"
+  | "item_limit_reached"
   | "list_has_no_items"
   | "link_invalid"
   | "unauthenticated"

@@ -123,9 +123,9 @@ class BulkAddItemsTest extends ListApiTestCase
         $this->assertSame(3, $this->list->fresh()->grouping_revision);
     }
 
-    public function test_200件あっても、件数の上限なく一括追加できる(): void
+    public function test_200件あっても、安全上限より少なければ一括追加できる(): void
     {
-        // D-34：持ち物の件数に上限は設けない（利用者の指示で200件から変更）。12_手動テスト 38-01
+        // D-34・D-97：ふだん意識する上限は設けない（利用者の指示で200件から変更）。12_手動テスト 38-01
         PackingListItem::factory()->count(200)->for($this->list)->create();
 
         $this->bulk(['saved_item_ids' => [$this->milk->id, $this->egg->id], 'base_revision' => 3])
@@ -133,6 +133,51 @@ class BulkAddItemsTest extends ListApiTestCase
 
         $this->assertSame(202, $this->list->items()->count());
         $this->assertSame(4, $this->list->fresh()->grouping_revision);
+    }
+
+    public function test_追加後に2000件を超えるなら422で、1件も追加しない(): void
+    {
+        // D-97：途中まで追加せず全体を断る。12_手動テスト 04-16
+        $this->fillItems($this->list, 1999);
+
+        $this->bulk(['saved_item_ids' => [$this->milk->id, $this->egg->id], 'base_revision' => 3])
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => '1つのリストに入れられる持ち物は2,000件までです。', 'code' => 'item_limit_reached']);
+
+        $this->assertSame(1999, $this->list->items()->count());
+        $this->assertSame(3, $this->list->fresh()->grouping_revision);
+        $this->assertSame(0, $this->itemAdditions($this->user));
+
+        $this->bulk(['saved_item_ids' => [$this->milk->id], 'base_revision' => 3])->assertCreated();
+        $this->assertSame(2000, $this->list->items()->count());
+    }
+
+    public function test_選んだ件数で数え、1時間に1000件を超えるなら429で1件も追加しない(): void
+    {
+        // D-97：12_手動テスト 04-17
+        $this->useItemAdditions($this->user, 999);
+
+        $this->bulk(['saved_item_ids' => [$this->milk->id, $this->egg->id], 'base_revision' => 3])
+            ->assertTooManyRequests()
+            ->assertJsonPath('code', 'too_many_requests');
+
+        $this->assertSame(0, $this->list->items()->count());
+        $this->assertSame(3, $this->list->fresh()->grouping_revision);
+        $this->assertSame(999, $this->itemAdditions($this->user));
+
+        $this->bulk(['saved_item_ids' => [$this->egg->id], 'base_revision' => 3])->assertCreated();
+        $this->assertSame(1000, $this->itemAdditions($this->user));
+    }
+
+    public function test_競合で追加しなかったときは、回数に数えない(): void
+    {
+        $this->useItemAdditions($this->user, 998);
+
+        $this->bulk(['saved_item_ids' => [$this->milk->id, $this->egg->id], 'base_revision' => 2])
+            ->assertConflict();
+
+        $this->assertSame(998, $this->itemAdditions($this->user));
+        $this->bulk(['saved_item_ids' => [$this->milk->id, $this->egg->id], 'base_revision' => 3])->assertCreated();
     }
 
     /**

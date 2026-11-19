@@ -81,9 +81,9 @@ class StorePackingListItemTest extends ListApiTestCase
             ->assertJsonPath('data.is_checked', false);
     }
 
-    public function test_200件あっても、件数の上限なく追加できる(): void
+    public function test_200件あっても、安全上限より少なければ追加できる(): void
     {
-        // D-34：持ち物の件数に上限は設けない（利用者の指示で200件から変更）
+        // D-34・D-97：ふだん意識する上限は設けない（利用者の指示で200件から変更）。安全上限は2,000件
         PackingListItem::factory()->count(200)->for($this->list)->create();
 
         $this->actingAsUser($this->user)
@@ -93,6 +93,79 @@ class StorePackingListItemTest extends ListApiTestCase
 
         $this->assertSame(201, $this->list->items()->count());
         $this->assertSame(1, $this->list->fresh()->grouping_revision);
+    }
+
+    public function test_2000件までは追加でき、超える追加は422で保存しない(): void
+    {
+        // D-97：削除済みは数えない
+        $this->fillItems($this->list, 1999);
+        PackingListItem::factory()->for($this->list)->create(['deleted_at' => now()]);
+
+        $this->actingAsUser($this->user)
+            ->postJson("/api/lists/{$this->list->id}/items", ['name' => '2000件目'])
+            ->assertCreated();
+        $this->postJson("/api/lists/{$this->list->id}/items", ['name' => '2001件目'])
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => '1つのリストに入れられる持ち物は2,000件までです。', 'code' => 'item_limit_reached']);
+
+        $this->assertSame(2000, $this->list->items()->count());
+        $this->assertSame(1, $this->list->fresh()->grouping_revision);
+        // 断った追加は、1時間の件数に数えない
+        $this->assertSame(1, $this->itemAdditions($this->user));
+    }
+
+    public function test_1時間に1000件を超える追加は429で保存せず、時間がたてば追加できる(): void
+    {
+        // D-97：この1時間に999件増やした状態から始める
+        $this->useItemAdditions($this->user, 999);
+
+        $this->actingAsUser($this->user)
+            ->postJson("/api/lists/{$this->list->id}/items", ['name' => '1000件目'])
+            ->assertCreated();
+        $response = $this->postJson("/api/lists/{$this->list->id}/items", ['name' => '1001件目'])
+            ->assertTooManyRequests()
+            ->assertJsonPath('code', 'too_many_requests');
+
+        $retryAfter = $response->json('retry_after');
+        $this->assertIsInt($retryAfter);
+        $this->assertGreaterThan(0, $retryAfter);
+        $this->assertLessThanOrEqual(3600, $retryAfter);
+        $this->assertSame(1, $this->list->items()->count());
+        $this->assertSame(1, $this->list->fresh()->grouping_revision);
+
+        $this->travel($retryAfter + 1)->seconds();
+        $this->postJson("/api/lists/{$this->list->id}/items", ['name' => '時間がたった後'])
+            ->assertCreated();
+    }
+
+    public function test_回数はリストをまたいで本人ごとに数え、ほかの利用者には影響しない(): void
+    {
+        $this->useItemAdditions($this->user, 1000);
+        $otherList = PackingList::factory()->for($this->user)->create();
+        $other = User::factory()->create();
+        $othersList = PackingList::factory()->for($other)->create();
+
+        $this->actingAsUser($this->user)
+            ->postJson("/api/lists/{$otherList->id}/items", ['name' => '別のリスト'])
+            ->assertTooManyRequests();
+        $this->app['auth']->forgetGuards();
+        $this->actingAsUser($other)
+            ->postJson("/api/lists/{$othersList->id}/items", ['name' => 'ほかの利用者'])
+            ->assertCreated();
+    }
+
+    public function test_入力エラーで断った追加は回数に数えない(): void
+    {
+        $this->useItemAdditions($this->user, 999);
+
+        $this->actingAsUser($this->user)
+            ->postJson("/api/lists/{$this->list->id}/items", ['name' => ''])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'validation_error');
+
+        $this->assertSame(999, $this->itemAdditions($this->user));
+        $this->postJson("/api/lists/{$this->list->id}/items", ['name' => '1000件目'])
+            ->assertCreated();
     }
 
     /**

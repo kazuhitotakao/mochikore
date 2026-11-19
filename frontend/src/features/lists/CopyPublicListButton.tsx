@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { ITEM_LIMIT_MESSAGE } from "./itemErrors";
 import type { PackingList } from "@/types/api";
 
 type Props = {
@@ -53,11 +54,7 @@ export function CopyPublicListButton({
         router.refresh();
         return;
       }
-      setError(
-        failure instanceof ApiError && failure.code === "list_limit_reached"
-          ? "リストは100件までです。"
-          : NETWORK_ERROR_MESSAGE,
-      );
+      setError(copyErrorMessage(failure));
       busy.current = false;
       setSending(false);
     }
@@ -82,4 +79,19 @@ export function CopyPublicListButton({
       </div>
     </div>
   );
+}
+
+// SC-11-6：コピーできなかった理由。画面は code で決める（D-53）
+function copyErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return NETWORK_ERROR_MESSAGE;
+
+  switch (error.code) {
+    case "list_limit_reached":
+      return "リストは100件までです。";
+    // D-97：コピー元の持ち物が安全上限を超えるとき。コピーは1時間の回数には数えない
+    case "item_limit_reached":
+      return ITEM_LIMIT_MESSAGE;
+    default:
+      return NETWORK_ERROR_MESSAGE;
+  }
 }
