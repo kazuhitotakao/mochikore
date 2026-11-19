@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * 06_API一覧「エラーコード一覧」のうち、Laravel が返す16種類（D-54）。
+ * 06_API一覧「エラーコード一覧」のうち、Laravel が返す17種類（D-54）。
  * 画面は message ではなく code で理由を見分けるので、値を変えない。
  */
 enum ApiErrorCode: string
@@ -15,6 +15,7 @@ enum ApiErrorCode: string
     case ListLimitReached = 'list_limit_reached';
     case SavedItemLimitReached = 'saved_item_limit_reached';
     case SavedGroupLimitReached = 'saved_group_limit_reached';
+    case ItemLimitReached = 'item_limit_reached';
     case ListHasNoItems = 'list_has_no_items';
     case LinkInvalid = 'link_invalid';
     case Unauthenticated = 'unauthenticated';
@@ -35,6 +36,7 @@ enum ApiErrorCode: string
             self::ListLimitReached,
             self::SavedItemLimitReached,
             self::SavedGroupLimitReached,
+            self::ItemLimitReached,
             self::ListHasNoItems,
             self::LinkInvalid => 422,
             self::Unauthenticated => 401,

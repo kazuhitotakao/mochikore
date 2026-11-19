@@ -18,13 +18,17 @@ use Illuminate\Validation\ValidationException;
  */
 class PackingListItemService
 {
+    public function __construct(private ItemAdditionLimiter $additionLimiter) {}
+
     /**
      * API-10 持ち物の追加。未分類（group_id は NULL）で全体の末尾に入れる。
      */
     public function add(PackingList $list, string $name): PackingListItem
     {
-        return DB::transaction(function () use ($list, $name) {
+        // D-97：持ち物を増やすので、本人の1時間の件数に数える（本人のリストだけ追加できる）
+        return $this->additionLimiter->attempt($list->user_id, 1, fn () => DB::transaction(function () use ($list, $name) {
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
+            $this->ensureRoom($locked, 1);
 
             // API-10：削除していない持ち物の最大値＋1。削除済みの番号は詰めない（D-31）
             $item = $locked->items()->create([
@@ -37,7 +41,7 @@ class PackingListItemService
 
             // is_checked・group_id などのDBの既定値を、応答にもそのまま返すため読み直す
             return $item->refresh();
-        });
+        }));
     }
 
     /**
@@ -139,7 +143,7 @@ class PackingListItemService
      */
     public function restore(PackingListItem $item): PackingListItem
     {
-        return DB::transaction(function () use ($item) {
+        $restore = fn () => DB::transaction(function () use ($item) {
             $locked = PackingList::whereKey($item->packing_list_id)->lockForUpdate()->firstOrFail();
 
             // ロックした後で読み直す。この間に完全に削除されていたら404
@@ -150,6 +154,7 @@ class PackingListItemService
             if (! $target->trashed()) {
                 return $target;
             }
+            $this->ensureRoom($locked, 1);
 
             // D-31：番号が残っていれば元の位置。削除後に並べ替えて番号が空になっていれば一番下
             if ($target->sort_order === null) {
@@ -167,6 +172,11 @@ class PackingListItemService
 
             return $target;
         });
+
+        // D-97：戻すと持ち物が1件増えるので数える。すでに戻っている（送り直し）ときは増えないので数えない
+        return $item->trashed()
+            ? $this->additionLimiter->attempt($item->packingList->user_id, 1, $restore)
+            : $restore();
     }
 
     /**
@@ -253,7 +263,8 @@ class PackingListItemService
      */
     public function addFromSavedItems(PackingList $list, User $user, array $savedItemIds, int $baseRevision): array
     {
-        return DB::transaction(function () use ($list, $user, $savedItemIds, $baseRevision) {
+        // D-97：選んだ件数を、本人の1時間の件数に数える。超えるときは1件も追加しない
+        return $this->additionLimiter->attempt($user->id, count($savedItemIds), fn () => DB::transaction(function () use ($list, $user, $savedItemIds, $baseRevision) {
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
 
             // V-13：パネルを開いた後にリストが変わっていたら上書きしない。応答が届かずに同じ値で送り直されたときも、
@@ -269,6 +280,7 @@ class PackingListItemService
                     'saved_item_ids' => [__('validation.custom.saved_item_ids.list')],
                 ]);
             }
+            $this->ensureRoom($locked, count($savedItemIds));
 
             $nextSortOrder = (int) $locked->items()->max('sort_order') + 1;
             $createdIds = [];
@@ -287,6 +299,17 @@ class PackingListItemService
                 // is_checked・group_id などのDBの既定値も返すため、選んだ順（sort_order）でまとめて読み直す
                 'items' => PackingListItem::whereKey($createdIds)->orderBy('sort_order')->get(),
             ];
-        });
+        }));
+    }
+
+    /**
+     * D-97：追加した後の削除していない持ち物が安全上限を超えるなら、何も保存せずに断る。
+     * 親リストをロックした後で数えるので、同時に送られても上限を超えない（C-05）。
+     */
+    private function ensureRoom(PackingList $locked, int $adding): void
+    {
+        if ($locked->items()->count() + $adding > PackingListItem::MAX_PER_LIST) {
+            throw new ApiException(ApiErrorCode::ItemLimitReached, '1つのリストに入れられる持ち物は2,000件までです。');
+        }
     }
 }

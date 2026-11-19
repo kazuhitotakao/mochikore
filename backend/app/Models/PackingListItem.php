@@ -21,6 +21,16 @@ class PackingListItem extends Model
     public const TRASH_RETENTION_DAYS = 7;
 
     /**
+     * D-97：1つのリストの削除していない持ち物の安全上限。画面には出さず、届いたときだけ断る（D-34）。
+     */
+    public const MAX_PER_LIST = 2000;
+
+    /**
+     * D-97：1人が1時間に増やせる持ち物の件数（追加・まとめて追加・戻す）。
+     */
+    public const MAX_ADDED_PER_HOUR = 1000;
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

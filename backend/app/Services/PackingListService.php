@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\PackingList;
+use App\Models\PackingListItem;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -27,6 +28,10 @@ class PackingListService
                 'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
                 'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             ]);
+            // D-97：コピー先も安全上限を超えないようにする。コピーは1時間の件数には数えない
+            if ($original->items->count() > PackingListItem::MAX_PER_LIST) {
+                throw new ApiException(ApiErrorCode::ItemLimitReached, '1つのリストに入れられる持ち物は2,000件までです。');
+            }
             $copy = $user->packingLists()->make([
                 'title' => $original->title,
                 'description' => $original->description,

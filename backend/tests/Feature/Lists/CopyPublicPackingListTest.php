@@ -260,4 +260,31 @@ class CopyPublicPackingListTest extends ListApiTestCase
         $this->assertSame(205, PackingList::findOrFail($id)->items()->count());
         $this->assertSame(0, PackingList::findOrFail($id)->items()->where('is_checked', true)->count());
     }
+
+    public function test_持ち物が安全上限を超える元はコピーせず422(): void
+    {
+        // D-97：通常は2,000件を超えるリストはできないが、コピー先も上限を超えないよう確かめる
+        $user = User::factory()->create();
+        $source = PackingList::factory()->create(['is_public' => true]);
+        $this->fillItems($source, 2001);
+
+        $this->actingAsUser($user)->postJson("/api/public/lists/{$source->id}/copy")
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => '1つのリストに入れられる持ち物は2,000件までです。', 'code' => 'item_limit_reached']);
+        $this->assertSame(0, $user->packingLists()->count());
+    }
+
+    public function test_コピーは1時間の回数に数えず、回数を超えていてもコピーできる(): void
+    {
+        // D-97：コピーはリスト100件と安全上限で止める
+        $user = User::factory()->create();
+        $source = PackingList::factory()->create(['is_public' => true]);
+        $this->fillItems($source, 2000);
+        $this->useItemAdditions($user, 1000);
+
+        $id = $this->actingAsUser($user)->postJson("/api/public/lists/{$source->id}/copy")->assertCreated()->json('data.id');
+
+        $this->assertSame(2000, PackingList::findOrFail($id)->items()->count());
+        $this->assertSame(1000, $this->itemAdditions($user));
+    }
 }

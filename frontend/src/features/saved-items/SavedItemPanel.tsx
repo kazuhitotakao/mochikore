@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { LoadingRows } from "@/components/LoadingRows";
 import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
+import { itemAdditionLimitMessage } from "@/features/lists/itemErrors";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type {
@@ -193,7 +194,8 @@ export function SavedItemPanel({
         setSelectedIds([]);
         setReloadCount((count) => count + 1);
       } else {
-        setAddError(NETWORK_ERROR_MESSAGE);
+        // D-97：安全上限・回数制限では1件も追加されないので、選んだまま理由を出す
+        setAddError(itemAdditionLimitMessage(failure) ?? NETWORK_ERROR_MESSAGE);
       }
     } finally {
       setAdding(false);
