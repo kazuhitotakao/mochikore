@@ -56,3 +56,36 @@ export function publicListBackHref(
     ? path
     : PUBLIC_LISTS_PATH;
 }
+
+// D-117：公開リスト一覧の並び順。新しい順（D-23）は省略の値なので、URLに付けない（D-81）
+export const PUBLIC_LIST_SORTS = {
+  newest: "新しい順",
+  most_copied: "よくコピーされている順",
+} as const;
+
+export type PublicListSort = keyof typeof PUBLIC_LIST_SORTS;
+
+/**
+ * URLの sort から今の並び順を読む。Laravel が422にする値（配列・定義外）は null にし、どちらも選ばない。
+ */
+export function currentPublicListSort(
+  value: string | string[] | undefined,
+): PublicListSort | null {
+  if (value === undefined) return "newest";
+  if (Array.isArray(value)) return null;
+  const sort = trimLikeLaravel(value);
+  return sort === "newest" || sort === "most_copied" ? sort : null;
+}
+
+/**
+ * 検索した条件はそのままで並び順だけを変え、1ページ目に戻す（D-117）。
+ */
+export function publicListSortHref(
+  query: URLSearchParams,
+  sort: PublicListSort,
+): string {
+  const next = new URLSearchParams(query);
+  next.delete("sort");
+  if (sort !== "newest") next.set("sort", sort);
+  return publicListHref(next);
+}

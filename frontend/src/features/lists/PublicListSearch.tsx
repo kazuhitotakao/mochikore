@@ -10,7 +10,11 @@ import {
   trimLikeLaravel,
 } from "@/features/auth/validation";
 import type { Category } from "@/types/api";
-import { publicListHref, validateKeyword } from "./publicSearch";
+import {
+  publicListHref,
+  validateKeyword,
+  type PublicListSort,
+} from "./publicSearch";
 
 const FIELDS = ["keyword", "category_id"] as const;
 
@@ -18,6 +22,8 @@ type Props = {
   categories: Category[];
   initialKeyword: string;
   initialCategory: string;
+  // D-117：検索し直しても、選んでいる並び順を保つ
+  sort: PublicListSort | null;
   serverErrors: Record<string, string[]>;
   serverMessage: string | null;
 };
@@ -26,6 +32,7 @@ export function PublicListSearch({
   categories,
   initialKeyword,
   initialCategory,
+  sort,
   serverErrors,
   serverMessage,
 }: Props) {
@@ -56,6 +63,7 @@ export function PublicListSearch({
     const query = new URLSearchParams();
     if (trimLikeLaravel(keyword) !== "") query.set("keyword", keyword);
     if (categoryId !== "") query.set("category_id", categoryId);
+    if (sort === "most_copied") query.set("sort", sort);
     const href = publicListHref(query);
     startTransition(() => {
       if (href === window.location.pathname + window.location.search)

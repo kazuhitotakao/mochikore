@@ -24,6 +24,13 @@ class PackingList extends Model
     // D-114：限定公開のリンクの文字数（英数字）
     public const SHARE_TOKEN_LENGTH = 32;
 
+    // D-117・V-25：公開リスト一覧（API-15）の並び順。省略は新しい順（D-23）
+    public const SORT_NEWEST = 'newest';
+
+    public const SORT_MOST_COPIED = 'most_copied';
+
+    public const PUBLIC_SORTS = [self::SORT_NEWEST, self::SORT_MOST_COPIED];
+
     /**
      * @return array<string, string>
      */
