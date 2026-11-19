@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { readAsUser } from "@/features/auth/requireUser";
-import { CopyPublicListNotice } from "@/features/lists/CopyPublicListNotice";
+import { ListCreatedNotice } from "@/features/lists/ListCreatedNotice";
 import { serverApi } from "@/lib/api/server";
 import { ListDetail } from "@/features/lists/ListDetail";
 import { isShowChecked } from "@/features/lists/showChecked";
@@ -26,6 +26,13 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
   const list = listRead.value;
   const categories = categoryRead.value;
   const searchParams = await props.searchParams;
+  // SC-11-6・SC-18-5 のコピーと、SC-07-4 の複製（D-116）の後に開いたときだけ通知を出す
+  const created =
+    searchParams.copied === "1"
+      ? "copied"
+      : searchParams.duplicated === "1"
+        ? "duplicated"
+        : null;
 
   return (
     <main className="flex flex-col py-8">
@@ -38,9 +45,7 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
         initialShowChecked={isShowChecked(searchParams.show_checked)}
         // SC-07-4・D-73：「…」を「←」と同じ行に置くので、「←」と通知も ListDetail の中に並べる
         backLink={<BackLink href="/lists" />}
-        notice={
-          searchParams.copied === "1" && <CopyPublicListNotice key={list.id} />
-        }
+        notice={created && <ListCreatedNotice key={list.id} kind={created} />}
       />
     </main>
   );

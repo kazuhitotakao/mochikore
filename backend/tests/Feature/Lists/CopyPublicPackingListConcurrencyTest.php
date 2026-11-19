@@ -22,15 +22,24 @@ class CopyPublicPackingListConcurrencyTest extends TestCase
 
     public function test_99件から2件同時にコピーしても100件まで(): void
     {
-        $this->assertConcurrentLimit(false);
+        $this->assertConcurrentLimit('copy');
     }
 
     public function test_コピーと通常の新規作成を同時に行っても100件まで(): void
     {
-        $this->assertConcurrentLimit(true);
+        $this->assertConcurrentLimit('create');
     }
 
-    private function assertConcurrentLimit(bool $create): void
+    public function test_コピーと自分のリストの複製を同時に行っても100件まで(): void
+    {
+        // D-116：複製も同じ本人のロックで数えるので、コピーと重なっても101件にならない
+        $this->assertConcurrentLimit('duplicate');
+    }
+
+    /**
+     * @param  'copy'|'create'|'duplicate'  $second  2つ目の処理。1つ目は公開リストのコピー
+     */
+    private function assertConcurrentLimit(string $second): void
     {
         $this->assertSame('mochikore_test', DB::getDatabaseName());
         $this->seed(CategorySeeder::class);
@@ -38,7 +47,7 @@ class CopyPublicPackingListConcurrencyTest extends TestCase
         $source = PackingList::factory()->create(['is_public' => true]);
         PackingListGroup::factory()->for($source)->create();
         PackingListItem::factory()->for($source)->create();
-        PackingList::factory()->count(99)->for($user)->create();
+        $ownId = PackingList::factory()->count(99)->for($user)->create()->first()->id;
         $sourceId = $source->id;
         $userId = $user->id;
         $categoryId = $source->category_id;
@@ -47,7 +56,7 @@ class CopyPublicPackingListConcurrencyTest extends TestCase
         $tasks = [];
 
         for ($index = 0; $index < 2; $index++) {
-            $tasks[] = static function () use ($sourceId, $userId, $categoryId, $barrier, $index, $create) {
+            $tasks[] = static function () use ($sourceId, $ownId, $userId, $categoryId, $barrier, $index, $second) {
                 // 子プロセスにもテスト用DBを明示し、開発用DBへは書き込まない
                 config(['database.connections.mysql.database' => 'mochikore_test']);
                 DB::purge('mysql');
@@ -74,8 +83,10 @@ class CopyPublicPackingListConcurrencyTest extends TestCase
                 try {
                     $service = app(PackingListService::class);
                     $user = User::findOrFail($userId);
-                    if ($create && $index === 1) {
+                    if ($second === 'create' && $index === 1) {
                         $service->create($user, ['title' => '同時に作るリスト', 'category_id' => $categoryId]);
+                    } elseif ($second === 'duplicate' && $index === 1) {
+                        $service->duplicate($user, PackingList::findOrFail($ownId), '同時に複製するリスト');
                     } else {
                         $service->copyPublic($user, PackingList::findOrFail($sourceId));
                     }

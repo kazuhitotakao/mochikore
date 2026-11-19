@@ -20,7 +20,7 @@ class PackingListService
             $original = PackingList::whereKey($source->id)->lockForUpdate()->firstOrFail();
             abort_unless($original->is_public && $original->moderated_at === null, 404);
 
-            return $this->copyLocked($user, $original);
+            return $this->copyLocked($user, $original, $original->title, $original->id);
         });
     }
 
@@ -35,7 +35,26 @@ class PackingListService
             $original = PackingList::where('share_token', $token)->lockForUpdate()->first();
             abort_unless($original !== null && $original->moderated_at === null, 404);
 
-            return $this->copyLocked($user, $original);
+            return $this->copyLocked($user, $original, $original->title, $original->id);
+        });
+    }
+
+    /**
+     * API-50 自分のリストを、入力した名前の新しいリストに複製する（D-116）。写し方は公開リストのコピー（API-17）と同じ。
+     */
+    public function duplicate(User $user, PackingList $list, string $title): PackingList
+    {
+        return DB::transaction(function () use ($user, $list, $title) {
+            // C-05・D-50：コピーと同じく本人→リストの順にロックし、同時に押しても100件に収める
+            User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $original = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
+            // D-48・D-116：複製で運営の非公開をすり抜けて公開できないよう、運営が非公開にしたリストは写さない
+            if ($original->moderated_at !== null) {
+                throw new ApiException(ApiErrorCode::ListModerated, 'このリストは運営により非公開になっています。');
+            }
+
+            // D-116：よくコピーされている順（D-117）は他人のコピーだけを数えるので、本人の複製は元を記録しない
+            return $this->copyLocked($user, $original, $title, null);
         });
     }
 
@@ -74,9 +93,9 @@ class PackingListService
     }
 
     /**
-     * ロックした元のリストを、本人の非公開・未チェックのリストとして写す（API-17・API-49）。
+     * ロックした元のリストを、本人の非公開・未チェックのリストとして写す（API-17・API-49・API-50）。
      */
-    private function copyLocked(User $user, PackingList $original): PackingList
+    private function copyLocked(User $user, PackingList $original, string $title, ?int $sourceListId): PackingList
     {
         if ($user->packingLists()->count() >= PackingList::MAX_PER_USER) {
             throw new ApiException(ApiErrorCode::ListLimitReached, 'リストは100件までです。');
@@ -92,11 +111,11 @@ class PackingListService
             throw new ApiException(ApiErrorCode::ItemLimitReached, '1つのリストに入れられる持ち物は2,000件までです。');
         }
         $copy = $user->packingLists()->make([
-            'title' => $original->title,
+            'title' => $title,
             'description' => $original->description,
             'category_id' => $original->category_id,
         ]);
-        $copy->source_list_id = $original->id;
+        $copy->source_list_id = $sourceListId;
         $copy->save();
 
         $groupIds = [];

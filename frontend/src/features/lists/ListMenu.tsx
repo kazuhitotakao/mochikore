@@ -18,6 +18,7 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { ItemDeleteResult } from "@/types/api";
+import { DuplicateListDialog } from "./DuplicateListDialog";
 import { bulkDeleteErrorMessage } from "./itemErrors";
 import { ShareLinkDialog } from "./ShareLinkDialog";
 import { withShowChecked } from "./showChecked";
@@ -50,6 +51,8 @@ type Props = {
   shareToken: string | null;
   onShareTokenChange: (token: string | null) => void;
   shareDisabled: boolean;
+  // SC-07-4・F-30：運営が非公開にしたリストは複製できない（D-116）
+  duplicateDisabled: boolean;
   onModerated: () => void;
 };
 
@@ -57,7 +60,8 @@ type Confirming =
   "grouping" | "reset-checks" | "delete-checked" | "delete" | null;
 
 // 確認で「やめる」を押した後に、カーソルを戻す「…」の項目
-type MenuItemKey = "public" | "reset-checks" | "delete-checked" | "delete";
+type MenuItemKey =
+  "public" | "duplicate" | "reset-checks" | "delete-checked" | "delete";
 
 // SC-07-4「…」メニュー
 export function ListMenu({
@@ -78,6 +82,7 @@ export function ListMenu({
   shareToken,
   onShareTokenChange,
   shareDisabled,
+  duplicateDisabled,
   onModerated,
 }: Props) {
   const router = useRouter();
@@ -98,6 +103,8 @@ export function ListMenu({
   // SC-07-4・D-114：「リンクで共有」のダイアログを開いているか
   const [sharing, setSharing] = useState(false);
   const focusAfterSharing = useRef(false);
+  // SC-07-4・D-116：「このリストを複製」の名前を入れるダイアログを開いているか
+  const [duplicating, setDuplicating] = useState(false);
 
   // 確認（子の ConfirmDialog）が閉じてから項目へカーソルを移す。子の effect が先に動くので、
   // 確認を開いている間（後ろの画面を操作できない間）に移そうとして失敗することはない
@@ -314,6 +321,25 @@ export function ListMenu({
                 <MenuLabel icon="link">リンクで共有</MenuLabel>
               </button>
             </li>
+            {/* SC-07-4・D-116：自分のリストを丸ごと新しいリストにする。並べ替えなどの保存中は、
+                保存し終えた内容を写せるよう押せない */}
+            <li>
+              <button
+                type="button"
+                aria-describedby={
+                  duplicateDisabled ? publishDescribedBy : undefined
+                }
+                disabled={saving || duplicateDisabled}
+                data-menu-item="duplicate"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setDuplicating(true);
+                }}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="copy">このリストを複製</MenuLabel>
+              </button>
+            </li>
           </MenuSection>
           <MenuSection divided>
             <li>
@@ -440,6 +466,19 @@ export function ListMenu({
         visibility={visibility}
         onCancel={() => reopenMenu("public")}
       />
+
+      {/* 名前を入れる確認なので、ほかの確認と同じく「やめる」で「…」を開き直す（D-73） */}
+      {duplicating && (
+        <DuplicateListDialog
+          listId={listId}
+          title={title}
+          onModerated={onModerated}
+          onCancel={() => {
+            setDuplicating(false);
+            reopenMenu("duplicate");
+          }}
+        />
+      )}
 
       {sharing && (
         <ShareLinkDialog

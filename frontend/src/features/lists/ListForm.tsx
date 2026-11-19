@@ -371,8 +371,9 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
   );
 }
 
-// SC-06-3・5：残りの文字数。入力欄の maxLength は UTF-16 で数えて絵文字を多く数えるので使わない（C-01）
-function RemainingCount({
+// SC-06-3・5：残りの文字数。入力欄の maxLength は UTF-16 で数えて絵文字を多く数えるので使わない（C-01）。
+// SC-07-4 の複製の名前（D-116）でも使う
+export function RemainingCount({
   id,
   max,
   length,
