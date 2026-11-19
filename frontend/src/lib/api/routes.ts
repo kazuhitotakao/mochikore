@@ -25,8 +25,10 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "POST", path: /^\/me\/email-change\/confirm$/ },
   // API-43：確認中の変更を取り消す（D-107）
   { method: "DELETE", path: /^\/me\/email-change$/ },
-  // API-06。一覧（API-05）・内容（API-07）・カテゴリー（API-18）の読み取りは Server Component から送る
+  // API-06。内容（API-07）・カテゴリー（API-18）の読み取りは Server Component から送る
   { method: "POST", path: /^\/lists$/ },
+  // API-05：持ち物のコピー・移動の移し先を選ぶとき、画面を開いた後に読む（D-118）。画面を開くときは Server Component から
+  { method: "GET", path: /^\/lists$/ },
   // API-08・09
   { method: "PATCH", path: /^\/lists\/\d+$/ },
   { method: "DELETE", path: /^\/lists\/\d+$/ },
@@ -61,6 +63,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "PATCH", path: /^\/groups\/\d+$/ },
   // API-38
   { method: "POST", path: /^\/lists\/\d+\/items\/bulk-delete$/ },
+  // API-51・52：選んだ持ち物を別のリストへコピー・移動する（D-118）
+  { method: "POST", path: /^\/lists\/\d+\/items\/(copy|move)$/ },
   // API-11・12
   { method: "PATCH", path: /^\/items\/\d+$/ },
   { method: "DELETE", path: /^\/items\/\d+$/ },

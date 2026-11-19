@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { getEventCoordinates } from "@dnd-kit/utilities";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -32,6 +33,7 @@ import type {
   Category,
   GroupFromItemResult,
   ItemDeleteResult,
+  ItemTransferResult,
   PackingListDetail,
   PackingListItem,
 } from "@/types/api";
@@ -61,7 +63,9 @@ import {
 import { ListMenu } from "./ListMenu";
 import { SelectionList } from "./SelectionList";
 import { SHOW_CHECKED_PARAM } from "./showChecked";
+import { PublicBadge } from "./PublicBadge";
 import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
+import { TransferItemsDialog, type TransferMode } from "./TransferItemsDialog";
 import { useCollapsedGroups } from "./useCollapsedGroups";
 import { useVisibilityToggle } from "./useVisibilityToggle";
 import { visibilityChangedNotice } from "./visibility";
@@ -192,7 +196,10 @@ export function ListDetail({
   // D-114：限定公開のリンク。作る・止めるの結果をこの画面の中で持ち、開き直したときは API-07 の値から始める
   const [shareToken, setShareToken] = useState(list.share_token);
   const moderatedNoticeId = useId();
-  const [notice, setNotice] = useState<string | null>(null);
+  // 画面下の結果の通知。コピー・移動の後は移し先を「開く」リンクも添える（D-118）
+  const [notice, setNotice] = useState<
+    string | { text: string; href: string } | null
+  >(null);
   // SC-07-12：この画面で削除した持ち物の候補（D-28）
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
   const [reordering, setReordering] = useState(false);
@@ -209,6 +216,15 @@ export function ListDetail({
   const groupCheckUndo = useRef(new Map<number | null, ReadonlySet<number>>());
   // SC-07-18・D-100：「選んで削除」の選ぶ表示。選んだ持ち物とグループは、この画面の中だけに持つ
   const [selecting, setSelecting] = useState(false);
+  // SC-07-21・D-118：同じ選ぶ表示を「選んでコピー・移動」でも使う。画面下のボタンだけが変わる
+  const [selectPurpose, setSelectPurpose] = useState<"delete" | "transfer">(
+    "delete",
+  );
+  // 移し先を選んでいるコピー・移動。開いたときに選んでいた持ち物を保つ
+  const [transfer, setTransfer] = useState<{
+    mode: TransferMode;
+    itemIds: number[];
+  } | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<number>>(
     new Set(),
   );
@@ -285,6 +301,12 @@ export function ListDetail({
     .filter((item) => item.is_checked)
     .map((item) => item.id);
   const checkedCount = checkedItemIds.length;
+  // SC-07-20（利用者の指示）：チェック済みのもの（持ち物か、チェックを付けた空のグループ、D-106）が
+  // 1つもないときは、表示のスイッチを出さない（SC-09と同じ）
+  const hasChecked =
+    checkedCount > 0 || groups.some((group) => group.is_checked);
+  // スイッチが消えたまま「表示中」が残ると、次にチェックした持ち物が隠れないので、オフに戻す
+  if (showChecked && !hasChecked) setShowChecked(false);
   // D-101：チェック済みを隠しているときは、中の全有効持ち物がチェック済みのグループ（未分類を含む）を
   // 見出しごと隠す。D-106：0件のグループは保存したチェックを使い、同じ1秒の猶予を保つ。
   const hiddenSectionIds = new Set<number | null>(
@@ -889,9 +911,13 @@ export function ListDetail({
     }
   }
 
-  // SC-07-18：選ぶ表示を始める・やめる。やめたら選んだものを消す。削除した持ち物の候補は消さない
-  function setSelectingMode(on: boolean) {
+  // SC-07-18・21：選ぶ表示を始める・やめる。やめたら選んだものを消す。削除した持ち物の候補は消さない
+  function setSelectingMode(
+    on: boolean,
+    purpose: "delete" | "transfer" = "delete",
+  ) {
     setSelecting(on);
+    setSelectPurpose(purpose);
     setSelectedItemIds(new Set());
     setSelectedGroupIds(new Set());
     setBulkDeleteError(null);
@@ -909,8 +935,8 @@ export function ListDetail({
     return next;
   }
 
-  // 削除する持ち物：1件ずつ選んだものと、選んだグループの中の全有効持ち物（隠れたチェック済みも含む）
-  const deleteTargetIds = items
+  // 削除・コピー・移動する持ち物：1件ずつ選んだものと、選んだグループの中の全有効持ち物（隠れたチェック済みも含む）
+  const targetItemIds = items
     .filter(
       (item) =>
         selectedItemIds.has(item.id) ||
@@ -920,7 +946,7 @@ export function ListDetail({
 
   // SC-07-19：確認文。グループを選んだときは、グループも消えることを添える
   function bulkDeleteMessage(): string {
-    const itemCount = deleteTargetIds.length;
+    const itemCount = targetItemIds.length;
     const groupCount = selectedGroupIds.size;
     if (itemCount === 0) {
       return `選んだグループ（${groupCount}件）を削除しますか？元に戻せません。`;
@@ -979,10 +1005,40 @@ export function ListDetail({
   }
 
   async function handleBulkDelete() {
-    if (await deleteItemsAndGroups(deleteTargetIds, [...selectedGroupIds])) {
+    if (await deleteItemsAndGroups(targetItemIds, [...selectedGroupIds])) {
       setConfirmingDelete(false);
       setSelectingMode(false);
     }
+  }
+
+  // F-32・D-118：コピー・移動できたら選ぶ表示をやめ、今の画面に残って結果と「開く」を出す。
+  // 移動は同じ持ち物が移し先へ移るので、この画面から外す（削除した持ち物の候補には入れない）
+  function handleTransferred(
+    mode: TransferMode,
+    itemIds: number[],
+    result: ItemTransferResult,
+  ) {
+    setTransfer(null);
+    setSelectingMode(false);
+    const href = `/lists/${result.list.id}`;
+    if (mode === "copy") {
+      setNotice({
+        text: `${result.count}件を「${result.list.title}」にコピーしました。`,
+        href,
+      });
+      return;
+    }
+    const moved = new Set(itemIds);
+    setItems((current) => current.filter((item) => !moved.has(item.id)));
+    // D-51：公開中のリストから全部移して0件になると、自動で非公開になる
+    const unpublished = isPublic && !result.is_public;
+    setIsPublic(result.is_public);
+    setNotice({
+      text: `${result.count}件を「${result.list.title}」に移動しました。${
+        unpublished ? "持ち物がなくなったため、リストを非公開にしました。" : ""
+      }`,
+      href,
+    });
   }
 
   // D-105：左スワイプで「削除」を出せるのは1行だけ。別の行を引いたら前の行は閉じる
@@ -1110,6 +1166,13 @@ export function ListDetail({
             「…」の押せる範囲（44px）は上下の余白に重ね、見出しの位置は「←」だけのときと変えない */}
         <div className="mb-2 flex items-start justify-between gap-3">
           {backLink}
+          {/* SC-07-2（利用者の指示）：カテゴリーと公開中の印は「←」の横の空きに置き、リスト名の下の行をなくして
+              一覧を上げる。非公開はふつうの状態なので出さず、ほかの人に見えている「公開中」だけを出す。
+              高さは「←」の丸（36px）にそろえ、中央を合わせる */}
+          <p className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-2">
+            <span className="tag">{list.category.name}</span>
+            {isPublic && <PublicBadge />}
+          </p>
           {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
           {!selecting && (
             <div className="-mt-1 -mb-2">
@@ -1126,6 +1189,9 @@ export function ListDetail({
                 saving={reordering || groupChecking !== undefined}
                 canSelectToDelete={items.length > 0 || groups.length > 0}
                 onSelectToDelete={() => setSelectingMode(true)}
+                // SC-07-21・D-118：持ち物が1件以上あるときだけ選べる
+                canSelectToTransfer={items.length > 0}
+                onSelectToTransfer={() => setSelectingMode(true, "transfer")}
                 // SC-07-4・F-08：SC-06 と同じ処理（useVisibilityToggle）。画面を移らないので、
                 // チェック済みの表示と削除した持ち物の候補はそのまま残る（D-28）
                 isPublic={isPublic}
@@ -1140,6 +1206,8 @@ export function ListDetail({
                 onShareTokenChange={setShareToken}
                 shareDisabled={moderated}
                 duplicateDisabled={moderated}
+                // D-118：運営が非公開にしたリストの持ち物は、複製と同じくコピー・移動できない
+                transferDisabled={moderated}
                 onModerated={() => {
                   setModerated(true);
                   setIsPublic(false);
@@ -1150,25 +1218,21 @@ export function ListDetail({
         </div>
         {topNotice}
 
-        {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しにはカテゴリーと公開・非公開のラベルだけを置く。
-            切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
+        {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しはリスト名だけにする。
+            公開の切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
         <header className="flex flex-col gap-2">
           <h1 className="text-2xl font-medium wrap-break-word">{list.title}</h1>
-          <div className="flex flex-col gap-1">
-            <p className="flex flex-wrap gap-2">
-              <span className="tag">{list.category.name}</span>
-              <span className={isPublic ? "tag" : "tag-muted"}>
-                {isPublic ? "公開" : "非公開"}
-              </span>
-            </p>
-            {/* 非公開にできなかった理由はラベルの下に出す。公開の失敗は確認の中に出す */}
-            {visibility.error && (
-              <p role="alert" className="text-sm text-danger">
-                {visibility.error}
-              </p>
-            )}
-            {moderated && <ModeratedNotice id={moderatedNoticeId} />}
-          </div>
+          {(visibility.error || moderated) && (
+            <div className="flex flex-col gap-1">
+              {/* 非公開にできなかった理由はリスト名の下に出す。公開の失敗は確認の中に出す */}
+              {visibility.error && (
+                <p role="alert" className="text-sm text-danger">
+                  {visibility.error}
+                </p>
+              )}
+              {moderated && <ModeratedNotice id={moderatedNoticeId} />}
+            </div>
+          )}
         </header>
 
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
@@ -1184,7 +1248,7 @@ export function ListDetail({
             visibleItems={visibleItems}
             selectedItemIds={selectedItemIds}
             selectedGroupIds={selectedGroupIds}
-            disabled={bulkDeleting}
+            disabled={bulkDeleting || transfer !== null}
             onToggleItem={(itemId) =>
               setSelectedItemIds((current) => toggleInSet(current, itemId))
             }
@@ -1196,21 +1260,24 @@ export function ListDetail({
 
         {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
         <div className={selecting ? "hidden" : "flex flex-col gap-3"}>
-          {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、0件でも出す（チェック済みの空グループだけを
-              隠しているときも出し直せるように）。画面の表示だけを変え、通信しない。
+          {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、チェック済みのものがあるときだけ出す
+              （チェック済みの空グループだけを隠しているときも出し直せるように、空グループのチェックも数える）。
+              画面の表示だけを変え、通信しない。
               「選んで削除」の間は、選ぶ対象が変わらないよう、この入れ物ごと出さない（D-100） */}
-          <ShowCheckedSwitch
-            id={SHOW_CHECKED_SWITCH_ID}
-            on={showChecked}
-            count={checkedCount}
-            size="sm"
-            // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
-            // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
-            // 利用者の指示で右端にそろえる
-            align="end"
-            className="relative z-10 -mt-4 -mb-4"
-            onToggle={() => setShowChecked((shown) => !shown)}
-          />
+          {hasChecked && (
+            <ShowCheckedSwitch
+              id={SHOW_CHECKED_SWITCH_ID}
+              on={showChecked}
+              count={checkedCount}
+              size="sm"
+              // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
+              // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
+              // 利用者の指示で右端にそろえる
+              align="end"
+              className="relative z-10 -mt-4 -mb-4"
+              onToggle={() => setShowChecked((shown) => !shown)}
+            />
+          )}
           {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
               未チェックの空リストは追加行で分かるので、案内文を出さない。 */}
           {(items.length > 0 || groups.some((group) => group.is_checked)) &&
@@ -1328,7 +1395,20 @@ export function ListDetail({
           <div className="flex flex-col gap-2 px-5 py-3">
             {notice && (
               <p role="status" className="text-sm">
-                {notice}
+                {typeof notice === "string" ? (
+                  notice
+                ) : (
+                  <>
+                    {notice.text}
+                    <Link
+                      href={notice.href}
+                      prefetch={false}
+                      className="tap-target ml-2 text-link"
+                    >
+                      開く
+                    </Link>
+                  </>
+                )}
               </p>
             )}
             {reorderError && (
@@ -1341,11 +1421,47 @@ export function ListDetail({
                 {groupCheckError}
               </p>
             )}
-            {selecting ? (
+            {selecting && selectPurpose === "transfer" ? (
+              // SC-07-21・D-118：選んだ件数と「やめる」「移動」「コピー」。グループそのものは写さないので件数だけ出す。
+              // スマホ幅で並びきらないときは、件数を上の行に出す
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <p role="status">{targetItemIds.length}件選択中</p>
+                <div className="ml-auto flex shrink-0 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectingMode(false)}
+                    disabled={transfer !== null}
+                    className="btn-outline"
+                  >
+                    やめる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTransfer({ mode: "move", itemIds: targetItemIds })
+                    }
+                    disabled={transfer !== null || targetItemIds.length === 0}
+                    className="btn-outline"
+                  >
+                    移動
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTransfer({ mode: "copy", itemIds: targetItemIds })
+                    }
+                    disabled={transfer !== null || targetItemIds.length === 0}
+                    className="btn-primary"
+                  >
+                    コピー
+                  </button>
+                </div>
+              </div>
+            ) : selecting ? (
               // SC-07-18：選ぶ表示の間は、追加欄の代わりに選んだ件数と「削除」「やめる」を出す
               <div className="flex items-center justify-between gap-3">
                 <p role="status">
-                  {deleteTargetIds.length}件選択中
+                  {targetItemIds.length}件選択中
                   {selectedGroupIds.size > 0 &&
                     `（グループ${selectedGroupIds.size}件）`}
                 </p>
@@ -1366,7 +1482,7 @@ export function ListDetail({
                     }}
                     disabled={
                       bulkDeleting ||
-                      (deleteTargetIds.length === 0 &&
+                      (targetItemIds.length === 0 &&
                         selectedGroupIds.size === 0)
                     }
                     className="btn-danger"
@@ -1378,6 +1494,24 @@ export function ListDetail({
             ) : null}
           </div>
         </div>
+      )}
+
+      {/* SC-07-21・D-118：移し先を選ぶ。このダイアログが確認を兼ねる */}
+      {transfer && (
+        <TransferItemsDialog
+          listId={list.id}
+          listTitle={list.title}
+          itemIds={transfer.itemIds}
+          mode={transfer.mode}
+          onDone={(result) =>
+            handleTransferred(transfer.mode, transfer.itemIds, result)
+          }
+          onCancel={() => setTransfer(null)}
+          onModerated={() => {
+            setModerated(true);
+            setIsPublic(false);
+          }}
+        />
       )}
 
       {/* SC-07-19：まとめて削除の確認。元に戻せないことを伝える（D-100） */}

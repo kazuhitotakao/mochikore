@@ -12,12 +12,16 @@ import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { PackingList } from "@/types/api";
 import { ITEM_LIMIT_MESSAGE } from "./itemErrors";
 import { RemainingCount } from "./ListForm";
-import { TITLE_MAX_LENGTH, titleLength, validateTitle } from "./validation";
+import {
+  copyTitle,
+  TITLE_MAX_LENGTH,
+  titleLength,
+  validateTitle,
+} from "./validation";
 
 const FIELDS = ["title"] as const;
 // 同じ画面のほかの入力欄と id が重ならないよう、エラーで移すカーソルの先に付ける
 const ID_PREFIX = "duplicate-";
-const COPY_SUFFIX = "（コピー）";
 const MODERATED_MESSAGE = "このリストは運営により非公開になっています。";
 
 type Props = {
@@ -43,7 +47,7 @@ export function DuplicateListDialog({
   const redirectIfAuthError = useAuthErrorRedirect();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const [name, setName] = useState(() => defaultDuplicateTitle(title));
+  const [name, setName] = useState(() => copyTitle(title));
   const [sending, setSending] = useState(false);
   const fieldErrors = useFieldErrors(FIELDS, ID_PREFIX);
   const [formError, setFormError] = useState<string | null>(null);
@@ -175,15 +179,6 @@ export function DuplicateListDialog({
       </form>
     </dialog>
   );
-}
-
-/**
- * D-116：名前の初期値は「元の名前（コピー）」。50文字を超えるときは元の名前の末尾を削る。
- * 文字数はコードポイントで数える（C-01）。
- */
-function defaultDuplicateTitle(title: string): string {
-  const room = TITLE_MAX_LENGTH - [...COPY_SUFFIX].length;
-  return [...title].slice(0, room).join("") + COPY_SUFFIX;
 }
 
 // SC-07-4：複製できなかった理由。画面は code で決める（D-53）

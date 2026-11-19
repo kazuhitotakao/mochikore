@@ -50,6 +50,17 @@ export function validateName(
   return undefined;
 }
 
+const COPY_SUFFIX = "（コピー）";
+
+/**
+ * D-116・D-118：写して作る新しいリストの名前の初期値「元の名前（コピー）」。
+ * 50文字を超えるときは元の名前の末尾を削る。文字数はコードポイントで数える（C-01）。
+ */
+export function copyTitle(title: string): string {
+  const room = TITLE_MAX_LENGTH - [...COPY_SUFFIX].length;
+  return [...title].slice(0, room).join("") + COPY_SUFFIX;
+}
+
 export function validateTitle(value: string): string | undefined {
   return validateName(value, "リスト名", TITLE_MAX_LENGTH);
 }
