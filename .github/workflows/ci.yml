@@ -137,14 +137,49 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         # チェックしたコミットが今も先頭のときだけマージする（--match-head-commit）。
         # マージできない状態なら、--auto により予約のまま残り、条件がそろった時点でGitHubがマージする。
         # GitHub Actionsのトークンでのマージでは、リポジトリ設定（Automatically delete head branches）が
-        # 効かないため、ここで --delete-branch によりブランチを消す
+        # 効かないため、ここでブランチを消す
         run: |
           labels=$(gh pr view "$PR_URL" --repo "$GH_REPO" --json labels --jq '.labels[].name')
           if ! grep -qx automerge <<< "$labels"; then
             echo "automerge ラベルがないので、マージしない"
             exit 0
           fi
-          gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash --match-head-commit "$PR_HEAD_SHA" --delete-branch
+
+          # 予約（auto-merge.yml）からGitHubがチェック通過の直後に先にマージしていると、この操作は
+          # 何もしないか失敗し、--delete-branch も動かない。そのときは下でマージ済みかを確かめて片付ける
+          merge_failed=false
+          if ! gh pr merge "$PR_URL" --repo "$GH_REPO" --auto --squash --match-head-commit "$PR_HEAD_SHA" --delete-branch; then
+            merge_failed=true
+          fi
+
+          # GitHubのマージが少し遅れることがあるので、30秒まで待つ
+          state=""
+          for _ in 1 2 3 4 5 6; do
+            state=$(gh pr view "$PR_URL" --repo "$GH_REPO" --json state --jq .state)
+            [ "$state" = "MERGED" ] && break
+            sleep 5
+          done
+          if [ "$state" != "MERGED" ]; then
+            if [ "$merge_failed" = true ]; then
+              echo "マージできず、マージ済みでもない"
+              exit 1
+            fi
+            echo "まだマージされていない（予約のまま、条件がそろうとGitHubがマージする）"
+            exit 0
+          fi
+
+          # マージ済みなら、作業ブランチを消す。チェックした先頭のコミットのままのときだけ消し、
+          # マージ後に足したコミットは消さない
+          ref_sha=$(gh api "repos/$GH_REPO/git/ref/heads/$PR_HEAD_REF" --jq .object.sha 2>/dev/null || true)
+          if [ -z "$ref_sha" ]; then
+            echo "作業ブランチはもう消えている"
+          elif [ "$ref_sha" = "$PR_HEAD_SHA" ]; then
+            gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$PR_HEAD_REF"
+            echo "マージ済みの作業ブランチ $PR_HEAD_REF を消した"
+          else
+            echo "マージ後に新しいコミットがあるので、作業ブランチは残す"
+          fi
