@@ -63,6 +63,23 @@ export default async function AccountPage(props: PageProps<"/account">) {
         プライバシーポリシー・お問い合わせ
       </Link>
 
+      {/* SC-12-9・D-115：iPhone は自動で案内が出ないので、追加の仕方をここに書く。
+          ホーム画面から開いているとき（standalone）は追加済みなので出さない。保存するものはない */}
+      <section className="flex flex-col gap-1 [@media(display-mode:standalone)]:hidden">
+        <h2 className="font-bold">ホーム画面に追加</h2>
+        <p>スマホのホーム画面に置くと、アプリのように開けます。</p>
+        <ul className="flex flex-col gap-1">
+          <li>iPhone：Safariの共有ボタンから「ホーム画面に追加」</li>
+          <li>
+            Android：Chromeの右上のメニューから「ホーム画面に追加」または「アプリをインストール」
+          </li>
+        </ul>
+        {/* iPhone はホーム画面から開いた分と Safari でログインの記録が別になる */}
+        <p className="text-sm text-muted">
+          iPhoneでは、ホーム画面から開いたときに一度ログインし直します。
+        </p>
+      </section>
+
       <LogoutButton />
       <DeleteAccountDialog />
     </main>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
@@ -14,6 +14,17 @@ const notoSansJp = Noto_Sans_JP({
 export const metadata: Metadata = {
   title: "もちこれ",
   description: "用途ごとに持ち物・買い物のリストを作り、チェックして使うアプリ",
+  // D-115：iPhone でホーム画面に追加したときの表示名と、ブラウザの枠を隠して開く設定
+  appleWebApp: {
+    capable: true,
+    title: "もちこれ",
+    statusBarStyle: "default",
+  },
+};
+
+// D-115：ホーム画面から開いたときの上の帯の色。画面の地（globals.css の background）と同じ生成り
+export const viewport: Viewport = {
+  themeColor: "#fffdf8",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
