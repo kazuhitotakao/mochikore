@@ -9,13 +9,15 @@ import { ITEM_LIMIT_MESSAGE } from "./itemErrors";
 import type { PackingList } from "@/types/api";
 
 type Props = {
-  listId: number;
+  // コピーのAPI。公開リスト詳細（SC-11）は API-17、限定公開のリスト（SC-18）は API-49（D-114）
+  copyPath: string;
   loggedIn: boolean;
   emailVerified: boolean;
 };
 
+// SC-11-6・SC-18-5「自分用にコピー」。条件と動きはどちらの画面も同じ
 export function CopyPublicListButton({
-  listId,
+  copyPath,
   loggedIn,
   emailVerified,
 }: Props) {
@@ -41,10 +43,9 @@ export function CopyPublicListButton({
     setSending(true);
     setError(null);
     try {
-      const result = await clientApi<PackingList>(
-        `/public/lists/${listId}/copy`,
-        { method: "POST" },
-      );
+      const result = await clientApi<PackingList>(copyPath, {
+        method: "POST",
+      });
       // SC-11：移動が終わるまで送信中のままにし、同じ操作で複数コピーを作らない
       router.push(`/lists/${result.id}?copied=1`);
     } catch (failure) {

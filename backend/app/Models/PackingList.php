@@ -21,6 +21,9 @@ class PackingList extends Model
     // D-50：非公開・公開・コピーしたリストをすべて数える
     public const MAX_PER_USER = 100;
 
+    // D-114：限定公開のリンクの文字数（英数字）
+    public const SHARE_TOKEN_LENGTH = 32;
+
     /**
      * @return array<string, string>
      */

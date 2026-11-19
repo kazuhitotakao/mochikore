@@ -19,6 +19,7 @@ import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { ItemDeleteResult } from "@/types/api";
 import { bulkDeleteErrorMessage } from "./itemErrors";
+import { ShareLinkDialog } from "./ShareLinkDialog";
 import { withShowChecked } from "./showChecked";
 import type { VisibilityToggle } from "./useVisibilityToggle";
 import { PublishConfirmDialog } from "./VisibilitySwitch";
@@ -45,6 +46,11 @@ type Props = {
   // 運営による非公開の案内の id。押せない理由として読み上げる
   publishDescribedBy?: string;
   visibility: VisibilityToggle;
+  // SC-07-4・F-29：限定公開のリンク（なければ null）。運営が非公開にしたリストでは作れない（D-114）
+  shareToken: string | null;
+  onShareTokenChange: (token: string | null) => void;
+  shareDisabled: boolean;
+  onModerated: () => void;
 };
 
 type Confirming =
@@ -69,6 +75,10 @@ export function ListMenu({
   publishDisabled,
   publishDescribedBy,
   visibility,
+  shareToken,
+  onShareTokenChange,
+  shareDisabled,
+  onModerated,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -85,6 +95,9 @@ export function ListMenu({
   // 「…」を開き直したときにカーソルを移す項目。描画に使わないので ref に置く
   const focusAfterReopen = useRef<MenuItemKey | null>(null);
   const focusAfterCheckedDelete = useRef(false);
+  // SC-07-4・D-114：「リンクで共有」のダイアログを開いているか
+  const [sharing, setSharing] = useState(false);
+  const focusAfterSharing = useRef(false);
 
   // 確認（子の ConfirmDialog）が閉じてから項目へカーソルを移す。子の effect が先に動くので、
   // 確認を開いている間（後ろの画面を操作できない間）に移そうとして失敗することはない
@@ -96,6 +109,13 @@ export function ListMenu({
       ?.querySelector<HTMLElement>(`[data-menu-item="${item}"]`)
       ?.focus();
   }, [menuOpen]);
+
+  // 「リンクで共有」を閉じた後は、「…」のボタンへカーソルを戻す（開いた元の操作へ戻れるように）
+  useEffect(() => {
+    if (sharing || !focusAfterSharing.current) return;
+    focusAfterSharing.current = false;
+    menuContainer.current?.querySelector("button")?.focus();
+  }, [sharing]);
 
   useEffect(() => {
     if (confirming !== null || sending || !focusAfterCheckedDelete.current)
@@ -277,6 +297,23 @@ export function ListMenu({
                 </span>
               </button>
             </li>
+            {/* SC-07-4・D-114：公開とは別に、リンクを知っている人だけに見せる。非公開のまま・0件でも使える */}
+            <li>
+              <button
+                type="button"
+                aria-describedby={
+                  shareDisabled ? publishDescribedBy : undefined
+                }
+                disabled={shareDisabled}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setSharing(true);
+                }}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="link">リンクで共有</MenuLabel>
+              </button>
+            </li>
           </MenuSection>
           <MenuSection divided>
             <li>
@@ -403,6 +440,19 @@ export function ListMenu({
         visibility={visibility}
         onCancel={() => reopenMenu("public")}
       />
+
+      {sharing && (
+        <ShareLinkDialog
+          listId={listId}
+          shareToken={shareToken}
+          onShareTokenChange={onShareTokenChange}
+          onModerated={onModerated}
+          onClose={() => {
+            focusAfterSharing.current = true;
+            setSharing(false);
+          }}
+        />
+      )}
     </div>
   );
 }

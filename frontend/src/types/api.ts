@@ -144,6 +144,8 @@ export type ItemDeleteResult = {
 // API-07 自分のリストの内容。削除済みの持ち物は含まない
 export type PackingListDetail = PackingList & {
   grouping_revision: number;
+  // D-114：限定公開のリンク（32文字の英数字）。本人用の取得にだけ含め、なければ null
+  share_token: string | null;
   // D-106：空グループのチェックは本人用の取得にだけ含める。
   groups: (PackingListGroup & { is_checked: boolean })[];
   items: PackingListItem[];

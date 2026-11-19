@@ -23,6 +23,8 @@ class PackingListDetailResource extends JsonResource
         return [
             ...(new PackingListResource($this->resource))->toArray($request),
             'grouping_revision' => $this->grouping_revision,
+            // D-114：本人の画面だけで、作った限定公開のリンクを表示する（なければ null）
+            'share_token' => $this->share_token,
             'groups' => $this->groups->map(fn (PackingListGroup $group) => [
                 'id' => $group->id,
                 'name' => $group->name,

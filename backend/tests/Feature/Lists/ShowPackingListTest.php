@@ -46,6 +46,8 @@ class ShowPackingListTest extends ListApiTestCase
                     'moderated_at' => null,
                     'updated_at' => $list->updated_at->toJSON(),
                     'grouping_revision' => 3,
+                    // D-114：限定公開のリンクを作っていなければ null
+                    'share_token' => null,
                     'groups' => [
                         ['id' => $first->id, 'name' => '洗面', 'sort_order' => 0, 'is_checked' => false],
                         ['id' => $later->id, 'name' => '服', 'sort_order' => 1, 'is_checked' => false],
