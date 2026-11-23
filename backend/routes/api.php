@@ -10,6 +10,7 @@ use App\Http\Controllers\DuplicatePackingListController;
 use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\ImportItemsController;
 use App\Http\Controllers\ListReportController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\LogoutController;
@@ -68,6 +69,11 @@ Route::middleware('auth:sanctum')->group(function () {
             ->middleware(EnsurePackingListIsPublic::class);
         // API-49・D-114：限定公開のリンクのリストを自分用にコピーする（ログインとメール認証が必要）
         Route::post('/shared/lists/{token}/copy', [SharedPackingListController::class, 'copy'])
+            ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}');
+        // API-53・54・D-118：公開リスト・限定公開のリストから、選んだ持ち物を自分のリストへ取り込む
+        Route::post('/public/lists/{list}/items/import', [ImportItemsController::class, 'fromPublic'])
+            ->middleware(EnsurePackingListIsPublic::class);
+        Route::post('/shared/lists/{token}/items/import', [ImportItemsController::class, 'fromShared'])
             ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}');
         Route::get('/lists', [PackingListController::class, 'index']);
         Route::post('/lists', [PackingListController::class, 'store']);

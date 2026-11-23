@@ -74,6 +74,9 @@ import { ModeratedNotice } from "./VisibilitySwitch";
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
 
+// 自分のリストの間で使うのはコピー・移動だけ。取り込み（import）は公開画面（F-33）
+type OwnTransferMode = Exclude<TransferMode, "import">;
+
 // SC-07-7：チェックで最後の行が隠れたときに、カーソルを移す先（隠れた持ち物を出し直せるスイッチ）
 const SHOW_CHECKED_SWITCH_ID = "show-checked-switch";
 
@@ -222,7 +225,7 @@ export function ListDetail({
   );
   // 移し先を選んでいるコピー・移動。開いたときに選んでいた持ち物を保つ
   const [transfer, setTransfer] = useState<{
-    mode: TransferMode;
+    mode: OwnTransferMode;
     itemIds: number[];
   } | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<ReadonlySet<number>>(
@@ -1014,7 +1017,7 @@ export function ListDetail({
   // F-32・D-118：コピー・移動できたら選ぶ表示をやめ、今の画面に残って結果と「開く」を出す。
   // 移動は同じ持ち物が移し先へ移るので、この画面から外す（削除した持ち物の候補には入れない）
   function handleTransferred(
-    mode: TransferMode,
+    mode: OwnTransferMode,
     itemIds: number[],
     result: ItemTransferResult,
   ) {
@@ -1498,11 +1501,12 @@ export function ListDetail({
 
       {/* SC-07-21・D-118：移し先を選ぶ。このダイアログが確認を兼ねる */}
       {transfer && (
-        <TransferItemsDialog
+        <TransferItemsDialog<ItemTransferResult>
           listId={list.id}
           listTitle={list.title}
           itemIds={transfer.itemIds}
           mode={transfer.mode}
+          submitPath={`/lists/${list.id}/items/${transfer.mode}`}
           onDone={(result) =>
             handleTransferred(transfer.mode, transfer.itemIds, result)
           }

@@ -7,15 +7,22 @@ use App\Exceptions\ApiException;
 use App\Models\PackingList;
 use App\Models\PackingListItem;
 use App\Models\User;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * 選んだ持ち物を、自分の別のリストへコピー・移動する（F-32、D-118）。
- * 移し先では元の並び順のまま末尾に入れ、指定したグループ（なければ未分類）にまとめる。グループそのものは写さない。
+ * 選んだ持ち物を、自分の別のリストへコピー・移動する（F-32）。公開リスト・限定公開のリストから自分のリストへ取り込む（F-33）。
+ * 移し先では元の並び順のまま末尾に入れ、指定したグループ（なければ未分類）にまとめる。グループそのものは写さない（D-118）。
  */
 class ItemTransferService
 {
+    private const COPY = 'copy';
+
+    private const MOVE = 'move';
+
+    private const IMPORT = 'import';
+
     public function __construct(private ItemAdditionLimiter $additionLimiter) {}
 
     /**
@@ -30,7 +37,7 @@ class ItemTransferService
         return $this->additionLimiter->attempt(
             $user->id,
             count($itemIds),
-            fn () => $this->transfer($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, false),
+            fn () => $this->transfer($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, self::COPY, $this->ensureNotModerated(...)),
         );
     }
 
@@ -42,16 +49,63 @@ class ItemTransferService
      */
     public function move(User $user, PackingList $source, array $itemIds, ?int $destinationListId, ?string $newListTitle, ?int $groupId): array
     {
-        return $this->transfer($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, true);
+        return $this->transfer($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, self::MOVE, $this->ensureNotModerated(...));
+    }
+
+    /**
+     * API-53 公開リストから取り込む。写し方はコピーと同じで、元のリストは変えない（D-118）。
+     *
+     * @param  list<int>  $itemIds
+     * @return array{list: PackingList, count: int, is_public: bool}
+     */
+    public function importFromPublic(User $user, PackingList $source, array $itemIds, ?int $destinationListId, ?string $newListTitle, ?int $groupId): array
+    {
+        return $this->additionLimiter->attempt(
+            $user->id,
+            count($itemIds),
+            // D-43・D-48：ロックした後も公開中で、運営が非公開にしていないリストだけ。そうでなければ存在を知らせない404
+            fn () => $this->transfer($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, self::IMPORT,
+                fn (PackingList $from) => abort_unless($from->is_public && $from->moderated_at === null, 404)),
+        );
+    }
+
+    /**
+     * API-54 限定公開のリンクのリストから取り込む（D-114・D-118）。
+     *
+     * @param  list<int>  $itemIds
+     * @return array{list: PackingList, count: int, is_public: bool}
+     */
+    public function importFromShared(User $user, string $token, array $itemIds, ?int $destinationListId, ?string $newListTitle, ?int $groupId): array
+    {
+        // 止めたリンクで回数を数えないよう、先にリストを見つける。ロックした後にもう一度確かめる
+        $source = PackingList::where('share_token', $token)->whereNull('moderated_at')->first() ?? abort(404);
+
+        return $this->additionLimiter->attempt(
+            $user->id,
+            count($itemIds),
+            fn () => $this->transfer($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, self::IMPORT,
+                fn (PackingList $from) => abort_unless($from->share_token === $token && $from->moderated_at === null, 404)),
+        );
+    }
+
+    /**
+     * D-116・D-118：複製と同じく、運営が非公開にしたリストの持ち物は写させない（非公開をすり抜けないため）。
+     */
+    private function ensureNotModerated(PackingList $from): void
+    {
+        if ($from->moderated_at !== null) {
+            throw new ApiException(ApiErrorCode::ListModerated, 'このリストは運営により非公開になっています。');
+        }
     }
 
     /**
      * @param  list<int>  $itemIds
+     * @param  Closure(PackingList): void  $ensureSource  ロックした元のリストを、操作ごとの条件で確かめる
      * @return array{list: PackingList, count: int, is_public: bool}
      */
-    private function transfer(User $user, PackingList $source, array $itemIds, ?int $destinationListId, ?string $newListTitle, ?int $groupId, bool $move): array
+    private function transfer(User $user, PackingList $source, array $itemIds, ?int $destinationListId, ?string $newListTitle, ?int $groupId, string $mode, Closure $ensureSource): array
     {
-        return DB::transaction(function () use ($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, $move) {
+        return DB::transaction(function () use ($user, $source, $itemIds, $destinationListId, $newListTitle, $groupId, $mode, $ensureSource) {
             if ($destinationListId === null) {
                 // C-05・D-50：新しいリストを作るので、作成・複製と同じく本人を先にロックして100件に収める
                 User::whereKey($user->id)->lockForUpdate()->firstOrFail();
@@ -60,20 +114,15 @@ class ItemTransferService
             $locked = PackingList::whereKey(array_filter([$source->id, $destinationListId]))
                 ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $from = $locked->get($source->id) ?? abort(404);
-
-            // D-116・D-118：複製と同じく、運営が非公開にしたリストの持ち物は写させない（非公開をすり抜けないため）
-            if ($from->moderated_at !== null) {
-                throw new ApiException(ApiErrorCode::ListModerated, 'このリストは運営により非公開になっています。');
-            }
+            $ensureSource($from);
 
             $to = null;
             if ($destinationListId !== null) {
                 $to = $locked->get($destinationListId);
                 // V-26：移し先は、元とは別の自分のリストだけ。他人のリストかどうかは知らせない
                 if ($to === null || $to->user_id !== $user->id || $to->id === $from->id) {
-                    throw ValidationException::withMessages([
-                        'destination_list_id' => [__('validation.transfer_items.destination')],
-                    ]);
+                    $key = $mode === self::IMPORT ? 'validation.import_items.destination' : 'validation.transfer_items.destination';
+                    throw ValidationException::withMessages(['destination_list_id' => [__($key)]]);
                 }
             }
 
@@ -94,7 +143,8 @@ class ItemTransferService
                 if ($user->packingLists()->count() >= PackingList::MAX_PER_USER) {
                     throw new ApiException(ApiErrorCode::ListLimitReached, 'リストは100件までです。');
                 }
-                // D-118：カテゴリーは元のリストと同じ。非公開で作る（D-16）。後から SC-06 で変えられる
+                // D-118：カテゴリーは元のリストと同じ。非公開で作る（D-16）。後から SC-06 で変えられる。
+                // 取り込みでもコピー元（source_list_id）は記録せず、よくコピーされている順（D-117）に数えない
                 $to = $user->packingLists()->create([
                     'title' => $newListTitle,
                     'category_id' => $from->category_id,
@@ -108,7 +158,7 @@ class ItemTransferService
 
             // 元の並び順のまま、移し先の末尾（削除していない持ち物の最大値＋1から）に入れる
             $next = (int) $to->items()->max('sort_order') + 1;
-            if ($move) {
+            if ($mode === self::MOVE) {
                 // 同じ行の所属を変える。IDは検証済みの整数なので、そのまま式に入れる
                 $cases = $items->values()
                     ->map(fn (PackingListItem $item, int $index) => 'WHEN '.$item->id.' THEN '.($next + $index))
@@ -119,6 +169,7 @@ class ItemTransferService
                     'sort_order' => DB::raw("CASE id {$cases} END"),
                 ]);
             } else {
+                // コピー・取り込みは新しい持ち物として、未チェックで入れる（元のチェックは写さない）
                 $now = now();
                 PackingListItem::insert($items->values()->map(fn (PackingListItem $item, int $index) => [
                     'packing_list_id' => $to->id,
@@ -138,7 +189,7 @@ class ItemTransferService
             // D-24・D-59：持ち物が増えたので revision を増やし、一覧の上に戻す（increment は updated_at も変える）
             $to->increment('grouping_revision');
 
-            if ($move) {
+            if ($mode === self::MOVE) {
                 // D-51：公開中のリストから全部移して0件になったら、自動で非公開にする
                 $changes = ['grouping_revision' => $from->grouping_revision + 1];
                 if ($from->is_public && ! $from->items()->exists()) {

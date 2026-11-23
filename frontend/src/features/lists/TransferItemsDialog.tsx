@@ -16,7 +16,7 @@ import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type {
   GroupingState,
-  ItemTransferResult,
+  ItemImportResult,
   PackingListGroup,
   PackingListSummary,
 } from "@/types/api";
@@ -29,39 +29,79 @@ import {
   validateTitle,
 } from "./validation";
 
-export type TransferMode = "copy" | "move";
+// copy・move は自分のリストの間（F-32）、import は公開リスト・限定公開のリストから（F-33）
+export type TransferMode = "copy" | "move" | "import";
 
 // 「新しいリストを作る」を選んでいるとき
 const NEW_LIST = "new";
 const TITLE_ID = "transfer-new-title";
 const MODERATED_MESSAGE = "このリストは運営により非公開になっています。";
 
-type Props = {
+// D-118（利用者の指示）：取り込みは、SC-11・SC-18 の「選んで取り込む」とつながるよう「取り込む」の言葉にそろえる
+const WORDING: Record<
+  TransferMode,
+  {
+    heading: string;
+    legend: string;
+    submit: string;
+    sending: string;
+    reselect: string;
+  }
+> = {
+  copy: {
+    heading: "別のリストへコピー",
+    legend: "コピー先のリスト",
+    submit: "コピーする",
+    sending: "コピー中…",
+    reselect: "移し先のリストを選び直してください。",
+  },
+  move: {
+    heading: "別のリストへ移動",
+    legend: "移動先のリスト",
+    submit: "移動する",
+    sending: "移動中…",
+    reselect: "移し先のリストを選び直してください。",
+  },
+  import: {
+    heading: "自分のリストへ取り込む",
+    legend: "取り込み先のリスト",
+    submit: "取り込む",
+    sending: "取り込み中…",
+    reselect: "取り込み先のリストを選び直してください。",
+  },
+};
+
+type Props<R extends ItemImportResult> = {
+  // 元のリスト。自分のリストなら移し先の候補から外す
   listId: number;
   listTitle: string;
   itemIds: number[];
   mode: TransferMode;
-  onDone: (result: ItemTransferResult) => void;
+  // 送り先。API-51・52（/lists/{id}/items/copy・move）か、API-53・54（…/items/import）
+  submitPath: string;
+  onDone: (result: R) => void;
   onCancel: () => void;
-  // 開いている間に運営が非公開にしていたとき。親が案内を出す（D-116・D-118）
-  onModerated: () => void;
+  // 開いている間に運営が非公開にしていたとき。親が案内を出す（D-116・D-118）。取り込みでは404になるので使わない
+  onModerated?: () => void;
 };
 
 /**
- * SC-07-21「選んでコピー・移動」の移し先（F-32、API-51・52、D-118）。
- * 自分のリスト（更新が新しい順、今のリストは出さない）を選び、続けてそのリストのグループを選ぶ。
+ * 選んだ持ち物の移し先（D-118）。SC-07-21「選んでコピー・移動」（F-32、API-51・52）と、
+ * SC-11・SC-18「選んで取り込む」（F-33、API-53・54）で使う。
+ * 自分のリスト（更新が新しい順、元のリストは出さない）を選び、続けてそのリストのグループを選ぶ。
  * 先頭の「新しいリストを作る」は名前だけ入れる（カテゴリーは元と同じ）。グループそのものは写さない。
  * このダイアログが確認を兼ねるので、移動にもう一度の確認と「元に戻す」は置かない。
  */
-export function TransferItemsDialog({
+export function TransferItemsDialog<R extends ItemImportResult>({
   listId,
   listTitle,
   itemIds,
   mode,
+  submitPath,
   onDone,
   onCancel,
   onModerated,
-}: Props) {
+}: Props<R>) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const ref = useRef<HTMLDialogElement>(null);
@@ -74,9 +114,9 @@ export function TransferItemsDialog({
   const [destination, setDestination] = useState<
     number | typeof NEW_LIST | null
   >(null);
-  // D-118（利用者の指示）：コピーは複製と同じ「元の名前（コピー）」、移動は合う言葉がないので空欄から入れる
+  // D-118（利用者の指示）：コピー・取り込みは複製と同じ「元の名前（コピー）」、移動は合う言葉がないので空欄から入れる
   const [title, setTitle] = useState(() =>
-    mode === "copy" ? copyTitle(listTitle) : "",
+    mode === "move" ? "" : copyTitle(listTitle),
   );
   const [titleError, setTitleError] = useState<string | undefined>();
   // 選んだリストのグループ。読み込み中は null
@@ -84,7 +124,7 @@ export function TransferItemsDialog({
   const [groupId, setGroupId] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const verb = mode === "copy" ? "コピー" : "移動";
+  const wording = WORDING[mode];
 
   useEffect(() => {
     const dialog = ref.current;
@@ -125,14 +165,14 @@ export function TransferItemsDialog({
         setGroups([]);
         setError(
           failure instanceof ApiError && failure.code === "not_found"
-            ? "移し先のリストを選び直してください。"
+            ? WORDING[mode].reselect
             : NETWORK_ERROR_MESSAGE,
         );
       });
     return () => {
       active = false;
     };
-  }, [destination, redirectIfAuthError]);
+  }, [destination, mode, redirectIfAuthError]);
 
   function closeIfIdle() {
     if (!sending) onCancel();
@@ -163,34 +203,32 @@ export function TransferItemsDialog({
 
     setSending(true);
     try {
-      const result = await clientApi<ItemTransferResult>(
-        `/lists/${listId}/items/${mode}`,
-        {
-          method: "POST",
-          body:
-            destination === NEW_LIST
-              ? {
-                  item_ids: itemIds,
-                  destination_list_id: null,
-                  new_list_title: title,
-                }
-              : {
-                  item_ids: itemIds,
-                  destination_list_id: destination,
-                  destination_group_id: groupId,
-                },
-        },
-      );
+      const result = await clientApi<R>(submitPath, {
+        method: "POST",
+        body:
+          destination === NEW_LIST
+            ? {
+                item_ids: itemIds,
+                destination_list_id: null,
+                new_list_title: title,
+              }
+            : {
+                item_ids: itemIds,
+                destination_list_id: destination,
+                destination_group_id: groupId,
+              },
+      });
       onDone(result);
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (failure instanceof ApiError && failure.code === "not_found") {
-        // ほかの画面で元のリストが消えていた。読み直すと「ページが見つかりません」になる（D-43）
+        // ほかの画面で元のリストが消えた・非公開になった・リンクが止められた。
+        // 読み直すと「ページが見つかりません」になる（D-43・D-114）
         router.refresh();
         return;
       }
       if (failure instanceof ApiError && failure.code === "list_moderated") {
-        onModerated();
+        onModerated?.();
       }
       const nameError =
         failure instanceof ApiError && failure.code === "validation_error"
@@ -222,7 +260,7 @@ export function TransferItemsDialog({
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <h2 id={headingId} className="text-lg font-bold">
-          別のリストへ{verb}（{itemIds.length}件）
+          {wording.heading}（{itemIds.length}件）
         </h2>
 
         {error && (
@@ -232,7 +270,7 @@ export function TransferItemsDialog({
         )}
 
         <fieldset className="flex flex-col gap-1" disabled={sending}>
-          <legend className="mb-1 font-bold">{verb}先のリスト</legend>
+          <legend className="mb-1 font-bold">{wording.legend}</legend>
           {loadError ? (
             <p role="alert" className="text-danger">
               {loadError}
@@ -351,7 +389,7 @@ export function TransferItemsDialog({
             disabled={sending || !ready}
             className="btn-primary"
           >
-            {sending ? `${verb}中…` : `${verb}する`}
+            {sending ? wording.sending : wording.submit}
           </button>
         </div>
       </form>
@@ -389,7 +427,7 @@ function Choice({
   );
 }
 
-// SC-07-21：移せなかった理由。画面は code で決める（D-53）
+// SC-07-22・SC-11-9：移せなかった・取り込めなかった理由。画面は code で決める（D-53）
 function transferErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return NETWORK_ERROR_MESSAGE;
 

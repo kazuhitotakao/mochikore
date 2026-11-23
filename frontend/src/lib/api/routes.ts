@@ -41,6 +41,12 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "POST", path: /^\/lists\/\d+\/duplicate$/ },
   // API-49：限定公開のリンクのリストを自分用にコピーする。SC-18の読み取り（API-48）は Server Component から送る
   { method: "POST", path: /^\/shared\/lists\/[A-Za-z0-9]{32}\/copy$/ },
+  // API-53・54：公開リスト・限定公開のリストから、選んだ持ち物を自分のリストへ取り込む（D-118）
+  { method: "POST", path: /^\/public\/lists\/\d+\/items\/import$/ },
+  {
+    method: "POST",
+    path: /^\/shared\/lists\/[A-Za-z0-9]{32}\/items\/import$/,
+  },
   // API-13
   { method: "POST", path: /^\/lists\/\d+\/reset-checks$/ },
   // API-10

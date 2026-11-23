@@ -6,6 +6,7 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { ITEM_LIMIT_MESSAGE } from "./itemErrors";
+import { useVerifiedUserGate } from "./useVerifiedUserGate";
 import type { PackingList } from "@/types/api";
 
 type Props = {
@@ -15,7 +16,7 @@ type Props = {
   emailVerified: boolean;
 };
 
-// SC-11-6・SC-18-5「自分用にコピー」。条件と動きはどちらの画面も同じ
+// SC-11-6・SC-18-5「自分用にコピー」。条件と動きはどちらの画面も同じ。画面下の枠は PublicListView が置く
 export function CopyPublicListButton({
   copyPath,
   loggedIn,
@@ -23,21 +24,14 @@ export function CopyPublicListButton({
 }: Props) {
   const router = useRouter();
   const redirectOnAuthError = useAuthErrorRedirect();
+  const requireVerifiedUser = useVerifiedUserGate(loggedIn, emailVerified);
   const busy = useRef(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function copy() {
-    if (busy.current) return;
+    if (busy.current || !requireVerifiedUser()) return;
     const currentPath = window.location.pathname + window.location.search;
-    if (!loggedIn) {
-      router.push(`/login?${new URLSearchParams({ next: currentPath })}`);
-      return;
-    }
-    if (!emailVerified) {
-      router.push("/verify-email");
-      return;
-    }
 
     busy.current = true;
     setSending(true);
@@ -62,23 +56,21 @@ export function CopyPublicListButton({
   }
 
   return (
-    <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
-      <div className="flex flex-col gap-2 px-5 py-3">
-        {error && (
-          <p role="alert" className="text-danger">
-            {error}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={sending}
-          onClick={() => void copy()}
-          className="btn-primary"
-        >
-          {sending ? "コピー中…" : "自分用にコピー"}
-        </button>
-      </div>
-    </div>
+    <>
+      {error && (
+        <p role="alert" className="text-danger">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        disabled={sending}
+        onClick={() => void copy()}
+        className="btn-primary"
+      >
+        {sending ? "コピー中…" : "自分用にコピー"}
+      </button>
+    </>
   );
 }
 
