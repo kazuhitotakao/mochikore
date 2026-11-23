@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { optionalUser } from "@/features/auth/optionalUser";
-import { CopyPublicListButton } from "@/features/lists/CopyPublicListButton";
-import { PublicListContent } from "@/features/lists/PublicListContent";
+import { PublicListView } from "@/features/lists/PublicListView";
 import { publicListBackHref } from "@/features/lists/publicSearch";
 import { ReportListDialog } from "@/features/lists/ReportListDialog";
 import { ApiError } from "@/lib/api/errors";
@@ -21,18 +20,15 @@ export default async function PublicListPage(
   ]);
 
   return (
-    <>
-      <main className="flex flex-col gap-6 pt-8 pb-40">
-        <BackLink href={publicListBackHref(params.from)} />
-        <PublicListContent list={list} />
-        <ReportListDialog listId={list.id} />
-      </main>
-      <CopyPublicListButton
-        copyPath={`/public/lists/${list.id}/copy`}
-        loggedIn={user !== null}
-        emailVerified={Boolean(user?.email_verified_at)}
-      />
-    </>
+    <PublicListView
+      list={list}
+      copyPath={`/public/lists/${list.id}/copy`}
+      importPath={`/public/lists/${list.id}/items/import`}
+      loggedIn={user !== null}
+      emailVerified={Boolean(user?.email_verified_at)}
+      before={<BackLink href={publicListBackHref(params.from)} />}
+      after={<ReportListDialog listId={list.id} />}
+    />
   );
 }
 

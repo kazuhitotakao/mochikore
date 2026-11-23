@@ -1,14 +1,26 @@
 import type { PublicPackingListDetail } from "@/types/api";
+import { SelectMark } from "./SelectionList";
+
+type Item = PublicPackingListDetail["items"][number];
+
+// SC-11-8・SC-18-6「選んで取り込む」の選ぶ表示（F-33、D-118）
+export type PublicListSelection = {
+  selectedIds: ReadonlySet<number>;
+  // 渡した持ち物がすべて選ばれていれば外し、そうでなければまとめて選ぶ（1件のときは選ぶ・外す）
+  onToggle: (itemIds: number[]) => void;
+};
 
 type Props = {
   list: PublicPackingListDetail;
+  // 選んでいる間だけ渡す
+  selection?: PublicListSelection;
 };
 
 /**
  * 公開リスト詳細（SC-11-2〜4）と限定公開のリスト（SC-18-2〜4、D-114）で共通の、見出しと持ち物。
  * 作成者名・チェック状態は出さない（D-32）。
  */
-export function PublicListContent({ list }: Props) {
+export function PublicListContent({ list, selection }: Props) {
   const sections = list.groups.map((group) => ({
     id: group.id,
     name: group.name,
@@ -31,7 +43,11 @@ export function PublicListContent({ list }: Props) {
       </div>
       {/* D-61・95：作成者の非表示設定と切り離し、チェック済みも名前だけで表示する */}
       {list.groups.length === 0 ? (
-        <PublicItems items={list.items} indented={false} />
+        <PublicItems
+          items={list.items}
+          indented={false}
+          selection={selection}
+        />
       ) : (
         <>
           {sections.map((section) => (
@@ -41,25 +57,33 @@ export function PublicListContent({ list }: Props) {
               className="flex flex-col gap-1"
             >
               {/* D-73：SC-07と同じく、見出しを薄い緑の背景と太字にし、中の持ち物を1段右に下げる */}
-              <h2 className="rounded-lg bg-brand-soft px-3 py-3 font-bold wrap-break-word">
-                {section.name}
-                <span className="text-sm font-normal whitespace-nowrap text-muted">
-                  （{section.items.length}件）
-                </span>
-              </h2>
-              <PublicItems items={section.items} indented />
+              <SectionHeading
+                name={section.name}
+                items={section.items}
+                className="bg-brand-soft"
+                selection={selection}
+              />
+              <PublicItems
+                items={section.items}
+                indented
+                selection={selection}
+              />
             </section>
           ))}
           {unclassified.length > 0 && (
             <section aria-label="未分類" className="flex flex-col gap-1">
               {/* 名前付きグループと見分けられるよう、未分類の見出しは控えめな生成りの背景にする */}
-              <h2 className="rounded-lg bg-sand px-3 py-3 font-bold">
-                未分類
-                <span className="text-sm font-normal whitespace-nowrap text-muted">
-                  （{unclassified.length}件）
-                </span>
-              </h2>
-              <PublicItems items={unclassified} indented />
+              <SectionHeading
+                name="未分類"
+                items={unclassified}
+                className="bg-sand"
+                selection={selection}
+              />
+              <PublicItems
+                items={unclassified}
+                indented
+                selection={selection}
+              />
             </section>
           )}
         </>
@@ -68,24 +92,94 @@ export function PublicListContent({ list }: Props) {
   );
 }
 
+function SectionHeading({
+  name,
+  items,
+  className,
+  selection,
+}: {
+  name: string;
+  items: Item[];
+  className: string;
+  selection?: PublicListSelection;
+}) {
+  const count = (
+    <span className="text-sm font-normal whitespace-nowrap text-muted">
+      （{items.length}件）
+    </span>
+  );
+
+  if (!selection) {
+    return (
+      <h2
+        className={`rounded-lg px-3 py-3 font-bold wrap-break-word ${className}`}
+      >
+        {name}
+        {count}
+      </h2>
+    );
+  }
+
+  // D-118（利用者の指示）：見出し（「未分類」も）を押すと、中の持ち物をまとめて選ぶ・外す（SC-07-21と同じ）
+  const ids = items.map((item) => item.id);
+  const selected =
+    ids.length > 0 && ids.every((id) => selection.selectedIds.has(id));
+  return (
+    <h2 className={`rounded-lg font-bold wrap-break-word ${className}`}>
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-label={`${name}（まとめて選ぶ）`}
+        disabled={ids.length === 0}
+        onClick={() => selection.onToggle(ids)}
+        className="flex min-h-12 w-full items-center gap-2 px-3 text-left disabled:cursor-default"
+      >
+        <SelectMark selected={selected} />
+        <span className="min-w-0 flex-1">
+          {name}
+          {count}
+        </span>
+      </button>
+    </h2>
+  );
+}
+
 function PublicItems({
   items,
   indented,
+  selection,
 }: {
-  items: PublicPackingListDetail["items"];
+  items: Item[];
   // グループの見出しの下に並べるときは、1段右に下げる
   indented: boolean;
+  selection?: PublicListSelection;
 }) {
   return (
     <ul className={`flex flex-col ${indented ? "pl-6" : ""}`}>
-      {items.map((item) => (
-        <li
-          key={item.id}
-          className="border-b border-line-soft px-2 py-3 wrap-break-word"
-        >
-          {item.name}
-        </li>
-      ))}
+      {items.map((item) =>
+        selection ? (
+          <li key={item.id} className="border-b border-line-soft">
+            <button
+              type="button"
+              aria-pressed={selection.selectedIds.has(item.id)}
+              onClick={() => selection.onToggle([item.id])}
+              className="flex min-h-12 w-full items-center gap-2 px-2 text-left"
+            >
+              <SelectMark selected={selection.selectedIds.has(item.id)} />
+              <span className="min-w-0 flex-1 wrap-break-word">
+                {item.name}
+              </span>
+            </button>
+          </li>
+        ) : (
+          <li
+            key={item.id}
+            className="border-b border-line-soft px-2 py-3 wrap-break-word"
+          >
+            {item.name}
+          </li>
+        ),
+      )}
     </ul>
   );
 }
