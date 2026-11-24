@@ -35,6 +35,9 @@ type Options = {
   // 呼び出す側で作って渡し、返す値には入れない（描画中に使う値と ref を分けるため）
   container: RefObject<HTMLDivElement | null>;
   disabled: boolean;
+  // 0.1秒押してから動かすと並べ替えが始まる画面か（D-03）。並べ替えのない自分のリスト一覧（SC-05）は false にし、
+  // 押してから少し間をおいて引いても横に動かせるようにする（D-120）
+  dragOnHold?: boolean;
   // この行が開いている行か。開けるのは1行だけなので、親が持つ
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -52,12 +55,13 @@ function startsOnTextInput(target: EventTarget | null): boolean {
 /**
  * D-105（利用者の指示）：スマホで行を左にスワイプすると、右端に赤い「削除」を出す。
  * 長く引いて離したときは、ボタンを押さずに削除する。指（touch）のときだけ受け付け、パソコンは「…」から削除する。
- * ドラッグ（0.1秒押してから動かす、D-03）と取り合わないよう、0.1秒以内に動き始めた横の動きだけをスワイプにする。
+ * 並べ替えのある画面では、ドラッグ（0.1秒押してから動かす、D-03）と取り合わないよう、0.1秒以内に動き始めた横の動きだけをスワイプにする。
  * 縦の動きは画面のスクロールに任せる。
  */
 export function useSwipeToDelete({
   container,
   disabled,
+  dragOnHold = true,
   open,
   onOpenChange,
   onDelete,
@@ -129,7 +133,7 @@ export function useSwipeToDelete({
         if (!current.movedEarly) {
           if (distance < TOUCH_TOLERANCE_PX) return;
           // 0.1秒動かさずに押していたら、並べ替えのドラッグが始まっているので横に引かない
-          if (event.timeStamp - current.time >= TOUCH_DELAY_MS) {
+          if (dragOnHold && event.timeStamp - current.time >= TOUCH_DELAY_MS) {
             current.mode = "none";
             return;
           }

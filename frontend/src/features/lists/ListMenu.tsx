@@ -18,7 +18,6 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { ItemDeleteResult } from "@/types/api";
-import { DuplicateListDialog } from "./DuplicateListDialog";
 import { bulkDeleteErrorMessage } from "./itemErrors";
 import { ShareLinkDialog } from "./ShareLinkDialog";
 import { withShowChecked } from "./showChecked";
@@ -27,7 +26,6 @@ import { PublishConfirmDialog } from "./VisibilitySwitch";
 
 type Props = {
   listId: number;
-  title: string;
   // D-94：チェック済みを表示しているか。SC-06・SC-09 へ移るときに表示を引き継ぐのに使う
   showChecked: boolean;
   onChecksReset: () => void;
@@ -54,24 +52,19 @@ type Props = {
   shareToken: string | null;
   onShareTokenChange: (token: string | null) => void;
   shareDisabled: boolean;
-  // SC-07-4・F-30：運営が非公開にしたリストは複製できない（D-116）
-  duplicateDisabled: boolean;
-  // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない（複製と同じ）
+  // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない
   transferDisabled: boolean;
   onModerated: () => void;
 };
 
-type Confirming =
-  "grouping" | "reset-checks" | "delete-checked" | "delete" | null;
+type Confirming = "grouping" | "reset-checks" | "delete-checked" | null;
 
 // 確認で「やめる」を押した後に、カーソルを戻す「…」の項目
-type MenuItemKey =
-  "public" | "duplicate" | "reset-checks" | "delete-checked" | "delete";
+type MenuItemKey = "public" | "reset-checks" | "delete-checked";
 
 // SC-07-4「…」メニュー
 export function ListMenu({
   listId,
-  title,
   showChecked,
   onChecksReset,
   checkedItemIds,
@@ -89,7 +82,6 @@ export function ListMenu({
   shareToken,
   onShareTokenChange,
   shareDisabled,
-  duplicateDisabled,
   transferDisabled,
   onModerated,
 }: Props) {
@@ -111,8 +103,6 @@ export function ListMenu({
   // SC-07-4・D-114：「リンクで共有」のダイアログを開いているか
   const [sharing, setSharing] = useState(false);
   const focusAfterSharing = useRef(false);
-  // SC-07-4・D-116：「このリストを複製」の名前を入れるダイアログを開いているか
-  const [duplicating, setDuplicating] = useState(false);
 
   // 確認（子の ConfirmDialog）が閉じてから項目へカーソルを移す。子の effect が先に動くので、
   // 確認を開いている間（後ろの画面を操作できない間）に移そうとして失敗することはない
@@ -204,22 +194,6 @@ export function ListMenu({
     }
   }
 
-  async function handleDelete() {
-    setSending(true);
-    setError(null);
-
-    try {
-      await clientApi<void>(`/lists/${listId}`, { method: "DELETE" });
-      // SC-07-15：削除したら自分のリスト一覧（SC-05）へ。戻るで消したリストを開かないよう置き換える。
-      // 移動が終わるまで送信中のままにして、二重送信を防ぐ
-      router.replace("/lists");
-    } catch (failure) {
-      if (handleMovingError(failure)) return;
-      setError(NETWORK_ERROR_MESSAGE);
-      setSending(false);
-    }
-  }
-
   // チェック済みも「選んで削除」と同じAPI-38で消す。グループは消さず、戻す候補にも入れない（D-100）。
   async function handleDeleteChecked() {
     if (
@@ -266,8 +240,9 @@ export function ListMenu({
         …
       </button>
 
-      {/* SC-07-4（利用者の指示）：操作の種類ごとに、編集・整理｜公開・共有｜チェックと持ち物の削除｜リストの削除の
-          4つに線で区切る。項目ごとに同じ形のアイコンを付け、削除の操作は赤で示す。押せる高さは44px（D-73）。
+      {/* SC-07-4（利用者の指示）：操作の種類ごとに、編集・整理｜公開・共有｜チェックと持ち物の削除の
+          3つに線で区切る。リストの複製・削除は自分のリスト一覧（SC-05）のカードの「…」で行う（D-120）。
+          項目ごとに同じ形のアイコンを付け、削除の操作は赤で示す。押せる高さは44px（D-73）。
           画面の高さに収まらないときは、メニューの中だけを動かす。
           一覧の上の「チェック済みを表示」（前面に出している）より手前に重ねる */}
       {menuOpen && (
@@ -359,25 +334,6 @@ export function ListMenu({
                 )}
               </button>
             </li>
-            {/* SC-07-4・D-116：自分のリストを丸ごと新しいリストにする。並べ替えなどの保存中は、
-                保存し終えた内容を写せるよう押せない */}
-            <li>
-              <button
-                type="button"
-                aria-describedby={
-                  duplicateDisabled ? publishDescribedBy : undefined
-                }
-                disabled={saving || duplicateDisabled}
-                data-menu-item="duplicate"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setDuplicating(true);
-                }}
-                className={MENU_ITEM}
-              >
-                <MenuLabel icon="copy">このリストを複製</MenuLabel>
-              </button>
-            </li>
           </MenuSection>
           {/* ③ チェック操作・持ち物の削除 */}
           <MenuSection divided>
@@ -427,21 +383,6 @@ export function ListMenu({
               </button>
             </li>
           </MenuSection>
-          {/* ④ リスト自体の削除 */}
-          <MenuSection divided>
-            <li>
-              <button
-                type="button"
-                onClick={() => openConfirm("delete")}
-                data-menu-item="delete"
-                className={`${MENU_ITEM} text-danger`}
-              >
-                <MenuLabel icon="trash" danger>
-                  このリストを削除
-                </MenuLabel>
-              </button>
-            </li>
-          </MenuSection>
         </div>
       )}
 
@@ -485,41 +426,12 @@ export function ListMenu({
         }}
       />
 
-      {/* SC-07-15・D-26：実際のリスト名と、中の持ち物も消えることを伝える */}
-      <ConfirmDialog
-        open={confirming === "delete"}
-        message={`「${title}」を削除しますか？中の持ち物も削除されます。`}
-        confirmLabel="削除する"
-        cancelLabel="やめる"
-        busy={sending}
-        destructive
-        error={error}
-        onConfirm={handleDelete}
-        onCancel={() => {
-          setConfirming(null);
-          reopenMenu("delete");
-        }}
-      />
-
       {/* SC-07-4・D-42：公開にするときだけ確認する。SC-06 と同じ文言・同じ動き。
           「やめる」で「…」を開き直すので、この中に置く */}
       <PublishConfirmDialog
         visibility={visibility}
         onCancel={() => reopenMenu("public")}
       />
-
-      {/* 名前を入れる確認なので、ほかの確認と同じく「やめる」で「…」を開き直す（D-73） */}
-      {duplicating && (
-        <DuplicateListDialog
-          listId={listId}
-          title={title}
-          onModerated={onModerated}
-          onCancel={() => {
-            setDuplicating(false);
-            reopenMenu("duplicate");
-          }}
-        />
-      )}
 
       {sharing && (
         <ShareLinkDialog
@@ -537,12 +449,12 @@ export function ListMenu({
   );
 }
 
-// 「…」の1項目。行全体を押せるようにし、高さは44px以上（D-73）
-const MENU_ITEM =
+// 「…」の1項目。行全体を押せるようにし、高さは44px以上（D-73）。自分のリスト一覧（SC-05）のカードの「…」も同じ形（D-120）
+export const MENU_ITEM =
   "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left hover:bg-canvas focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:opacity-50";
 
 // 区切り線で分けたまとまり。線は薄い色で、上下の余白は4pxに詰める（利用者の指示）
-function MenuSection({
+export function MenuSection({
   divided = false,
   children,
 }: {
@@ -559,7 +471,7 @@ function MenuSection({
 }
 
 // アイコンは補足なので、ふだんは控えめな色にする。削除の操作は文字と同じ赤
-function MenuLabel({
+export function MenuLabel({
   icon,
   danger = false,
   children,

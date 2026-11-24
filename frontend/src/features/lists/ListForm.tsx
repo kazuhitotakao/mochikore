@@ -23,7 +23,6 @@ import {
   validateDescription,
   validateTitle,
 } from "./validation";
-import { withShowChecked } from "./showChecked";
 import {
   type BeforePublishResult,
   useVisibilityToggle,
@@ -47,12 +46,13 @@ type Props = {
   categories: Category[];
   // 編集のときだけ渡す。ないときは新規作成
   list?: EditableList;
-  // D-94：SC-07 でチェック済みを表示したまま来たとき。保存して戻った後も表示したままにする
-  showChecked?: boolean;
+  // 編集のときの戻り先（SC-06-6）。SC-07 から開いたときはその内容（チェック済みの表示も引き継ぐ、D-94）、
+  // 自分のリスト一覧（SC-05）から開いたときは一覧（D-120）。「←」と同じ行き先を画面から渡す
+  returnHref?: string;
 };
 
 // SC-06 リスト作成・編集。新規は API-06、編集は API-08
-export function ListForm({ categories, list, showChecked = false }: Props) {
+export function ListForm({ categories, list, returnHref }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // D-85：入力の保存後に公開できなかった場合も、次の送信は保存済みの内容と比較する
@@ -159,10 +159,10 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
       : null;
 
     setSubmitting(true);
-    // SC-06-6：編集で何も変えていなければ、送らずに SC-07 へ戻る（SC-09 の「保存」と同じ。更新日時も変えない、D-24）。
+    // SC-06-6：編集で何も変えていなければ、送らずに開いた元へ戻る（SC-09 の「保存」と同じ。更新日時も変えない、D-24）。
     // 移動が終わるまで送信中のままにして、連打で二重に移動しない
     if (savedList && changes && Object.keys(changes).length === 0) {
-      router.replace(withShowChecked(`/lists/${savedList.id}`, showChecked));
+      router.replace(returnHref ?? `/lists/${savedList.id}`);
       return;
     }
 
@@ -179,9 +179,11 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
             method: "POST",
             body: { title, category_id: categoryId, description },
           });
-      // SC-06-6：保存したらそのリストの内容（SC-07）へ。戻るでこの画面に戻らないよう置き換える。
+      // SC-06-6：新規はそのリストの内容（SC-07）へ、編集は開いた元（D-120）へ。戻るでこの画面に戻らないよう置き換える。
       // 移動が終わるまで送信中のままにして、二重送信を防ぐ
-      router.replace(withShowChecked(`/lists/${saved.id}`, showChecked));
+      router.replace(
+        savedList && returnHref ? returnHref : `/lists/${saved.id}`,
+      );
     } catch (error) {
       showError(error);
       setSubmitting(false);
@@ -372,7 +374,7 @@ export function ListForm({ categories, list, showChecked = false }: Props) {
 }
 
 // SC-06-3・5：残りの文字数。入力欄の maxLength は UTF-16 で数えて絵文字を多く数えるので使わない（C-01）。
-// SC-07-4 の複製の名前（D-116）でも使う
+// SC-05-6 の複製の名前（D-116）でも使う
 export function RemainingCount({
   id,
   max,

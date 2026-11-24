@@ -27,21 +27,23 @@ const MODERATED_MESSAGE = "このリストは運営により非公開になっ�
 type Props = {
   listId: number;
   title: string;
-  // 開いている間に運営が非公開にしていたとき。親が案内を出し、「このリストを複製」を押せなくする
-  onModerated: () => void;
-  // 「やめる」・Esc・外枠で閉じたとき。複製できたときは新しいリストへ移るので呼ばない
+  // 「やめる」・Esc・外枠で閉じたとき。複製できたときは呼ばない
   onCancel: () => void;
+  // 複製できたとき。一覧に残るので、移動せずに親へ知らせる。
+  // 親がこのダイアログを外すまで送信中のままにし、二重に作らない（D-120）
+  onDuplicated: () => void;
 };
 
 /**
- * SC-07-4「このリストを複製」（F-30、API-50、D-116）。新しいリスト名を入れて、自分のリストを丸ごと写す。
+ * SC-05-6「このリストを複製」（F-30、API-50、D-116・D-120）。自分のリスト一覧（SC-05）のカードの「…」から開き、
+ * 新しいリスト名を入れて、自分のリストを丸ごと写す。
  * 開いたときだけ置き、閉じたら親が外す。送信中は閉じない（02_画面配置 共通5）。
  */
 export function DuplicateListDialog({
   listId,
   title,
-  onModerated,
   onCancel,
+  onDuplicated,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -78,23 +80,20 @@ export function DuplicateListDialog({
     fieldErrors.reset();
     try {
       // 前後空白の削除は Laravel が行うので、入力のまま送る（D-92）
-      const copy = await clientApi<PackingList>(`/lists/${listId}/duplicate`, {
+      await clientApi<PackingList>(`/lists/${listId}/duplicate`, {
         method: "POST",
         body: { title: name },
       });
-      // D-116：新しいリストの内容（SC-07）へ移る。移動が終わるまで送信中のままにし、二重に作らない
-      router.push(`/lists/${copy.id}?duplicated=1`);
+      onDuplicated();
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (failure instanceof ApiError && failure.code === "not_found") {
-        // ほかの画面でリストが消えていた。読み直すと「ページが見つかりません」になる（D-43）
+        // ほかの画面でリストが消えていた。読み直すと一覧からカードが消え、このダイアログも閉じる（D-43）
         router.refresh();
         return;
       }
-      if (failure instanceof ApiError && failure.code === "list_moderated") {
-        onModerated();
-      }
 
+      // 運営が非公開にしたリスト（list_moderated）は、一覧に案内を出さないので、ここで理由を出す（D-120）
       const serverErrors =
         failure instanceof ApiError && failure.code === "validation_error"
           ? firstErrors(failure.errors, FIELDS)
@@ -181,7 +180,7 @@ export function DuplicateListDialog({
   );
 }
 
-// SC-07-4：複製できなかった理由。画面は code で決める（D-53）
+// SC-05-6：複製できなかった理由。画面は code で決める（D-53）
 function duplicateErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return NETWORK_ERROR_MESSAGE;
 
