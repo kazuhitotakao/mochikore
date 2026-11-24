@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 // 02_画面配置 共通4：ほかの結果通知と同じく、5秒で消す
 const NOTICE_DURATION_MS = 5000;
 
-// 新しいリストへ移ったときの通知。公開リストのコピー（SC-11-6・SC-18-5）と自分のリストの複製（SC-07-4、D-116）
+// 新しいリストへ移ったときの通知。公開リストのコピー（SC-11-6・SC-18-5）。
+// 自分のリストの複製は一覧（SC-05）に残るので、一覧の通知で知らせる（D-120）
 const MESSAGES = {
   copied: "リストをコピーしました。",
-  duplicated: "リストを複製しました。",
 } as const;
 
 export type ListCreatedKind = keyof typeof MESSAGES;

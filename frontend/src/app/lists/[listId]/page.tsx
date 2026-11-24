@@ -26,13 +26,8 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
   const list = listRead.value;
   const categories = categoryRead.value;
   const searchParams = await props.searchParams;
-  // SC-11-6・SC-18-5 のコピーと、SC-07-4 の複製（D-116）の後に開いたときだけ通知を出す
-  const created =
-    searchParams.copied === "1"
-      ? "copied"
-      : searchParams.duplicated === "1"
-        ? "duplicated"
-        : null;
+  // SC-11-6・SC-18-5 のコピーの後に開いたときだけ通知を出す
+  const created = searchParams.copied === "1" ? "copied" : null;
 
   return (
     <main className="flex flex-col py-8">

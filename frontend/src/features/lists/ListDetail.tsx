@@ -1181,7 +1181,6 @@ export function ListDetail({
             <div className="-mt-1 -mb-2">
               <ListMenu
                 listId={list.id}
-                title={list.title}
                 showChecked={showChecked}
                 onChecksReset={handleChecksReset}
                 checkedItemIds={checkedItemIds}
@@ -1208,8 +1207,7 @@ export function ListDetail({
                 shareToken={shareToken}
                 onShareTokenChange={setShareToken}
                 shareDisabled={moderated}
-                duplicateDisabled={moderated}
-                // D-118：運営が非公開にしたリストの持ち物は、複製と同じくコピー・移動できない
+                // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない
                 transferDisabled={moderated}
                 onModerated={() => {
                   setModerated(true);
