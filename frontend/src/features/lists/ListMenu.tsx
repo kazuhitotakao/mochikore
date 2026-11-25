@@ -68,7 +68,7 @@ type Props = {
 
 type Confirming = "grouping" | "reset-checks" | "delete-checked" | null;
 
-// 確認で「やめる」を押した後に、カーソルを戻す「…」の項目
+// 確認で「キャンセル」を押した後に、カーソルを戻す「…」の項目
 type MenuItemKey = "public" | "reset-checks" | "delete-checked";
 
 // SC-07-4「…」メニュー
@@ -154,7 +154,7 @@ export function ListMenu({
     menuContainer.current?.querySelector("button")?.focus();
   }, [confirming, sending]);
 
-  // SC-07-4（利用者の指示）：「…」から開いた確認で「やめる」を押したら（Esc・外枠も同じ）、
+  // SC-07-4（利用者の指示）：「…」から開いた確認で「キャンセル」を押したら（Esc・外枠も同じ）、
   // 「…」を開いたまま戻し、続けて別の操作を選べるようにする。押した項目へカーソルを戻す（D-73）
   function reopenMenu(item: MenuItemKey) {
     focusAfterReopen.current = item;
@@ -455,8 +455,8 @@ export function ListMenu({
       <ConfirmDialog
         open={confirming === "grouping"}
         message="グループを整理すると、削除した持ち物は元に戻せなくなります。"
-        confirmLabel="整理する"
-        cancelLabel="やめる"
+        confirmLabel="グループを整理"
+        cancelLabel="キャンセル"
         onConfirm={() => router.push(groupingHref)}
         onCancel={() => setConfirming(null)}
       />
@@ -464,8 +464,8 @@ export function ListMenu({
       <ConfirmDialog
         open={confirming === "reset-checks"}
         message="このリストのチェックを全部外しますか？"
-        confirmLabel="外す"
-        cancelLabel="やめる"
+        confirmLabel="チェックを外す"
+        cancelLabel="キャンセル"
         busy={sending}
         error={error}
         onConfirm={handleResetChecks}
@@ -480,7 +480,7 @@ export function ListMenu({
         open={confirming === "delete-checked"}
         message={`チェック済みの持ち物（${checkedDeleteIds.length}件）を削除しますか？元に戻せません。`}
         confirmLabel="削除する"
-        cancelLabel="やめる"
+        cancelLabel="キャンセル"
         busy={sending}
         destructive
         error={error}
@@ -492,7 +492,7 @@ export function ListMenu({
       />
 
       {/* SC-07-4・D-42：公開にするときだけ確認する。SC-06 と同じ文言・同じ動き。
-          「やめる」で「…」を開き直すので、この中に置く */}
+          「キャンセル」で「…」を開き直すので、この中に置く */}
       <PublishConfirmDialog
         visibility={visibility}
         onCancel={() => reopenMenu("public")}

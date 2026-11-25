@@ -50,7 +50,7 @@ export function SaveItemDialog({
     ref.current?.showModal();
   }, []);
 
-  // Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
+  // Esc・外枠を押したときは「キャンセル」と同じ（外枠は利用者の指示）。送信中は閉じない
   function closeIfIdle() {
     if (!submitting) onClose();
   }
@@ -168,7 +168,7 @@ export function SaveItemDialog({
             disabled={submitting}
             className="btn-outline"
           >
-            やめる
+            キャンセル
           </button>
           <button type="submit" disabled={submitting} className="btn-primary">
             保存

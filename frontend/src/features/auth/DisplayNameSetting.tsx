@@ -141,7 +141,7 @@ export function DisplayNameSetting({ displayName }: Props) {
             onClick={() => setEditing(false)}
             className="btn-outline"
           >
-            やめる
+            キャンセル
           </button>
         </div>
       </form>

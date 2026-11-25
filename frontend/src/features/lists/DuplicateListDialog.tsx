@@ -27,7 +27,7 @@ const MODERATED_MESSAGE = "このリストは運営により非公開になっ�
 type Props = {
   listId: number;
   title: string;
-  // 「やめる」・Esc・外枠で閉じたとき。複製できたときは呼ばない
+  // 「キャンセル」・Esc・外枠で閉じたとき。複製できたときは呼ばない
   onCancel: () => void;
   // 複製できたとき。一覧に残るので、移動せずに親へ知らせる。
   // 親がこのダイアログを外すまで送信中のままにし、二重に作らない（D-120）
@@ -169,7 +169,7 @@ export function DuplicateListDialog({
             disabled={sending}
             className="btn-outline"
           >
-            やめる
+            キャンセル
           </button>
           <button type="submit" disabled={sending} className="btn-primary">
             {sending ? "複製中…" : "複製する"}

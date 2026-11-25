@@ -14,7 +14,7 @@ type Props = {
   // 画面と同じ順（グループの順、最後に未分類）
   targets: MoveTarget[];
   onMove: (key: string | null) => void;
-  // 「やめる」・Esc・外枠を押したとき
+  // 「キャンセル」・Esc・外枠を押したとき
   onCancel: () => void;
 };
 
@@ -76,7 +76,7 @@ export function MoveItemDialog({
         </ul>
         <div className="flex justify-end">
           <button type="button" onClick={onCancel} className="btn-outline">
-            やめる
+            キャンセル
           </button>
         </div>
       </div>

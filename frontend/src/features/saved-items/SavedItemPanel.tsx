@@ -406,7 +406,7 @@ export function SavedItemPanel({
         open={deleteTarget !== null}
         message="この候補を削除しますか？"
         confirmLabel="削除する"
-        cancelLabel="やめる"
+        cancelLabel="キャンセル"
         busy={deleting}
         destructive
         error={deleteError}

@@ -1190,7 +1190,7 @@ export function GroupingEditor({
         open={confirmingReload}
         message="変更を破棄しますか？"
         confirmLabel="破棄する"
-        cancelLabel="編集を続ける"
+        cancelLabel="キャンセル"
         destructive
         onConfirm={() => {
           setConfirmingReload(false);

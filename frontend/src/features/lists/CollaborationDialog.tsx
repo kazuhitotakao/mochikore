@@ -273,14 +273,17 @@ export function CollaborationDialog({
                   key={member.id}
                   className="flex min-h-11 flex-wrap items-center gap-2 py-1"
                 >
-                  <span className="min-w-0 flex-1 wrap-break-word">
+                  <span
+                    // 確かめている間は、名前と確認が1行に並びきらなければ、名前を細く折り返さずに確認を次の行へ送る
+                    className={`min-w-0 wrap-break-word ${confirmingId === member.id ? "flex-auto" : "flex-1"}`}
+                  >
                     {member.display_name ?? "（表示名なし）"}
                     {member.is_me && "（あなた）"}
                   </span>
                   {isOwner &&
                     (confirmingId === member.id ? (
                       // 外した人は開けなくなるので、押し間違えないよう、その場で確かめる
-                      <span className="flex items-center gap-2">
+                      <span className="ml-auto flex items-center gap-2">
                         <span className="text-sm">外しますか？</span>
                         <button
                           type="button"
@@ -288,7 +291,7 @@ export function CollaborationDialog({
                           onClick={() => setConfirmingId(null)}
                           className="tap-target text-link"
                         >
-                          やめる
+                          キャンセル
                         </button>
                         <button
                           type="button"

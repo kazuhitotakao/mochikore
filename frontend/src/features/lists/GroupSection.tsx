@@ -222,7 +222,7 @@ function SortableGroupSection({
           visible={swipe.offset < 0}
           open={swipe.isOpen}
           label={`${title}と中の持ち物を削除`}
-          // 確認を出す前に閉じる。確認で「やめる」を押したときに、開いたまま残さない
+          // 確認を出す前に閉じる。確認で「キャンセル」を押したときに、開いたまま残さない
           onDelete={() => {
             onSwipeOpenChange(false);
             onSwipeDelete();

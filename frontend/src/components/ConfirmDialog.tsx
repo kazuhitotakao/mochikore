@@ -19,7 +19,7 @@ type Props = {
 
 // 02_画面配置 共通5：確認文と2つのボタン。
 // ブラウザの dialog を使い、開いている間は後ろの画面を操作できないようにする。
-// Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
+// Esc・外枠を押したときは「キャンセル」と同じ（外枠は利用者の指示）。送信中は閉じない
 export function ConfirmDialog({
   open,
   message,
@@ -42,7 +42,7 @@ export function ConfirmDialog({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    // 最初にカーソルが来るのは「やめる」なので、Enter を押しただけでは実行されない
+    // 最初にカーソルが来るのは「キャンセル」なので、Enter を押しただけでは実行されない
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
   }, [open]);
@@ -64,7 +64,8 @@ export function ConfirmDialog({
           {error}
         </p>
       )}
-      <div className="mt-6 flex justify-end gap-3">
+      {/* 「リストから抜ける」など長い文言が狭い幅で並びきらないときは、文字を途中で折らずにボタンごと次の行へ送る */}
+      <div className="mt-6 flex flex-wrap justify-end gap-3">
         <button
           type="button"
           onClick={onCancel}

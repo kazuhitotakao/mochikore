@@ -12,7 +12,7 @@ import { CheckModeField } from "./CheckModeField";
 type Props = {
   group: Pick<PackingListGroup, "id" | "name" | "check_mode">;
   onSaved: (group: PackingListGroup) => void;
-  // 「やめる」・Esc・外枠を押したとき。送信中は閉じない
+  // 「キャンセル」・Esc・外枠を押したとき。送信中は閉じない
   onCancel: () => void;
 };
 
@@ -115,7 +115,7 @@ export function CheckModeDialog({ group, onSaved, onCancel }: Props) {
             disabled={saving}
             className="btn-outline"
           >
-            やめる
+            キャンセル
           </button>
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? "保存中…" : "保存"}

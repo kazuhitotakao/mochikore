@@ -17,7 +17,7 @@ import { PublicBadge } from "./PublicBadge";
 import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
 import { useSwipeToDelete } from "./useSwipeToDelete";
 
-// 確認・複製のダイアログで「やめる」を押した後に、カーソルを戻す「…」の項目
+// 確認・複製のダイアログで「キャンセル」を押した後に、カーソルを戻す「…」の項目
 type MenuItemKey = "duplicate" | "delete" | "leave";
 
 // 一覧から外れた理由。gone は、ほかの画面で先に削除された・メンバーから外されていたとき
@@ -55,7 +55,7 @@ export function OwnListCard({
   const menuContainer = useRef<HTMLDivElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuContainer, menuOpen, closeMenu);
-  // 削除の確認。「…」から開いたときは「やめる」で「…」へ戻す（SC-07-4 の確認と同じ、D-73）
+  // 削除の確認。「…」から開いたときは「キャンセル」で「…」へ戻す（SC-07-4 の確認と同じ、D-73）
   const [confirming, setConfirming] = useState<"menu" | "swipe" | null>(null);
   // D-119：参加しているリストから抜ける確認
   const [confirmingLeave, setConfirmingLeave] = useState(false);
@@ -163,7 +163,7 @@ export function OwnListCard({
           visible={swipe.offset < 0}
           open={swipe.isOpen}
           label={`${list.title}を削除`}
-          // 確認を出す前に閉じる。確認で「やめる」を押したときに、開いたまま残さない
+          // 確認を出す前に閉じる。確認で「キャンセル」を押したときに、開いたまま残さない
           onDelete={() => {
             onSwipeOpenChange(false);
             openConfirm("swipe");
@@ -299,7 +299,7 @@ export function OwnListCard({
         // D-119：共同編集のメンバーがいるときは、メンバーも使えなくなることを伝える
         message={`「${list.title}」を削除しますか？中の持ち物も削除されます。${list.member_count > 0 ? "共同編集のメンバーも使えなくなります。" : ""}`}
         confirmLabel="削除する"
-        cancelLabel="やめる"
+        cancelLabel="キャンセル"
         busy={sending}
         destructive
         error={error}
@@ -315,8 +315,8 @@ export function OwnListCard({
       <ConfirmDialog
         open={confirmingLeave}
         message={`「${list.title}」から抜けますか？あなたが足した持ち物はリストに残ります。もう一度参加するには、招待リンクが必要です。`}
-        confirmLabel="抜ける"
-        cancelLabel="やめる"
+        confirmLabel="リストから抜ける"
+        cancelLabel="キャンセル"
         busy={sending}
         destructive
         error={error}

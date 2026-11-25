@@ -135,7 +135,7 @@ export function ShareLinkDialog({
           リンクで共有
         </h2>
         {url === null ? (
-          // 作る前の確認（D-114）。最初のカーソルは「やめる」に置き、Enter だけでは作らない
+          // 作る前の確認（D-114）。最初のカーソルは「キャンセル」に置き、Enter だけでは作らない
           <p>
             リンクを知っている人は、ログインしていなくてもこのリストを見られます。送った相手から転送されることもあります。
           </p>
@@ -166,14 +166,15 @@ export function ShareLinkDialog({
           </p>
         )}
         {url === null ? (
-          <div className="mt-2 flex justify-end gap-3">
+          // 狭い幅で並びきらないときは、文字を途中で折らずにボタンごと次の行へ送る
+          <div className="mt-2 flex flex-wrap justify-end gap-3">
             <button
               type="button"
               onClick={closeIfIdle}
               disabled={sending}
               className="btn-outline"
             >
-              やめる
+              キャンセル
             </button>
             <button
               ref={createButtonRef}
