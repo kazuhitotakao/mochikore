@@ -9,6 +9,11 @@ type Props = {
   disabled: boolean;
   // 入力欄の下に出す説明。だれに見えるかを伝える
   hint?: string;
+  // すぐ上に「表示名」の見出しがある画面（SC-12）では、その見出しのIDを渡す。
+  // 同じ言葉が2つ並ばないよう、この部品のラベルは出さずに見出しを入力欄の名前にする
+  labelledBy?: string;
+  // 「変更」を押して開いた入力欄は、すぐ打てるようにする
+  autoFocus?: boolean;
 };
 
 /**
@@ -22,15 +27,19 @@ export function DisplayNameField({
   error,
   disabled,
   hint = "同じリストのメンバーに見える名前です。メールアドレスは見えません。",
+  labelledBy,
+  autoFocus,
 }: Props) {
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
 
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block font-bold">
-        表示名
-      </label>
+      {!labelledBy && (
+        <label htmlFor={id} className="mb-1 block font-bold">
+          表示名
+        </label>
+      )}
       <input
         id={id}
         type="text"
@@ -38,6 +47,8 @@ export function DisplayNameField({
         disabled={disabled}
         autoComplete="nickname"
         enterKeyHint="done"
+        autoFocus={autoFocus}
+        aria-labelledby={labelledBy}
         aria-invalid={error ? true : undefined}
         aria-describedby={`${error ? `${errorId} ` : ""}${hintId}`}
         onChange={(event) => onChange(event.target.value)}
