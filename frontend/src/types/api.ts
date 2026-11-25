@@ -159,6 +159,13 @@ export type GroupFromItemResult = {
   item: PackingListItem;
 };
 
+// API-64 重ねてグループにしたのを元に戻した結果（D-123）。restored は見出しに変わっていた持ち物、
+// item は重ねた持ち物（元の所属に戻った）
+export type GroupFromItemUndoResult = {
+  restored: PackingListItem;
+  item: PackingListItem;
+};
+
 // API-12 持ち物の削除。最後の1件を消すと非公開になることがある（D-51）
 export type ItemDeleteResult = {
   is_public: boolean;

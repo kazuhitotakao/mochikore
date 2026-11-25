@@ -33,6 +33,7 @@ use App\Http\Controllers\SavedItemController;
 use App\Http\Controllers\SharedPackingListController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\TransferItemsController;
+use App\Http\Controllers\UndoGroupFromItemController;
 use App\Http\Controllers\UpdateEmptyGroupCheckController;
 use App\Http\Controllers\UpdateGroupController;
 use App\Http\Controllers\UpdateListVisibilityController;
@@ -131,6 +132,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed()->middleware(NotifyListChange::class);
         // API-45・D-111：重ねられた持ち物（URL）をグループにし、重ねた持ち物を中へ移す
         Route::post('/items/{item}/group', CreateGroupFromItemController::class)->middleware(NotifyListChange::class);
+        // API-64：URL の持ち物は見出しに変わって一時削除中なので、削除済みも読む（D-123）
+        Route::delete('/items/{item}/group', UndoGroupFromItemController::class)->withTrashed()->middleware(NotifyListChange::class);
 
         // F-21・F-22：よく使う項目も、メール認証が済んでから使える
         Route::get('/saved-items', [SavedItemController::class, 'index']);

@@ -33,6 +33,7 @@ import { SavedItemPanel } from "@/features/saved-items/SavedItemPanel";
 import type {
   Category,
   GroupFromItemResult,
+  GroupFromItemUndoResult,
   InviteLink,
   ItemDeleteResult,
   ItemTransferResult,
@@ -44,7 +45,11 @@ import { AddItemRow } from "./AddItemRow";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
 import { ItemRow, itemCheckboxId } from "./ItemRow";
-import { bulkDeleteErrorMessage, isNotFound } from "./itemErrors";
+import {
+  ITEM_LIMIT_MESSAGE,
+  bulkDeleteErrorMessage,
+  isNotFound,
+} from "./itemErrors";
 import { lastChecked } from "./lastChecked";
 import {
   moveItemToGroup,
@@ -234,9 +239,13 @@ export function ListDetail({
       : null,
   );
   const moderatedNoticeId = useId();
-  // 画面下の結果の通知。コピー・移動の後は移し先を「開く」リンクも添える（D-118）
+  // 画面下の結果の通知。コピー・移動の後は移し先を「開く」リンクを（D-118）、
+  // 重ねてグループにした後は「元に戻す」を添える（D-123）
   const [notice, setNotice] = useState<
-    string | { text: string; href: string } | null
+    | string
+    | { text: string; href: string }
+    | { text: string; undo: GroupFromItemUndo }
+    | null
   >(null);
   // SC-07-12：この画面で削除した持ち物の候補（D-28）
   const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
@@ -881,6 +890,17 @@ export function ListDetail({
           .filter((item) => item.id !== baseId)
           .map((item) => (item.id === result.item.id ? result.item : item)),
       );
+      // D-123（利用者の指示）：間違って重ねたときに戻せるよう、ほかの通知と同じ5秒だけ「元に戻す」を出す
+      setNotice({
+        text: `「${result.group.name}」をグループにしました。`,
+        undo: {
+          baseId,
+          groupId: result.group.id,
+          itemId,
+          previousGroupId:
+            items.find((item) => item.id === itemId)?.group_id ?? null,
+        },
+      });
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (isNotFound(failure)) {
@@ -888,6 +908,50 @@ export function ListDetail({
         return;
       }
       setReorderError(groupFromItemErrorMessage(failure));
+    } finally {
+      setReordering(false);
+    }
+  }
+
+  // D-123：重ねてグループにしたのを元に戻す（API-64）。できたグループをなくし、見出しに変わった持ち物を戻し、
+  // 重ねた持ち物を元の所属へ戻す。保存できてから表示を変える
+  async function undoGroupFromItem(undo: GroupFromItemUndo) {
+    // 二度押せないよう、先に通知を消す
+    setNotice(null);
+    setReordering(true);
+    setReorderError(null);
+    try {
+      const result = await clientApi<GroupFromItemUndoResult>(
+        `/items/${undo.baseId}/group`,
+        {
+          method: "DELETE",
+          body: {
+            group_id: undo.groupId,
+            item_id: undo.itemId,
+            previous_group_id: undo.previousGroupId,
+          },
+        },
+      );
+      clearEmptyGroupCheck(undo.previousGroupId);
+      setGroups((current) =>
+        current.filter((group) => group.id !== undo.groupId),
+      );
+      setItems((current) =>
+        [
+          ...current
+            .filter((item) => item.id !== result.restored.id)
+            .map((item) => (item.id === result.item.id ? result.item : item)),
+          result.restored,
+        ].sort(byListOrder),
+      );
+      setNotice("元に戻しました。");
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      if (isNotFound(failure)) {
+        router.refresh();
+        return;
+      }
+      setReorderError(groupFromItemUndoErrorMessage(failure));
     } finally {
       setReordering(false);
     }
@@ -1588,6 +1652,18 @@ export function ListDetail({
               <p role="status" className="text-sm">
                 {typeof notice === "string" ? (
                   notice
+                ) : "undo" in notice ? (
+                  <>
+                    {notice.text}
+                    {/* D-123：重ねてグループにしたのを戻す。通知と一緒に5秒で消える */}
+                    <button
+                      type="button"
+                      onClick={() => void undoGroupFromItem(notice.undo)}
+                      className="tap-target ml-2 text-link"
+                    >
+                      元に戻す
+                    </button>
+                  </>
                 ) : (
                   <>
                     {notice.text}
@@ -1748,6 +1824,26 @@ function reorderErrorMessage(error: unknown): string {
 }
 
 // V-24・D-111：グループ名にできない名前（予約名・同名）とグループの数は、その理由を出す。ほかは読み直しを案内する
+// D-123：重ねてグループにした直後の「元に戻す」に使う。見出しに変わった持ち物・できたグループ・
+// 重ねた持ち物と、重ねる前の所属（グループの外なら null）
+type GroupFromItemUndo = {
+  baseId: number;
+  groupId: number;
+  itemId: number;
+  previousGroupId: number | null;
+};
+
+// V-30：その間にリストが変わっていたら、読み直しを案内する文が返る。安全上限は D-97 の文
+function groupFromItemUndoErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return NETWORK_ERROR_MESSAGE;
+  if (error.code === "validation_error") {
+    return Object.values(error.errors)[0]?.[0] ?? error.message;
+  }
+  return error.code === "item_limit_reached"
+    ? ITEM_LIMIT_MESSAGE
+    : NETWORK_ERROR_MESSAGE;
+}
+
 function groupFromItemErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code === "validation_error") {
     return (
