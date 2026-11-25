@@ -296,4 +296,68 @@ class GroupingService
             return ['group' => $group->refresh(), 'item' => $moved->refresh()];
         });
     }
+
+    /**
+     * API-64 重ねてグループにしたのを元に戻す（D-123）。できたグループをなくし、見出しに変わった持ち物を戻し、
+     * 重ねた持ち物を元の所属へ戻す。重ねたときに全体の順番は変えていないので、2つとも元の場所に並ぶ。
+     * 戻すのは、重ねた直後のままのときだけ。その間にリストが変わっていたら、何も変えずに読み直しを案内する。
+     *
+     * @return array{restored: PackingListItem, item: PackingListItem}
+     */
+    public function undoCreateFromItem(PackingListItem $base, int $groupId, int $itemId, ?int $previousGroupId): array
+    {
+        return DB::transaction(function () use ($base, $groupId, $itemId, $previousGroupId) {
+            $locked = PackingList::whereKey($base->packing_list_id)->lockForUpdate()->firstOrFail();
+
+            // ロックした後で読み直す。この間に完全に削除されていたら404
+            $target = $locked->items()->withTrashed()->whereKey($base->id)->first()
+                ?? throw (new ModelNotFoundException)->setModel(PackingListItem::class);
+            $group = $locked->groups()->whereKey($groupId)->first();
+            $moved = $locked->items()->whereKey($itemId)->first();
+
+            // V-30：見出しに変わった持ち物が削除済みのまま・その名前のグループがある・中は重ねた持ち物だけ・
+            // 元のグループが今もある、のすべてがそろうときだけ戻す。応答が届かずに送り直したとき（すでに戻っている）もここで止まる
+            $previousExists = $previousGroupId === null
+                || ($previousGroupId !== $groupId && $locked->groups()->whereKey($previousGroupId)->exists());
+            $untouched = $target->trashed()
+                && $group !== null
+                && $group->name === $target->name
+                && $moved !== null
+                && $moved->group_id === $group->id
+                && $previousExists
+                && ! $locked->items()->where('group_id', $group->id)->whereKeyNot($moved->id)->exists();
+            if (! $untouched) {
+                throw ValidationException::withMessages([
+                    '_form' => [__('validation.group_from_item.undo')],
+                ]);
+            }
+
+            // D-97：持ち物が1件戻るので安全上限を確かめる。重ねる前の件数に戻るだけなので、1時間の回数には数えない
+            if ($locked->items()->count() + 1 > PackingListItem::MAX_PER_LIST) {
+                throw new ApiException(ApiErrorCode::ItemLimitReached, '1つのリストに入れられる持ち物は2,000件までです。');
+            }
+
+            // D-122：所属を変える前に、繰り返し利用のグループの期限の切れたチェックを外す
+            $this->repeatChecks->expire($locked);
+
+            // group_id は Fillable に入れていないので、クエリで直接変える。全体の順番とチェックは変えない（D-60）
+            $locked->items()->whereKey($moved->id)->update(['group_id' => $previousGroupId]);
+            if ($previousGroupId !== null) {
+                // D-106：持ち物が戻ったグループに、空だったときのチェックを残さない
+                $locked->groups()->whereKey($previousGroupId)->update(['is_checked' => false]);
+            }
+            $group->delete();
+
+            // D-31：番号が残っていれば元の位置。重ねた後に並べ替えて番号が空になっていれば一番下
+            if ($target->sort_order === null) {
+                $target->sort_order = (int) $locked->items()->max('sort_order') + 1;
+            }
+            $target->restore();
+
+            // D-24・D-59：構造の変更なので revision を増やし、一覧の上に戻す（increment は updated_at も更新する）
+            $locked->increment('grouping_revision');
+
+            return ['restored' => $target->refresh(), 'item' => $moved->refresh()];
+        });
+    }
 }

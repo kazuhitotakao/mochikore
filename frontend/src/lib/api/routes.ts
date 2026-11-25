@@ -102,6 +102,8 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "POST", path: /^\/items\/\d+\/restore$/ },
   // API-45：持ち物を重ねてグループにする（D-111）
   { method: "POST", path: /^\/items\/\d+\/group$/ },
+  // API-64：重ねてグループにしたのを元に戻す（D-123）
+  { method: "DELETE", path: /^\/items\/\d+\/group$/ },
 ];
 
 export function isAllowedRoute(method: string, path: string): boolean {
