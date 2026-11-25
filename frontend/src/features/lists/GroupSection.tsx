@@ -28,7 +28,7 @@ type Props = {
   // null は未分類
   groupId: number | null;
   title: string;
-  // SC-07-6：画面に出している持ち物の数（D-95）
+  // SC-07-6：画面に出している持ち物の数（D-95）。見出しに出すのは、たたんだときだけ（D-110）
   count: number;
   // 並べ替えの保存中は動かさない
   sortDisabled: boolean;
@@ -286,9 +286,14 @@ function SortableGroupSection({
                 <span className="sr-only">（名前を変更）</span>
               </button>
             )}
-            <span className="shrink-0 text-sm font-normal whitespace-nowrap text-muted">
-              （{count}件）
-            </span>
+            {/* D-110（利用者の指示）：件数は、中の持ち物が見えないたたんだときだけ薄い色で出す。
+                開いているときは持ち物が並んでいるので出さない。
+                右のボタンと矢印は h2 の外にあるので、件数の有無で位置は変わらない */}
+            {collapsed && (
+              <span className="shrink-0 text-sm font-normal whitespace-nowrap text-faint">
+                （{count}件）
+              </span>
+            )}
           </h2>
           {/* D-122（利用者の指示）：たたむ矢印の左に、チェックの動きを変えるボタンを置く。
               通常のグループは「…」、繰り返し利用のグループは、くり返しの矢印を白い丸に入れた印にする
