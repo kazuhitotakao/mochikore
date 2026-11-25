@@ -37,6 +37,17 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   // API-46・47：限定公開のリンクを作る・止める（D-114）
   { method: "POST", path: /^\/lists\/\d+\/share-link$/ },
   { method: "DELETE", path: /^\/lists\/\d+\/share-link$/ },
+  // API-55：共同編集のメンバーに見せる表示名を変える（D-119）
+  { method: "PATCH", path: /^\/me$/ },
+  // API-56・57：共同編集の招待リンクを作る・止める（D-119）
+  { method: "POST", path: /^\/lists\/\d+\/invite-link$/ },
+  { method: "DELETE", path: /^\/lists\/\d+\/invite-link$/ },
+  // API-58〜60：メンバーの一覧・所有者が外す・自分で抜ける（D-119）
+  { method: "GET", path: /^\/lists\/\d+\/members$/ },
+  { method: "DELETE", path: /^\/lists\/\d+\/members\/\d+$/ },
+  { method: "DELETE", path: /^\/lists\/\d+\/membership$/ },
+  // API-62：招待リンクから参加する。SC-19の読み取り（API-61）は Server Component から送る（D-119）
+  { method: "POST", path: /^\/invites\/[A-Za-z0-9]{32}\/join$/ },
   // API-50：自分のリストを複製する（D-116）
   { method: "POST", path: /^\/lists\/\d+\/duplicate$/ },
   // API-49：限定公開のリンクのリストを自分用にコピーする。SC-18の読み取り（API-48）は Server Component から送る

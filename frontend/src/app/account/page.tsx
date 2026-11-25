@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
 import { DeleteAccountDialog } from "@/features/auth/DeleteAccountDialog";
+import { DisplayNameSetting } from "@/features/auth/DisplayNameSetting";
 import { LogoutButton } from "@/features/auth/LogoutButton";
 import { PendingEmailStatus } from "@/features/auth/PendingEmailStatus";
 import { requireUser } from "@/features/auth/requireUser";
@@ -46,6 +47,14 @@ export default async function AccountPage(props: PageProps<"/account">) {
           </Link>
         )}
       </section>
+
+      {/* SC-12-10・D-119：共同編集のメンバーに見せる表示名。リストを使えるメール認証済みの人にだけ出す */}
+      {user.email_verified_at && (
+        <section className="flex flex-col gap-1">
+          <h2 className="font-bold">表示名</h2>
+          <DisplayNameSetting displayName={user.display_name} />
+        </section>
+      )}
 
       {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える */}
       <Link

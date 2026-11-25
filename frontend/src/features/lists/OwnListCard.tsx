@@ -9,6 +9,7 @@ import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { formatDate } from "@/lib/format";
 import type { PackingListSummary } from "@/types/api";
+import { CollaborativeBadge } from "./CollaborativeBadge";
 import { DuplicateListDialog } from "./DuplicateListDialog";
 import { editHrefFromIndex } from "./editReturn";
 import { MENU_ITEM, MenuLabel, MenuSection } from "./ListMenu";
@@ -17,15 +18,17 @@ import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
 import { useSwipeToDelete } from "./useSwipeToDelete";
 
 // 確認・複製のダイアログで「やめる」を押した後に、カーソルを戻す「…」の項目
-type MenuItemKey = "duplicate" | "delete";
+type MenuItemKey = "duplicate" | "delete" | "leave";
+
+// 一覧から外れた理由。gone は、ほかの画面で先に削除された・メンバーから外されていたとき
+export type RemovedReason = "deleted" | "left" | "gone";
 
 type Props = {
   list: PackingListSummary;
   // D-105：左スワイプで「削除」を出しているカードか。開けるのは1枚だけなので、親が持つ
   swipeOpen: boolean;
   onSwipeOpenChange: (open: boolean) => void;
-  // 一覧から外れたとき。deleted は、この画面で削除できたか（false はほかの画面で先に削除されていたとき）
-  onRemoved: (deleted: boolean) => void;
+  onRemoved: (reason: RemovedReason) => void;
   onDuplicated: () => void;
 };
 
@@ -36,6 +39,8 @@ const CARD_RADIUS = "rounded-[0.875rem]";
  * SC-05-4・6 自分のリストのカード（D-120）。押すとリストの内容（SC-07）へ移り、右上の「…」から
  * 編集・複製・削除ができる。スマホでは左にスワイプしても削除できる（持ち物の行と同じ、D-105）。
  * リストの削除は元に戻せないので、どこから消すときも確認する（D-26）。
+ * 共同編集で参加しているリスト（所有者でない）は、編集・削除の代わりに「このリストから抜ける」を出し、
+ * 左スワイプは使わない（D-119）。
  */
 export function OwnListCard({
   list,
@@ -52,6 +57,8 @@ export function OwnListCard({
   useDismiss(menuContainer, menuOpen, closeMenu);
   // 削除の確認。「…」から開いたときは「やめる」で「…」へ戻す（SC-07-4 の確認と同じ、D-73）
   const [confirming, setConfirming] = useState<"menu" | "swipe" | null>(null);
+  // D-119：参加しているリストから抜ける確認
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +69,12 @@ export function OwnListCard({
   const swipeContainer = useRef<HTMLDivElement>(null);
   const swipe = useSwipeToDelete({
     container: swipeContainer,
-    disabled: menuOpen || confirming !== null || duplicating || sending,
+    disabled:
+      !list.is_owner ||
+      menuOpen ||
+      confirming !== null ||
+      duplicating ||
+      sending,
     // SC-05 は並べ替えがないので、押してから少し間をおいて引いても横に動かす
     dragOnHold: false,
     open: swipeOpen,
@@ -106,12 +118,33 @@ export function OwnListCard({
     setError(null);
     try {
       await clientApi<void>(`/lists/${list.id}`, { method: "DELETE" });
-      onRemoved(true);
+      onRemoved("deleted");
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       // 共通9：ほかの画面で先に削除されていたら、一覧から外して読み直す（D-43）
       if (failure instanceof ApiError && failure.status === 404) {
-        onRemoved(false);
+        onRemoved("gone");
+        return;
+      }
+      setError(NETWORK_ERROR_MESSAGE);
+      setSending(false);
+    }
+  }
+
+  // D-119：API-60 でメンバーから抜ける。足した持ち物はリストに残る
+  async function handleLeave() {
+    setSending(true);
+    setError(null);
+    try {
+      await clientApi<void>(`/lists/${list.id}/membership`, {
+        method: "DELETE",
+      });
+      onRemoved("left");
+    } catch (failure) {
+      if (redirectIfAuthError(failure)) return;
+      // すでに外されていた・リストが削除されていたら、一覧から外して読み直す（D-43）
+      if (failure instanceof ApiError && failure.status === 404) {
+        onRemoved("gone");
         return;
       }
       setError(NETWORK_ERROR_MESSAGE);
@@ -163,6 +196,10 @@ export function OwnListCard({
               <span className="tag">{list.category.name}</span>
               {/* D-73（利用者の指示）：SC-07と同じく、公開しているリストにだけ「公開中」を付ける */}
               {list.is_public && <PublicBadge />}
+              {/* D-119：参加しているリストと、メンバーがいる自分のリストに付ける */}
+              {(!list.is_owner || list.member_count > 0) && (
+                <CollaborativeBadge />
+              )}
               <span>更新 {formatDate(list.updated_at)}</span>
             </span>
           </Link>
@@ -190,15 +227,18 @@ export function OwnListCard({
                 {/* SC-07-4 と同じ形。編集・複製｜削除の2つに分け、削除は赤で示す。
                     リストを増やす・消す操作は、リストの中（SC-07）ではなくここで行う（D-120） */}
                 <MenuSection>
-                  <li>
-                    <Link
-                      href={editHrefFromIndex(list.id)}
-                      prefetch={false}
-                      className={MENU_ITEM}
-                    >
-                      <MenuLabel icon="edit">リストを編集</MenuLabel>
-                    </Link>
-                  </li>
+                  {/* D-119：リストそのものの編集は所有者だけ */}
+                  {list.is_owner && (
+                    <li>
+                      <Link
+                        href={editHrefFromIndex(list.id)}
+                        prefetch={false}
+                        className={MENU_ITEM}
+                      >
+                        <MenuLabel icon="edit">リストを編集</MenuLabel>
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <button
                       type="button"
@@ -214,18 +254,38 @@ export function OwnListCard({
                   </li>
                 </MenuSection>
                 <MenuSection divided>
-                  <li>
-                    <button
-                      type="button"
-                      data-menu-item="delete"
-                      onClick={() => openConfirm("menu")}
-                      className={`${MENU_ITEM} text-danger`}
-                    >
-                      <MenuLabel icon="trash" danger>
-                        このリストを削除
-                      </MenuLabel>
-                    </button>
-                  </li>
+                  {list.is_owner ? (
+                    <li>
+                      <button
+                        type="button"
+                        data-menu-item="delete"
+                        onClick={() => openConfirm("menu")}
+                        className={`${MENU_ITEM} text-danger`}
+                      >
+                        <MenuLabel icon="trash" danger>
+                          このリストを削除
+                        </MenuLabel>
+                      </button>
+                    </li>
+                  ) : (
+                    // D-119：メンバーはリストを消せないので、自分が抜ける操作を同じ場所に置く
+                    <li>
+                      <button
+                        type="button"
+                        data-menu-item="leave"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setError(null);
+                          setConfirmingLeave(true);
+                        }}
+                        className={`${MENU_ITEM} text-danger`}
+                      >
+                        <MenuLabel icon="leave" danger>
+                          このリストから抜ける
+                        </MenuLabel>
+                      </button>
+                    </li>
+                  )}
                 </MenuSection>
               </div>
             )}
@@ -236,7 +296,8 @@ export function OwnListCard({
       {/* SC-05-7・D-26：実際のリスト名と、中の持ち物も消えることを伝える */}
       <ConfirmDialog
         open={confirming !== null}
-        message={`「${list.title}」を削除しますか？中の持ち物も削除されます。`}
+        // D-119：共同編集のメンバーがいるときは、メンバーも使えなくなることを伝える
+        message={`「${list.title}」を削除しますか？中の持ち物も削除されます。${list.member_count > 0 ? "共同編集のメンバーも使えなくなります。" : ""}`}
         confirmLabel="削除する"
         cancelLabel="やめる"
         busy={sending}
@@ -247,6 +308,22 @@ export function OwnListCard({
           const from = confirming;
           setConfirming(null);
           if (from === "menu") reopenMenu("delete");
+        }}
+      />
+
+      {/* D-119：抜けた後に戻るには新しい招待が要るので、確認してから抜ける */}
+      <ConfirmDialog
+        open={confirmingLeave}
+        message={`「${list.title}」から抜けますか？あなたが足した持ち物はリストに残ります。もう一度参加するには、招待リンクが必要です。`}
+        confirmLabel="抜ける"
+        cancelLabel="やめる"
+        busy={sending}
+        destructive
+        error={error}
+        onConfirm={() => void handleLeave()}
+        onCancel={() => {
+          setConfirmingLeave(false);
+          reopenMenu("leave");
         }}
       />
 

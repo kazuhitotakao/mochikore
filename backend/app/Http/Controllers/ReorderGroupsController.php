@@ -15,7 +15,7 @@ class ReorderGroupsController extends Controller
      */
     public function __invoke(ReorderGroupsRequest $request, PackingList $list, GroupingService $service): Response
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         $service->reorderGroups($list, $request->validated('group_ids'));
 

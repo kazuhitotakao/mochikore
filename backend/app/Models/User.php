@@ -22,6 +22,12 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public const UNVERIFIED_LIFETIME_DAYS = 7;
 
+    // D-119：共同編集のメンバーとして参加できるリストの数。自分のリスト100件（D-50）とは別に数える
+    public const MAX_JOINED_LISTS = 100;
+
+    // D-119・V-27：共同編集のメンバーに見せる表示名の文字数
+    public const DISPLAY_NAME_MAX_LENGTH = 20;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -58,5 +64,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function savedGroups(): HasMany
     {
         return $this->hasMany(SavedGroup::class);
+    }
+
+    /**
+     * 共同編集のメンバーとして参加しているリスト（D-119）。自分が所有するリストは含まない。
+     *
+     * @return HasMany<PackingListMember, $this>
+     */
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(PackingListMember::class);
     }
 }

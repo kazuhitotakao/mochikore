@@ -16,7 +16,7 @@ class BulkDeleteItemsController extends Controller
      */
     public function __invoke(BulkDeleteItemsRequest $request, PackingList $list, PackingListItemService $service): JsonResource
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         return new JsonResource([
             'is_public' => $service->bulkDelete($list, $request->validated('item_ids'), $request->validated('group_ids')),

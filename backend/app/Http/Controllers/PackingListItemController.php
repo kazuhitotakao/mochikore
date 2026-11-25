@@ -18,10 +18,10 @@ class PackingListItemController extends Controller
      */
     public function store(StorePackingListItemRequest $request, PackingList $list, PackingListItemService $service): PackingListItemResource
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         // 新しく作ったデータを返すと、Laravelが201にする
-        return new PackingListItemResource($service->add($list, $request->validated('name')));
+        return new PackingListItemResource($service->add($request->user(), $list, $request->validated('name')));
     }
 
     /**
@@ -29,8 +29,8 @@ class PackingListItemController extends Controller
      */
     public function update(UpdatePackingListItemRequest $request, PackingListItem $item, PackingListItemService $service): PackingListItemResource
     {
-        // D-43：持ち物が入っているリストの本人でなければ、存在しない持ち物と同じ404
-        Gate::authorize('update', $item->packingList);
+        // D-43・D-119：持ち物が入っているリストの所有者・メンバーでなければ、存在しない持ち物と同じ404
+        Gate::authorize('editContents', $item->packingList);
 
         return new PackingListItemResource($service->update($item, $request->validated()));
     }
@@ -40,7 +40,7 @@ class PackingListItemController extends Controller
      */
     public function destroy(PackingListItem $item, PackingListItemService $service): JsonResource
     {
-        Gate::authorize('update', $item->packingList);
+        Gate::authorize('editContents', $item->packingList);
 
         return new JsonResource(['is_public' => $service->delete($item)]);
     }

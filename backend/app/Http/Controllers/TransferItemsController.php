@@ -20,7 +20,7 @@ class TransferItemsController extends Controller
      */
     public function copy(TransferItemsRequest $request, PackingList $list, ItemTransferService $service): JsonResponse
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
         $result = $service->copy($request->user(), $list, ...$this->destination($request));
 
         return $this->respond($result, 201);
@@ -31,7 +31,7 @@ class TransferItemsController extends Controller
      */
     public function move(TransferItemsRequest $request, PackingList $list, ItemTransferService $service): JsonResponse
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
         $result = $service->move($request->user(), $list, ...$this->destination($request));
 
         return $this->respond($result, 200);

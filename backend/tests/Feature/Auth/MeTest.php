@@ -24,6 +24,8 @@ class MeTest extends TestCase
                     'id' => $user->id,
                     'email' => 'user@example.com',
                     'email_verified_at' => null,
+                    // D-119：共同編集の表示名は、入れるまで null
+                    'display_name' => null,
                     'pending_email' => null,
                 ],
             ]);

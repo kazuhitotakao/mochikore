@@ -67,6 +67,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 - 配色は生成り色の地と深い緑（02_画面の絵、D-73）。色は globals.css の名前（`bg-brand`・`text-muted`・`border-line`・`text-danger` など）、ボタン・入力欄・リンク・枠・ラベルは `btn-primary`・`btn-outline`・`btn-danger`・`field`・`text-link`・`card`・`tag` を使う。戻るボタン「←」は `BackLink`（見た目は `back-button`）を使う。オン・オフの切り替えは `SwitchIndicator` を使い、ボタンに `role="switch"`・`aria-checked` を付ける。アイコンは `Icon`（components/Icon.tsx）を使う。`zinc` などの色や色の値を部品に直接書かない。暗い表示用の配色は作らない。書体は Noto Sans JP（`layout.tsx` の `next/font/google`。自分のサイトから配る）。
 - エラーや選択状態は、色だけでなく文字や形でも示す。
 - 他人の文字を `dangerouslySetInnerHTML` で表示しない。
+- 共同編集（D-119）：リストそのものの操作（リストを編集・公開・リンクで共有・招待・メンバーを外す・削除）は所有者にだけ出し、API-05・07 の `is_owner` で分ける。メンバーには中身の操作と「このリストから抜ける」（SC-05）を出す。共同編集中（メンバーがいる・招待リンクがある）は公開・リンクで共有を押せなくする。
 - ログイン後の戻り先は同じサイト内だけにする。
 - Enter・欄外保存は、IMEの変換確定や連打・blurの重なりで二重送信しない。連続入力のinputを保ち、次の下書きを消したり移動済みのフォーカスを奪ったりしない（D-73）。
 - チェック操作の取り消しは、今回変更したIDだけを戻す。取り消しの保存中は非表示タイマーを止め、保存成功後に画面を戻す（D-99・D-101）。

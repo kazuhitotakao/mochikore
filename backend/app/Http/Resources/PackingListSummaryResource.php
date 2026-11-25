@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * API-05 自分のリスト一覧の1行（D-63）。category と items_count を読み込んでから使う。
+ * API-05 自分のリスト一覧の1行（D-63）。category と items_count・members_count を読み込んでから使う。
  */
 class PackingListSummaryResource extends JsonResource
 {
@@ -28,6 +28,9 @@ class PackingListSummaryResource extends JsonResource
             // 削除済み（SoftDeletes）の持ち物は数えない
             'items_count' => $this->items_count,
             'is_public' => $this->is_public,
+            // D-119：参加しているリストも一覧に出すので、所有者かと、メンバーの数（所有者を除く）を返す
+            'is_owner' => $this->user_id === $request->user()->id,
+            'member_count' => $this->members_count,
             'updated_at' => $this->updated_at,
         ];
     }

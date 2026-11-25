@@ -17,13 +17,14 @@ use Illuminate\Support\Facades\Gate;
 class PackingListController extends Controller
 {
     /**
-     * API-05 自分のリスト一覧。最大100件なのでページ分割しない（D-63）。
+     * API-05 自分のリスト一覧。自分のリスト100件と参加しているリスト100件までなので、ページ分割しない（D-63・D-119）。
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $lists = $request->user()->packingLists()
+        // D-119：所有するリストと、共同編集のメンバーとして参加しているリストを一緒に並べる
+        $lists = PackingList::accessibleBy($request->user())
             ->with('category')
-            ->withCount('items')
+            ->withCount(['items', 'members'])
             // D-24：更新が新しい順。同じ日時なら新しく作った順
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
@@ -44,7 +45,7 @@ class PackingListController extends Controller
     }
 
     /**
-     * API-07 自分のリストの内容。削除済みの持ち物は返さない。
+     * API-07 自分のリスト・参加しているリストの内容。削除済みの持ち物は返さない。
      */
     public function show(PackingList $list): PackingListDetailResource
     {
@@ -55,7 +56,7 @@ class PackingListController extends Controller
             'category',
             'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
-        ]);
+        ])->loadCount('members');
 
         return new PackingListDetailResource($list);
     }

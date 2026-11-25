@@ -96,3 +96,12 @@ export function validateDescription(value: string): string | undefined {
 
   return undefined;
 }
+
+// D-119・V-27：共同編集のメンバーに見せる表示名
+export const DISPLAY_NAME_MAX_LENGTH = 20;
+// D-119：所有者を入れて1リスト10人まで
+export const MAX_PEOPLE = 10;
+
+export function validateDisplayName(value: string): string | undefined {
+  return validateName(value, "表示名", DISPLAY_NAME_MAX_LENGTH);
+}
