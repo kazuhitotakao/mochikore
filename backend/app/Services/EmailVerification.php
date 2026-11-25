@@ -48,10 +48,11 @@ class EmailVerification
 
     /**
      * API-23：署名と期限は signed:relative ミドルウェアで確かめた後に呼ぶ。
+     * 登録のときに覚えた招待リンクの文字（D-121）があれば返す。認証済みの人がもう一度開いたときは null。
      */
-    public function verify(User $user, string $id, string $hash): void
+    public function verify(User $user, string $id, string $hash): ?string
     {
-        DB::transaction(function () use ($user, $id, $hash) {
+        return DB::transaction(function () use ($user, $id, $hash) {
             // D-44：定期削除との前後を確定させ、削除済みの本人を認証成功として返さない。
             $account = User::whereKey($user->id)->lockForUpdate()->first()
                 ?? throw new ApiException(ApiErrorCode::Unauthenticated, 'ログインしてください。');
@@ -63,11 +64,16 @@ class EmailVerification
             }
 
             if ($account->hasVerifiedEmail()) {
-                return;
+                return null;
             }
 
+            // D-121：招待リンクから登録した人の招待は、認証が済んだこのときに1回だけ返し、覚えていた値を消す
+            $inviteToken = $account->pending_invite_token;
+            $account->pending_invite_token = null;
             $account->markEmailAsVerified();
             event(new Verified($account));
+
+            return $inviteToken;
         }, 3);
     }
 

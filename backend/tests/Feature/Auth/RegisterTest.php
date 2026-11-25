@@ -42,6 +42,55 @@ class RegisterTest extends TestCase
             ->assertJsonPath('data.id', $user->id);
     }
 
+    public function test_招待リンクから登録すると、招待リンクの文字を覚えるが応答には出さない(): void
+    {
+        // D-121：メール認証の後に、共同編集への招待（SC-19）へ進めるために覚える。
+        // 招待が今も使えるかは認証のとき（API-23）に確かめるので、ここでは存在しない招待でも登録できる
+        $token = str_repeat('a1B2', 8);
+
+        $this->postJson('/api/register', [
+            'email' => 'invited@example.com',
+            'password' => 'Test123!',
+            'invite_token' => $token,
+        ])->assertCreated()->assertJsonMissingPath('data.user.pending_invite_token');
+
+        $this->assertSame($token, User::where('email', 'invited@example.com')->sole()->pending_invite_token);
+
+        // 付けない・null のときは覚えない
+        $this->postJson('/api/register', ['email' => 'plain@example.com', 'password' => 'Test123!'])->assertCreated();
+        $this->postJson('/api/register', ['email' => 'null@example.com', 'password' => 'Test123!', 'invite_token' => null])->assertCreated();
+        $this->assertNull(User::where('email', 'plain@example.com')->sole()->pending_invite_token);
+        $this->assertNull(User::where('email', 'null@example.com')->sole()->pending_invite_token);
+    }
+
+    #[DataProvider('invalidInviteTokens')]
+    public function test_形の違う招待リンクの文字では登録しない(mixed $inviteToken): void
+    {
+        $this->postJson('/api/register', [
+            'email' => 'invited@example.com',
+            'password' => 'Test123!',
+            'invite_token' => $inviteToken,
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'validation_error')
+            ->assertJsonPath('errors.invite_token.0', '招待リンクが正しくありません。招待リンクを開き直してください。');
+
+        $this->assertDatabaseMissing('users', ['email' => 'invited@example.com']);
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function invalidInviteTokens(): array
+    {
+        return [
+            '31文字' => [str_repeat('a', 31)],
+            '33文字' => [str_repeat('a', 33)],
+            '記号入り' => [str_repeat('a', 31).'/'],
+            '数値' => [12345],
+            '配列' => [[str_repeat('a', 32)]],
+        ];
+    }
+
     public function test_登録済みのアドレスでは登録せず、決めた文言で案内する(): void
     {
         User::factory()->create(['email' => 'taken@example.com']);

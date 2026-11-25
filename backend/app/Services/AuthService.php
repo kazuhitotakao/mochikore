@@ -22,7 +22,7 @@ class AuthService
     /**
      * @return array{user: User, token: string}
      */
-    public function register(string $email, string $password): array
+    public function register(string $email, string $password, ?string $inviteToken = null): array
     {
         // D-40：登録済みのアドレスなら作らず、ログインか再設定を案内する
         if (User::where('email', $email)->exists()) {
@@ -30,8 +30,11 @@ class AuthService
         }
 
         try {
-            $result = DB::transaction(function () use ($email, $password) {
-                $user = User::create(['email' => $email, 'password' => $password]);
+            $result = DB::transaction(function () use ($email, $password, $inviteToken) {
+                $user = new User(['email' => $email, 'password' => $password]);
+                // D-121：招待リンクの文字を覚えておき、メール認証が済んだときに返して消す（EmailVerification）
+                $user->pending_invite_token = $inviteToken;
+                $user->save();
 
                 return ['user' => $user, 'token' => $this->issueToken($user)];
             });
