@@ -11,6 +11,9 @@ const USER_ACTIVITY_HEADER = "X-User-Activity";
 // D-41：Laravel の UseClientIpFromNextJs と同じヘッダー名
 const CLIENT_IP_HEADER = "X-Mochikore-Client-Ip";
 const PROXY_KEY_HEADER = "X-Mochikore-Proxy-Key";
+// D-119・F-35：pusher-js の接続の番号（例：1234.5678）。Laravel が、操作した本人の画面を配信先から外すのに使う
+const SOCKET_ID_HEADER = "X-Socket-ID";
+const SOCKET_ID_PATTERN = /^\d+\.\d+$/;
 
 type CallOptions = {
   token?: string;
@@ -18,6 +21,7 @@ type CallOptions = {
   search?: string;
   userActivity?: boolean;
   clientIp?: string;
+  socketId?: string;
 };
 
 /**
@@ -77,6 +81,7 @@ export async function sendToLaravel(
     search: request.nextUrl.search,
     userActivity: request.headers.get(USER_ACTIVITY_HEADER) === "1",
     clientIp: clientIpFrom(request.headers),
+    socketId: socketIdFrom(request),
   });
 
   if (!laravel) return laravelUnavailableResponse();
@@ -97,6 +102,7 @@ export async function callLaravel(
     search = "",
     userActivity = false,
     clientIp,
+    socketId,
   }: CallOptions = {},
 ): Promise<Response | null> {
   const baseUrl = process.env.LARAVEL_API_BASE_URL;
@@ -111,6 +117,7 @@ export async function callLaravel(
   // 4. D-36：利用者の操作のときだけ印を付け、Laravel は印があるときだけ期限を延ばす
   if (userActivity) headers[USER_ACTIVITY_HEADER] = "1";
   if (body) headers["Content-Type"] = "application/json";
+  if (socketId) headers[SOCKET_ID_HEADER] = socketId;
   // D-41：Laravel から見えるのは Next.js のIPなので、利用者のIPを合言葉付きで渡す
   const proxyKey = process.env.NEXTJS_PROXY_KEY;
   if (clientIp && proxyKey) {
@@ -167,6 +174,12 @@ export function laravelUnavailableResponse(): Response {
     message: "通信に失敗しました。もう一度お試しください。",
     code: "server_error",
   });
+}
+
+// ブラウザのヘッダーはそのまま渡さない決まりなので、形の合う番号だけを付け直す
+function socketIdFrom(request: NextRequest): string | undefined {
+  const value = request.headers.get(SOCKET_ID_HEADER);
+  return value && SOCKET_ID_PATTERN.test(value) ? value : undefined;
 }
 
 function safeHost(url: string): string | null {

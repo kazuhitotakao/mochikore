@@ -38,6 +38,7 @@ import type {
   PackingListDetail,
   PackingListItem,
 } from "@/types/api";
+import type { RealtimeConfig } from "@/lib/realtime/types";
 import { AddItemRow } from "./AddItemRow";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
@@ -69,6 +70,7 @@ import { PublicBadge } from "./PublicBadge";
 import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
 import { TransferItemsDialog, type TransferMode } from "./TransferItemsDialog";
 import { useCollapsedGroups } from "./useCollapsedGroups";
+import { useRemoteListSync } from "./useRemoteListSync";
 import { useVisibilityToggle } from "./useVisibilityToggle";
 import { visibilityChangedNotice } from "./visibility";
 import { ModeratedNotice } from "./VisibilitySwitch";
@@ -158,6 +160,15 @@ function byListOrder(a: PackingListItem, b: PackingListItem): number {
   return a.sort_order - b.sort_order || a.id - b.id;
 }
 
+// 今もある番号だけを残す。1つも減らないときは同じものを返し、描画し直さない
+function keepExisting(
+  selected: ReadonlySet<number>,
+  existing: ReadonlySet<number>,
+): ReadonlySet<number> {
+  const kept = [...selected].filter((id) => existing.has(id));
+  return kept.length === selected.size ? selected : new Set(kept);
+}
+
 type Props = {
   list: PackingListDetail;
   // SC-07-17：よく使う項目に保存するときのカテゴリーの選択肢（API-18）
@@ -168,6 +179,8 @@ type Props = {
   backLink: ReactNode;
   // 「←」の下、見出しの上に出す通知（公開リストをコピーした直後など）
   notice?: ReactNode;
+  // F-35・D-119：共同編集の配信の接続先。設定がなければ null（開き直すと最新になる）
+  realtime: RealtimeConfig | null;
 };
 
 // SC-07 自分のリストの内容（通常画面）。持ち物の追加・削除で件数や公開の表示が変わるので、
@@ -178,6 +191,7 @@ export function ListDetail({
   initialShowChecked,
   backLink,
   notice: topNotice,
+  realtime,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -196,6 +210,12 @@ export function ListDetail({
   const itemPreviewRef = useRef<ItemDragPreview | null>(null);
   // D-111：持ち物を重ねている未分類の持ち物。離すとこの持ち物の名前のグループになる
   const [combineTargetId, setCombineTargetId] = useState<number | null>(null);
+  // F-35：リスト名・説明・カテゴリーは、共同編集の所有者が変えるとメンバーの画面でも変わるので、状態として持つ
+  const [meta, setMeta] = useState({
+    title: list.title,
+    description: list.description,
+    category: list.category,
+  });
   const [isPublic, setIsPublic] = useState(list.is_public);
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
   // D-114：限定公開のリンク。作る・止めるの結果をこの画面の中で持ち、開き直したときは API-07 の値から始める
@@ -289,6 +309,22 @@ export function ListDetail({
       setModerated(true);
       setIsPublic(false);
     },
+  });
+  // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更が届くたびに API-07 を読み直して反映する。
+  // 所有者だけで招待リンクを出している間も聞き、最初の人が参加したらすぐ人数を変える
+  useRemoteListSync({
+    listId: list.id,
+    realtime,
+    enabled: !list.is_owner || memberCount > 0 || invite !== null,
+    // ドラッグ中・並べ替えやまとめて操作の保存中は、表示の途中の状態を壊さないよう、終わるまで待つ
+    busy:
+      draggingItemId !== null ||
+      draggingGroup ||
+      reordering ||
+      groupChecking !== undefined ||
+      bulkDeleting ||
+      visibility.sending,
+    onSynced: applyRemoteList,
   });
   const { delayedIds, hideLater, pauseHide, cancelHide, isWaitingToHide } =
     useDelayedHide(handleHideDelayEnd);
@@ -473,6 +509,36 @@ export function ListDetail({
   }
 
   // API-13：このリストのチェックを全部外した。持ち物・順番はそのまま
+  // F-35・D-119：読み直した最新の内容（API-07）で、画面の状態を置き換える。
+  // 自分の操作の送信中・ドラッグ中には呼ばれない（useRemoteListSync が待たせる）。
+  // 入力の途中の文字・チェック済みの表示・削除した持ち物の候補・たたんだグループは、この画面の状態なので変えない
+  function applyRemoteList(latest: PackingListDetail) {
+    setItems(latest.items);
+    setGroups(latest.groups);
+    setMeta({
+      title: latest.title,
+      description: latest.description,
+      category: latest.category,
+    });
+    setIsPublic(latest.is_public);
+    setModerated(Boolean(latest.moderated_at));
+    setShareToken(latest.share_token);
+    setMemberCount(latest.member_count);
+    setInvite(
+      latest.invite_token && latest.invite_expires_at
+        ? {
+            invite_token: latest.invite_token,
+            invite_expires_at: latest.invite_expires_at,
+          }
+        : null,
+    );
+    // 選ぶ表示の間に、ほかのメンバーが消した持ち物・グループを、選んだままにしない
+    const itemIds = new Set(latest.items.map((item) => item.id));
+    const groupIds = new Set(latest.groups.map((group) => group.id));
+    setSelectedItemIds((current) => keepExisting(current, itemIds));
+    setSelectedGroupIds((current) => keepExisting(current, groupIds));
+  }
+
   function handleChecksReset() {
     groupCheckUndo.current.clear();
     for (const group of groups) {
@@ -1185,7 +1251,7 @@ export function ListDetail({
               一覧を上げる。非公開はふつうの状態なので出さず、ほかの人に見えている「公開中」だけを出す。
               高さは「←」の丸（36px）にそろえ、中央を合わせる */}
           <p className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-2">
-            <span className="tag">{list.category.name}</span>
+            <span className="tag">{meta.category.name}</span>
             {isPublic && <PublicBadge />}
             {/* D-119：参加しているリストと、メンバーがいる自分のリストに付ける（公開中とは両立しない） */}
             {(!list.is_owner || memberCount > 0) && <CollaborativeBadge />}
@@ -1242,7 +1308,7 @@ export function ListDetail({
         {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しはリスト名だけにする。
             公開の切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
         <header className="flex flex-col gap-2">
-          <h1 className="text-2xl font-medium wrap-break-word">{list.title}</h1>
+          <h1 className="text-2xl font-medium wrap-break-word">{meta.title}</h1>
           {(visibility.error || moderated) && (
             <div className="flex flex-col gap-1">
               {/* 非公開にできなかった理由はリスト名の下に出す。公開の失敗は確認の中に出す */}
@@ -1257,8 +1323,8 @@ export function ListDetail({
         </header>
 
         {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
-        {list.description && (
-          <p className="whitespace-pre-wrap">{list.description}</p>
+        {meta.description && (
+          <p className="whitespace-pre-wrap">{meta.description}</p>
         )}
 
         {selecting && (
@@ -1380,7 +1446,7 @@ export function ListDetail({
         {panelOpen && (
           <SavedItemPanel
             listId={list.id}
-            listCategoryId={list.category.id}
+            listCategoryId={meta.category.id}
             categories={categories}
             onClose={() => setPanelOpen(false)}
             onAdded={(added) => {
@@ -1400,7 +1466,7 @@ export function ListDetail({
             key={savingItem.id}
             item={savingItem}
             categories={categories}
-            defaultCategoryId={list.category.id}
+            defaultCategoryId={meta.category.id}
             onClose={() => setSavingItem(null)}
             onSaved={() => {
               setSavingItem(null);
@@ -1521,7 +1587,7 @@ export function ListDetail({
       {transfer && (
         <TransferItemsDialog<ItemTransferResult>
           listId={list.id}
-          listTitle={list.title}
+          listTitle={meta.title}
           itemIds={transfer.itemIds}
           mode={transfer.mode}
           submitPath={`/lists/${list.id}/items/${transfer.mode}`}
