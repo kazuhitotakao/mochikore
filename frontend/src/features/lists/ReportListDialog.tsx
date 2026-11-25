@@ -28,7 +28,7 @@ export function ReportListDialog({ listId }: { listId: number }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fields = useFieldErrors(FIELDS);
-  // Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
+  // Esc・外枠を押したときは「キャンセル」と同じ（外枠は利用者の指示）。送信中は閉じない
   const backdrop = useBackdropDismiss(closeIfIdle);
 
   function closeIfIdle() {
@@ -168,7 +168,7 @@ export function ReportListDialog({ listId }: { listId: number }) {
               onClick={() => setOpen(false)}
               className="btn-outline"
             >
-              やめる
+              キャンセル
             </button>
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "送信中…" : "送信"}

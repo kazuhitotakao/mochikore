@@ -27,7 +27,7 @@ export function DeleteAccountDialog() {
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   const fields = useFieldErrors(FIELDS);
-  // Esc・外枠を押したときは「やめる」と同じ（外枠は利用者の指示）。送信中は閉じない
+  // Esc・外枠を押したときは「キャンセル」と同じ（外枠は利用者の指示）。送信中は閉じない
   const backdrop = useBackdropDismiss(closeIfIdle);
 
   function closeIfIdle() {
@@ -38,7 +38,7 @@ export function DeleteAccountDialog() {
     const dialog = dialogRef.current;
     if (open && dialog && !dialog.open) {
       dialog.showModal();
-      // Enterだけで削除へ進まないよう、開いた直後は「やめる」にフォーカスする
+      // Enterだけで削除へ進まないよう、開いた直後は「キャンセル」にフォーカスする
       cancelRef.current?.focus();
     }
     if (!open && dialog?.open) dialog.close();
@@ -185,7 +185,7 @@ export function DeleteAccountDialog() {
               onClick={() => setOpen(false)}
               className="btn-outline"
             >
-              やめる
+              キャンセル
             </button>
             <button
               type="submit"

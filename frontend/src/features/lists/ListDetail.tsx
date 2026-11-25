@@ -1427,7 +1427,7 @@ export function ListDetail({
                   visibility.sending || visibilityBlocked || moderated
                 }
                 publishDescribedBy={moderated ? moderatedNoticeId : undefined}
-                // 公開の確認も「…」の中に置き、「やめる」で「…」を開き直す（D-73）
+                // 公開の確認も「…」の中に置き、「キャンセル」で「…」を開き直す（D-73）
                 visibility={visibility}
                 // SC-07-4・F-29：限定公開のリンク。運営が非公開にしたリストでは作れない（D-114）
                 shareToken={shareToken}
@@ -1787,7 +1787,7 @@ export function ListDetail({
         open={confirmingDelete}
         message={bulkDeleteMessage()}
         confirmLabel="削除する"
-        cancelLabel="やめる"
+        cancelLabel="キャンセル"
         busy={bulkDeleting}
         destructive
         error={bulkDeleteError}
@@ -1800,7 +1800,7 @@ export function ListDetail({
         open={swipeDeleteGroup !== null}
         message={swipeDeleteMessage()}
         confirmLabel="削除する"
-        cancelLabel="やめる"
+        cancelLabel="キャンセル"
         busy={bulkDeleting}
         destructive
         error={bulkDeleteError}

@@ -278,7 +278,7 @@ export function TransferItemsDialog<R extends ItemImportResult>({
           ) : lists === null ? (
             <p className="text-muted">読み込み中…</p>
           ) : (
-            // リストが多いときも「やめる」「コピーする」が隠れないよう、一覧だけを動かす
+            // リストが多いときも「キャンセル」「コピーする」が隠れないよう、一覧だけを動かす
             <div className="flex max-h-56 flex-col overflow-y-auto rounded-lg border border-line">
               <Choice
                 name={listGroupName}
@@ -375,14 +375,15 @@ export function TransferItemsDialog<R extends ItemImportResult>({
           </p>
         )}
 
-        <div className="mt-2 flex justify-end gap-3">
+        {/* 狭い幅で並びきらないときは、文字を途中で折らずにボタンごと次の行へ送る */}
+        <div className="mt-2 flex flex-wrap justify-end gap-3">
           <button
             type="button"
             onClick={closeIfIdle}
             disabled={sending}
             className="btn-outline"
           >
-            やめる
+            キャンセル
           </button>
           <button
             type="submit"

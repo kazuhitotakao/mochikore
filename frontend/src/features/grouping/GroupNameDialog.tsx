@@ -24,7 +24,7 @@ type Props = {
   // 同じリストのほかのグループの名前。同名を確かめる（D-57）
   otherNames: readonly string[];
   onSubmit: (name: string, checkMode: GroupCheckMode) => void;
-  // 「やめる」・Esc・外枠を押したとき（外枠は利用者の指示）
+  // 「キャンセル」・Esc・外枠を押したとき（外枠は利用者の指示）
   onCancel: () => void;
   // SC-09-11：「グループを追加」のときだけ、入力欄の下によく使うグループの候補を出す（D-102）
   children?: ReactNode;
@@ -109,7 +109,7 @@ export function GroupNameDialog({
         {children}
         <div className="flex justify-end gap-3">
           <button type="button" onClick={onCancel} className="btn-outline">
-            やめる
+            キャンセル
           </button>
           <button type="submit" className="btn-primary">
             {submitLabel}

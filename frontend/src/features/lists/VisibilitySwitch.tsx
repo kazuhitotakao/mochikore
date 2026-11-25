@@ -44,7 +44,7 @@ export function PublishConfirmDialog({
   onCancel,
 }: {
   visibility: VisibilityToggle;
-  // 「やめる」・Esc・外枠で閉じた後に呼ぶ。SC-07 は「…」を開いたまま戻すのに使う（D-73）
+  // 「キャンセル」・Esc・外枠で閉じた後に呼ぶ。SC-07 は「…」を開いたまま戻すのに使う（D-73）
   onCancel?: () => void;
 }) {
   return (
@@ -52,7 +52,7 @@ export function PublishConfirmDialog({
       open={visibility.confirming}
       message={PUBLISH_MESSAGE}
       confirmLabel="公開する"
-      cancelLabel="やめる"
+      cancelLabel="キャンセル"
       busy={visibility.sending}
       error={visibility.dialogError}
       onConfirm={visibility.confirmPublish}
