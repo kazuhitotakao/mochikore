@@ -54,6 +54,6 @@ class PackingListGroupingController extends Controller
             'category',
             'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
-        ]);
+        ])->loadCount('members');
     }
 }

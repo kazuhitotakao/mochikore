@@ -51,6 +51,13 @@ import type {
   PackingListItem,
   SavedGroup,
 } from "@/types/api";
+import {
+  draftFrom,
+  rebaseDraft,
+  rebaseHistory,
+  sameDraft,
+  type Draft,
+} from "./draft";
 import { GroupNameDialog } from "./GroupNameDialog";
 import { MoveItemDialog } from "./MoveItemDialog";
 import {
@@ -60,10 +67,15 @@ import {
 import { SelectMark } from "@/features/lists/SelectionList";
 import { ShowCheckedSwitch } from "@/features/lists/ShowCheckedSwitch";
 import { withShowChecked } from "@/features/lists/showChecked";
+import { useRemoteListSync } from "@/features/lists/useRemoteListSync";
+import type { RealtimeConfig } from "@/lib/realtime/types";
 import { MAX_GROUPS } from "./validation";
 
 // V-13：分類の保存（API-30）の競合
 const CONFLICT_MESSAGE = "リストが変更されています。読み直してください。";
+// F-35・D-119：共同編集で保存が競合したとき。下書きは残し、ほかのメンバーの変更を取り込んでから送り直してもらう
+const MERGED_MESSAGE =
+  "ほかのメンバーの変更を取り込みました。内容を確かめて、もう一度「←」で戻ると保存します。";
 
 // 02_画面配置 共通4：結果の通知は数秒で消す
 const NOTICE_DURATION_MS = 5000;
@@ -213,13 +225,6 @@ const groupingKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) =>
     ? sortableKeyboardCoordinates(event, args)
     : dropAreaKeyboardCoordinates(event, args);
 
-type DraftGroup = { key: string; id: number | null; name: string };
-type Draft = {
-  groups: DraftGroup[];
-  // 持ち物ID → 所属するグループの key。null は未分類
-  assignment: Record<number, string | null>;
-};
-
 type NameDialog = { mode: "add" } | { mode: "rename"; key: string } | null;
 
 // D-113（利用者の指示）：この画面を開いたときまで何回でも戻せ、戻した分は「やり直す」で進められるよう、
@@ -227,36 +232,13 @@ type NameDialog = { mode: "add" } | { mode: "rename"; key: string } | null;
 type DraftHistory = { past: Draft[]; future: Draft[] };
 const EMPTY_HISTORY: DraftHistory = { past: [], future: [] };
 
-// 既存のグループは IDから key を作る。新しいグループは new1・new2…（06_API一覧「キーと削除の意味」）
-function groupKey(id: number): string {
-  return `g${id}`;
-}
-
-function draftFrom(state: GroupingState): Draft {
-  return {
-    groups: state.groups.map((group) => ({
-      key: groupKey(group.id),
-      id: group.id,
-      name: group.name,
-    })),
-    assignment: Object.fromEntries(
-      state.items.map((item) => [
-        item.id,
-        item.group_id === null ? null : groupKey(item.group_id),
-      ]),
-    ),
-  };
-}
-
-function sameDraft(a: Draft, b: Draft): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 type Props = {
   listId: number;
   initialState: GroupingState;
   // D-95：SC-07 でチェック済みを表示中に開いたときは true。開いたときの表示で、画面の中でも切り替えられる
   includeChecked: boolean;
+  // F-35・D-119：共同編集の配信の接続先。設定がなければ null
+  realtime: RealtimeConfig | null;
 };
 
 // SC-09 グループ整理（F-19）。分類・順番は下書きで、「←」やブラウザの戻るで画面を離れるときにまとめて保存する（D-59・D-113）。
@@ -265,6 +247,7 @@ export function GroupingEditor({
   listId,
   initialState,
   includeChecked,
+  realtime,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -287,6 +270,12 @@ export function GroupingEditor({
   const [reloading, setReloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  // F-35・D-119：共同編集のリスト（自分がメンバー、またはメンバーがいる）では、ほかのメンバーの変更を
+  // 下書きを残したまま取り込む。保存が競合したときも、破棄せずに取り込む
+  const collaborative = !state.is_owner || state.member_count > 0;
+  // 保存が競合して、最新を取り込むのを待っているか（取り込めたら案内を出す）
+  const mergeAfterConflict = useRef(false);
+  const [mergedNotice, setMergedNotice] = useState(false);
   const newGroupCount = useRef(0);
   // 保存できて SC-07 へ戻るときは、離脱の確認を出さない
   const leaving = useRef(false);
@@ -334,6 +323,16 @@ export function GroupingEditor({
 
   const dirty = !sameDraft(draft, savedDraft);
   const busy = saving || reloading;
+  // F-35・D-119：合図・つなぎ直し・画面に戻ったときに API-29 を読み直して、下書きへ取り込む。
+  // 保存中・読み直し中・ドラッグ中は、終わるまで待つ
+  const syncNow = useRemoteListSync<GroupingState>({
+    listId,
+    path: `/lists/${listId}/grouping`,
+    realtime,
+    enabled: collaborative,
+    busy: busy || draggingId !== null,
+    onSynced: applyRemoteState,
+  });
   const allGroupsCollapsed =
     draft.groups.length > 0 &&
     draft.groups.every((group) => collapsedGroups.has(group.key));
@@ -475,10 +474,42 @@ export function GroupingEditor({
     );
   }
 
+  // F-35・D-119：読み直した最新の内容（API-29）を、下書きを残したまま取り込む。
+  // 自分が変えたところは残し、変えていないところは最新に合わせる（rebaseDraft）。
+  // 「元に戻す」「やり直す」の履歴にも同じ取り込みを行うので、取り込んだ後も開いたときまで戻せる
+  function applyRemoteState(latest: GroupingState) {
+    const latestDraft = draftFrom(latest);
+    const rebase = (target: Draft) =>
+      rebaseDraft(target, savedDraft, latestDraft);
+    const merged = rebase(draft);
+    setState(latest);
+    setSavedDraft(latestDraft);
+    setDraft(merged);
+    setHistory(rebaseHistory(history, merged, rebase));
+    setConflict(false);
+    // ほかのメンバーが消した持ち物・グループを、選んだまま・名前の変更中のままにしない
+    const itemIds = new Set(latest.items.map((item) => item.id));
+    setSelectedIds((current) => {
+      const kept = [...current].filter((id) => itemIds.has(id));
+      return kept.length === current.size ? current : new Set(kept);
+    });
+    if (
+      nameDialog?.mode === "rename" &&
+      !merged.groups.some((group) => group.key === nameDialog.key)
+    ) {
+      setNameDialog(null);
+    }
+    if (mergeAfterConflict.current) {
+      mergeAfterConflict.current = false;
+      setMergedNotice(true);
+    }
+  }
+
   // D-113：下書きを変える操作（移動・並べ替え・追加・名前の変更・削除）はすべてここを通し、変える前の下書きを積む
   function changeDraft(next: Draft) {
     if (sameDraft(next, draft)) return;
     setError(null);
+    setMergedNotice(false);
     setHistory((current) => ({ past: [...current.past, draft], future: [] }));
     setDraft(next);
     setHistoryNotice("");
@@ -770,6 +801,7 @@ export function GroupingEditor({
     setSaving(true);
     setError(null);
     setConflict(false);
+    setMergedNotice(false);
     try {
       await clientApi<GroupingSaveResult>(`/lists/${listId}/grouping`, {
         method: "PUT",
@@ -793,6 +825,11 @@ export function GroupingEditor({
       }
       if (!(failure instanceof ApiError)) {
         setError(NETWORK_ERROR_MESSAGE);
+      } else if (failure.code === "grouping_conflict" && collaborative) {
+        // F-35・D-119：共同編集では、ほかのメンバーが同時に変えることがあるので、下書きを捨てずに
+        // 最新を取り込む。自動では送り直さず、内容を確かめてからもう一度「←」で保存してもらう
+        mergeAfterConflict.current = true;
+        syncNow();
       } else if (failure.code === "grouping_conflict") {
         // 上書きせず、破棄を確かめてから読み直してもらう（D-59）
         setConflict(true);
@@ -899,6 +936,11 @@ export function GroupingEditor({
         {error && (
           <p role="alert" className="text-danger">
             {error}
+          </p>
+        )}
+        {mergedNotice && (
+          <p role="status" className="text-brand-deep">
+            {MERGED_MESSAGE}
           </p>
         )}
 

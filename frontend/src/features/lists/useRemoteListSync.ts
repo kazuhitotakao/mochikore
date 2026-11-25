@@ -11,34 +11,37 @@ import {
 import { ApiError } from "@/lib/api/errors";
 import type { RealtimeConfig } from "@/lib/realtime/types";
 import { useListChannel } from "@/lib/realtime/useListChannel";
-import type { PackingListDetail } from "@/types/api";
 
 // 通信に失敗したときに、もう一度読むまでの時間
 const RETRY_DELAY_MS = 5000;
 
-type Options = {
+type Options<T> = {
   listId: number;
+  // 読み直すAPI。SC-07 は API-07（/lists/{id}）、SC-09 は API-29（/lists/{id}/grouping）
+  path: string;
   // 配信の接続先。設定がなければ null（リアルタイムの表示なしで動く）
   realtime: RealtimeConfig | null;
   // 共同編集のリスト（メンバーがいる・招待リンクがある・自分がメンバー）のときだけ動かす
   enabled: boolean;
   // ドラッグ中・並べ替えの保存中など、画面が途中の状態。終わるまで反映を待つ
   busy: boolean;
-  onSynced: (list: PackingListDetail) => void;
+  onSynced: (latest: T) => void;
 };
 
 /**
- * F-35・D-119：共同編集のリストの内容（SC-07）を、開いたまま最新にする。
- * ほかのメンバーの変更の合図・つなぎ直し・画面に戻ったときに API-07 を読み直し、onSynced へ渡す。
+ * F-35・D-119：共同編集のリストの内容（SC-07）・グループ整理（SC-09）を、開いたまま最新にする。
+ * ほかのメンバーの変更の合図・つなぎ直し・画面に戻ったときに path を読み直し、onSynced へ渡す。
  * 自分の操作の送信中や、読んでいる間に自分の操作が挟まったときは、古い内容で上書きしないよう読み直す。
+ * 戻り値を呼ぶと、合図を待たずに読み直す（保存が競合したときに、最新を取り込むのに使う）。
  */
-export function useRemoteListSync({
+export function useRemoteListSync<T>({
   listId,
+  path,
   realtime,
   enabled,
   busy,
   onSynced,
-}: Options): void {
+}: Options<T>): () => void {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const needsSync = useRef(false);
@@ -66,12 +69,10 @@ export function useRemoteListSync({
       ) {
         needsSync.current = false;
         const before = mutationSnapshot().finished;
-        let latest: PackingListDetail;
+        let latest: T;
         try {
           // 自動の通信なので、ログインの期限は延ばさない（D-36）
-          latest = await clientApi<PackingListDetail>(`/lists/${listId}`, {
-            userActivity: false,
-          });
+          latest = await clientApi<T>(path, { userActivity: false });
         } catch (failure) {
           if (redirectIfAuthError(failure)) return;
           if (failure instanceof ApiError && failure.status === 404) {
@@ -101,7 +102,7 @@ export function useRemoteListSync({
     } finally {
       syncing.current = false;
     }
-  }, [listId, router, redirectIfAuthError]);
+  }, [path, router, redirectIfAuthError]);
 
   const requestSync = useCallback(() => {
     needsSync.current = true;
@@ -137,4 +138,6 @@ export function useRemoteListSync({
       }
     };
   }, [enabled, requestSync, sync]);
+
+  return requestSync;
 }

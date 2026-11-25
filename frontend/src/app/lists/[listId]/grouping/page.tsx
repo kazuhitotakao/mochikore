@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { readAsUser } from "@/features/auth/requireUser";
 import { GroupingEditor } from "@/features/grouping/GroupingEditor";
+import { realtimeConfig } from "@/lib/realtime/config";
 import type { GroupingState } from "@/types/api";
 
 // SC-09 グループ整理（任意）。自分のリストの内容（SC-07）の「グループを整理」を押したときだけ開く（D-56）
@@ -29,6 +30,8 @@ export default async function GroupingPage(
         listId={Number(listId)}
         initialState={state}
         includeChecked={includeChecked}
+        // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更を下書きへ取り込む
+        realtime={realtimeConfig()}
       />
     </main>
   );

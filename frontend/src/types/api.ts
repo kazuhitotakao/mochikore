@@ -119,6 +119,9 @@ export type SavedGroup = {
 // category は、グループ整理（SC-09）がこのリストのカテゴリーのよく使うグループを読むときに使う（D-102）
 export type GroupingState = {
   grouping_revision: number;
+  // F-35・D-119：共同編集のリストか（所有者でない・メンバーがいる）を見分ける。API-05・07 と同じ項目
+  is_owner: boolean;
+  member_count: number;
   category: CategorySummary;
   groups: PackingListGroup[];
   items: PackingListItem[];

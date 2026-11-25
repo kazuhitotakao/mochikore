@@ -312,8 +312,9 @@ export function ListDetail({
   });
   // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更が届くたびに API-07 を読み直して反映する。
   // 所有者だけで招待リンクを出している間も聞き、最初の人が参加したらすぐ人数を変える
-  useRemoteListSync({
+  useRemoteListSync<PackingListDetail>({
     listId: list.id,
+    path: `/lists/${list.id}`,
     realtime,
     enabled: !list.is_owner || memberCount > 0 || invite !== null,
     // ドラッグ中・並べ替えやまとめて操作の保存中は、表示の途中の状態を壊さないよう、終わるまで待つ
