@@ -27,6 +27,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 応答は Resource で返し、Model をそのまま返さない。公開用は別の Resource にする。
 - 公開APIに作成者の情報と `is_checked` を返さない（F-09・F-10）。限定公開のリンク（API-48）も同じ。`share_token` は本人用の API-07 だけに返す（D-114）。
 - 共同編集（D-119）：`share_token`・`invite_token` は所有者にだけ返す。メンバーどうしには表示名（`display_name`）だけを返し、メールアドレス・利用者のIDを返さない。表示名は公開APIに返さない（D-32）。
+- 招待リンクから会員登録した人の招待（`users.pending_invite_token`、D-121）は、本人の情報（UserResource）に返さない。メール認証（API-23）が済んだときに1回だけ返して消し、その招待が今も使えるときだけ返す。会員登録（API-01）では、招待が使えるかを確かめない（登録を止めない）。
 - 項目名は snake_case のまま（D-55）。返すものがなければ `response()->noContent()`（D-62）。
 - Resource の `data`・`links`・`meta` の形は変えない（D-53）。
 

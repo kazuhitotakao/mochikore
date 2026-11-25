@@ -2,12 +2,15 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\PackingList;
 use App\Models\User;
 use App\Services\AuthService;
+use Database\Seeders\CategorySeeder;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class EmailVerificationTest extends TestCase
@@ -42,13 +45,89 @@ class EmailVerificationTest extends TestCase
         $this->assertStringNotContainsString(explode('|', $token)[1], $mail->actionUrl);
     }
 
+    public function test_招待リンクから登録した人には、認証のときに招待を1回だけ返して消す(): void
+    {
+        // D-121：メール認証の後に、共同編集への招待（SC-19）へ進める
+        $token = $this->createInvite();
+        $user = User::factory()->unverified()->create();
+        $user->forceFill(['pending_invite_token' => $token])->save();
+        $link = $this->apiPath($this->linkFor($user));
+
+        $this->withToken($this->tokenFor($user))->getJson($link)
+            ->assertOk()
+            ->assertExactJson(['data' => ['invite_token' => $token]]);
+
+        $user->refresh();
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertNull($user->pending_invite_token);
+        // もう一度開いても、招待の画面へは進めない
+        $this->getJson($link)->assertOk()->assertExactJson(['data' => ['invite_token' => null]]);
+        // 本人の情報には出さない
+        $this->getJson('/api/me')->assertOk()->assertJsonMissingPath('data.pending_invite_token');
+    }
+
+    public function test_止められた・期限が切れた・存在しない招待は返さず、覚えていた値は消す(): void
+    {
+        $stopped = $this->createInvite();
+        PackingList::where('invite_token', $stopped)->update(['invite_token' => null, 'invite_expires_at' => null]);
+        $expired = $this->createInvite();
+        PackingList::where('invite_token', $expired)->update(['invite_expires_at' => now()->subSecond()]);
+
+        foreach ([$stopped, $expired, str_repeat('z', 32)] as $token) {
+            $this->app['auth']->forgetGuards();
+            $user = User::factory()->unverified()->create();
+            $user->forceFill(['pending_invite_token' => $token])->save();
+
+            $this->withToken($this->tokenFor($user))
+                ->getJson($this->apiPath($this->linkFor($user)))
+                ->assertOk()
+                ->assertExactJson(['data' => ['invite_token' => null]]);
+
+            $user->refresh();
+            $this->assertNotNull($user->email_verified_at);
+            $this->assertNull($user->pending_invite_token);
+        }
+    }
+
+    public function test_リンクが無効なら、覚えていた招待は消さない(): void
+    {
+        $token = $this->createInvite();
+        $user = User::factory()->unverified()->create();
+        $user->forceFill(['pending_invite_token' => $token])->save();
+
+        $this->withToken($this->tokenFor($user))
+            ->getJson(str_replace('signature=', 'signature=x', $this->apiPath($this->linkFor($user))))
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'link_invalid');
+
+        // 確認メールを送り直して認証すれば、招待の画面へ進める
+        $this->assertSame($token, $user->fresh()->pending_invite_token);
+    }
+
+    /**
+     * 有効な招待リンクがあるリストを作り、その招待リンクの文字を返す。
+     */
+    private function createInvite(): string
+    {
+        $token = Str::random(PackingList::INVITE_TOKEN_LENGTH);
+        // リストにはカテゴリーが要る（何度登録しても重複しない）
+        $this->seed(CategorySeeder::class);
+        PackingList::factory()->create()
+            ->forceFill(['invite_token' => $token, 'invite_expires_at' => now()->addDays(7)])
+            ->save();
+
+        return $token;
+    }
+
     public function test_確認メールのリンクで、本人のメール認証が完了する(): void
     {
         $user = User::factory()->unverified()->create();
 
         $this->withToken($this->tokenFor($user))
             ->getJson($this->apiPath($this->linkFor($user)))
-            ->assertNoContent();
+            ->assertOk()
+            // D-121：招待リンクから登録した人でなければ、招待は返さない
+            ->assertExactJson(['data' => ['invite_token' => null]]);
 
         $this->assertNotNull($user->fresh()->email_verified_at);
     }
@@ -60,7 +139,7 @@ class EmailVerificationTest extends TestCase
 
         $this->withToken($this->tokenFor($user))
             ->getJson('http://backend.internal'.$this->apiPath($this->linkFor($user)))
-            ->assertNoContent();
+            ->assertOk();
 
         $this->assertNotNull($user->fresh()->email_verified_at);
     }
@@ -120,7 +199,9 @@ class EmailVerificationTest extends TestCase
 
         $this->withToken($this->tokenFor($user))
             ->getJson($this->apiPath($this->linkFor($user)))
-            ->assertNoContent();
+            ->assertOk()
+            // D-121：招待リンクから登録した人でなければ、招待は返さない
+            ->assertExactJson(['data' => ['invite_token' => null]]);
 
         $this->assertTrue($user->fresh()->email_verified_at->equalTo($verifiedAt));
     }

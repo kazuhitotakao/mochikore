@@ -15,6 +15,7 @@ export default async function InvitePage(props: PageProps<"/invite/[token]">) {
   // URLの値をそのまま Laravel のパスへ入れないよう、32文字の英数字だけを通す
   if (!/^[A-Za-z0-9]{32}$/.test(token)) notFound();
 
+  const searchParams = await props.searchParams;
   const currentPath = `/invite/${token}`;
   // ログイン前は SC-02 へ移り、ログイン後はこの画面へ戻る。メール未認証は SC-04 へ（共通7・8）。
   // 止めた・期限切れのリンクは「ページが見つかりません」（共通9）
@@ -31,6 +32,10 @@ export default async function InvitePage(props: PageProps<"/invite/[token]">) {
   return (
     <main className="flex flex-col gap-6 py-8">
       <h1 className="text-2xl font-medium">リストへの招待</h1>
+      {/* D-121：招待リンクから会員登録した人が、メール認証を済ませて進んできたとき */}
+      {searchParams.verified === "1" && (
+        <p role="status">メール認証が完了しました。</p>
+      )}
       <JoinInvitation
         token={token}
         invitation={invitation}

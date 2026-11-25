@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
+import { inviteTokenFromLoginPath } from "@/features/auth/nextPath";
 import { RegisterForm } from "@/features/auth/RegisterForm";
 import { fromPath, pathWithFrom, withFrom } from "@/lib/backPath";
 
@@ -9,6 +10,13 @@ export default async function RegisterPage(props: PageProps<"/register">) {
   const back = fromPath(searchParams.from, ["/login", "/privacy"]);
   // SC-02・SC-14・SC-16から戻ったときも、「←」の戻り先を保つ
   const currentPath = pathWithFrom("/register", back);
+  // D-121：招待リンク（SC-19）→ ログイン（SC-02）→ この画面、と進んだ人は、登録と一緒に招待を覚えてもらい、
+  // メール認証の後に招待の画面へ進める
+  const inviteToken = inviteTokenFromLoginPath(back);
+  // ログイン（SC-02）から来たときは、ログイン後の行き先（招待の画面など）を保ったまま戻す
+  const loginHref = back?.startsWith("/login")
+    ? back
+    : withFrom("/login", currentPath);
 
   return (
     <main className="flex flex-col gap-6 py-8">
@@ -26,12 +34,19 @@ export default async function RegisterPage(props: PageProps<"/register">) {
         で、預かる情報と利用目的をご確認いただけます。
       </p>
 
-      <RegisterForm currentPath={currentPath} />
+      {inviteToken && (
+        <p role="status">
+          登録してメール認証が済むと、招待されたリストへ進みます。
+        </p>
+      )}
 
-      <Link
-        href={withFrom("/login", currentPath)}
-        className="self-start text-link tap-target"
-      >
+      <RegisterForm
+        currentPath={currentPath}
+        loginHref={loginHref}
+        inviteToken={inviteToken}
+      />
+
+      <Link href={loginHref} className="self-start text-link tap-target">
         ログイン
       </Link>
     </main>

@@ -17,6 +17,11 @@ export type AuthTokenResponse = {
   };
 };
 
+// API-23 メール認証の結果。共同編集の招待リンクから登録した人にだけ、その招待リンクの文字を返す（D-121）
+export type EmailVerificationResult = {
+  invite_token: string | null;
+};
+
 // API-18。表示順（その他が最後）で返る
 export type Category = {
   id: number;

@@ -14,9 +14,17 @@ import { firstErrors, validateEmail, validatePassword } from "./validation";
 // 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う
 const FIELDS = ["email", "password"] as const;
 
+type Props = {
+  // SC-02・SC-14の「←」でこの画面へ戻すためのパス（共通2）
+  currentPath: string;
+  // ログイン（SC-02）へのリンク。ログインから来たときは、ログイン後の行き先を保ったまま戻す
+  loginHref: string;
+  // D-121：共同編集の招待リンクから来たときの、招待リンクの文字。登録と一緒に送る
+  inviteToken: string | null;
+};
+
 // SC-03 新規会員登録
-// currentPath：SC-02・SC-14の「←」でこの画面へ戻すためのパス（共通2）
-export function RegisterForm({ currentPath }: { currentPath: string }) {
+export function RegisterForm({ currentPath, loginHref, inviteToken }: Props) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const fieldErrors = useFieldErrors(FIELDS);
@@ -46,10 +54,14 @@ export function RegisterForm({ currentPath }: { currentPath: string }) {
       // 空白の削除と小文字化は Laravel が行うので、入力のまま送る
       await clientApi("/register", {
         method: "POST",
-        body: { email, password },
+        // D-121：招待リンクから来た人だけ、招待リンクの文字を添える（Laravel が覚え、メール認証の後に返す）
+        body: inviteToken
+          ? { email, password, invite_token: inviteToken }
+          : { email, password },
       });
-      // 移動が終わるまで送信中のままにして、二重送信を防ぐ
-      router.replace("/verify-email");
+      // 移動が終わるまで送信中のままにして、二重送信を防ぐ。
+      // 招待リンクから来た人には、認証の後に招待されたリストへ進むことを案内する（SC-04）
+      router.replace(inviteToken ? "/verify-email?invited=1" : "/verify-email");
     } catch (error) {
       const serverErrors =
         error instanceof ApiError && error.code === "validation_error"
@@ -69,7 +81,11 @@ export function RegisterForm({ currentPath }: { currentPath: string }) {
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       {formError && (
-        <RegisterError error={formError} currentPath={currentPath} />
+        <RegisterError
+          error={formError}
+          currentPath={currentPath}
+          loginHref={loginHref}
+        />
       )}
 
       <div>
@@ -119,9 +135,11 @@ export function RegisterForm({ currentPath }: { currentPath: string }) {
 function RegisterError({
   error,
   currentPath,
+  loginHref,
 }: {
   error: Error;
   currentPath: string;
+  loginHref: string;
 }) {
   const code = error instanceof ApiError ? error.code : null;
 
@@ -132,10 +150,7 @@ function RegisterError({
           このメールアドレスはすでに登録されています。ログインするか、パスワードを再設定してください。
         </p>
         <div className="flex gap-4">
-          <Link
-            href={withFrom("/login", currentPath)}
-            className="text-link tap-target"
-          >
+          <Link href={loginHref} className="text-link tap-target">
             ログイン
           </Link>
           <Link
@@ -154,7 +169,10 @@ function RegisterError({
       {code === "too_many_requests"
         ? "しばらくしてから再度お試しください。"
         : code === "validation_error"
-          ? error.message
+          ? // V-28：招待リンクの文字には入力欄がないので、その理由をここに出す（D-121）
+            ((error instanceof ApiError
+              ? error.errors.invite_token?.[0]
+              : undefined) ?? error.message)
           : NETWORK_ERROR_MESSAGE}
     </p>
   );
