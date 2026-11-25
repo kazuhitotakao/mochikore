@@ -30,6 +30,9 @@ class ShowGroupingTest extends ListApiTestCase
             ->assertExactJson([
                 'data' => [
                     'grouping_revision' => 7,
+                    // F-35・D-119：共同編集のリストかを見分ける。自分のリストで、メンバーはいない
+                    'is_owner' => true,
+                    'member_count' => 0,
                     // D-102：SC-09 がこのカテゴリーのよく使うグループを読むのに使う
                     'category' => ['id' => $this->categoryId('買い物'), 'name' => '買い物'],
                     'groups' => [

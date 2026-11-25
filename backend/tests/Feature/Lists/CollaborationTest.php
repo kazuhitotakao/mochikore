@@ -427,7 +427,11 @@ class CollaborationTest extends ListApiTestCase
             ->assertJsonPath('data.invite_token', null)
             ->assertJsonPath('data.invite_expires_at', null)
             ->assertJsonPath('data.share_token', null);
-        $this->getJson("/api/lists/{$this->list->id}/grouping")->assertOk();
+        // F-35：グループ整理（SC-09）も、共同編集のリストかを見分けられる
+        $this->getJson("/api/lists/{$this->list->id}/grouping")
+            ->assertOk()
+            ->assertJsonPath('data.is_owner', false)
+            ->assertJsonPath('data.member_count', 1);
     }
 
     public function test_メンバーは持ち物とグループを追加・変更・チェック・並べ替え・削除できる(): void
