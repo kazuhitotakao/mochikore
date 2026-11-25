@@ -81,8 +81,9 @@ Codex用のルートの `AGENTS.md` も同じ内容。片方を直したら、�
 - この作業用コンテナ（workspace）には PHP と Node がある。npm・artisan・composer・Pint・Laravelのテストはここで実行できる。
 - `docker compose` は workspace 内の `/workspace` で実行する。手順書第3・4・9章の Docker CLI・Composeプラグイン・Dockerソケット共有を反映し、Rebuild Container後に `docker compose version`・`docker info`・`docker compose config --quiet` が通ることが前提。設定が未反映なら、Compose操作は未実行として報告する。
 - ルート `.env` の `MOCHIKORE_HOST_WORKSPACE` はMac側のプロジェクトの絶対パスにする。マウント元にコンテナ内の `/workspace` を使わない。
-- `up`・`stop` は `frontend backend db phpmyadmin` を対象にし、接続中の workspace 自身を作り直したり止めたりしない。workspaceの再構築はVS Codeの Rebuild Containerで行う。
+- `up`・`stop` は `frontend backend reverb db phpmyadmin` を対象にし、接続中の workspace 自身を作り直したり止めたりしない。workspaceの再構築はVS Codeの Rebuild Containerで行う。
 - npm・artisan・composer・Pint・Laravelのテストは各フォルダで直接実行し、`docker compose exec frontend/backend` を付けない。MySQLの管理コマンドは `/workspace` から `docker compose exec db` で実行する。開発サーバーはComposeが起動済みなので `npm run dev` や `php artisan serve` を重ねて起動しない。
+- `reverb` は共同編集の配信（Laravel Reverb、D-119）。Laravelと同じコードで動き、変更を自動では読み直さないので、配信のコードや `backend/.env` の `REVERB_` を変えたら `/workspace` で `docker compose restart reverb` する。`php artisan reverb:start` を重ねて起動しない。
 
 ## 確認コマンド
 

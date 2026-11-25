@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\InvitationRequest;
 use App\Models\PackingList;
 use App\Services\CollaborationService;
+use App\Services\ListChangeNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,9 +40,11 @@ class InvitationController extends Controller
     /**
      * API-62 参加する。所有者・参加済みの人が送っても、何も変えずに同じ応答を返す。
      */
-    public function join(InvitationRequest $request, string $token, CollaborationService $service): JsonResource
+    public function join(InvitationRequest $request, string $token, CollaborationService $service, ListChangeNotifier $notifier): JsonResource
     {
         $list = $service->join($request->user(), $token, $request->validated('display_name'));
+        // F-35：開いている所有者・メンバーの画面で、人数をすぐ変える
+        $notifier->notify($list->id, $request->header('X-Socket-ID'));
 
         return new JsonResource(['list' => ['id' => $list->id, 'title' => $list->title]]);
     }

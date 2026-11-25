@@ -37,6 +37,9 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
   6. 401 なら Cookie を削除する。応答の形は変えず、204 は本文なしで返す
 - トークンを扱う `login`・`register`・`logout`・`me`・`reset-password`（保存できたらCookieを消す）と、Server Componentの401でCookieを消す `session-expired`（D-76）は、共通の窓口とは別ファイルにする。
 - Laravel のトークンをブラウザの JavaScript や localStorage へ渡さない。ブラウザへは `user` だけ返す。
+- 共同編集の配信（F-35・D-119）：WebSocket は `lib/realtime/useListChannel.ts` だけで使う（pusher-js。laravel-echo は入れない）。チャンネルの認可は窓口の API-63 を通し、接続先（`REVERB_APP_KEY`・`REVERB_PUBLIC_*`）は `lib/realtime/config.ts`（server-only）で読んで Server Component から渡す。`NEXT_PUBLIC_` は付けない。
+- 配信で届くのは合図だけ。SC-07 は `useRemoteListSync` が API-07 を読み直して反映する。合図・画面に戻ったときの読み直しは自動の通信なので `userActivity: false` にする（D-36）。
+- データを変える通信は `clientApi` が数えている（送信中は読み直しを待たせ、`X-Socket-ID` を添えて自分を配信先から外す）。データを変えない POST だけ `mutates: false` を付ける。画面から `fetch` を直接呼ぶと数えられないので、必ず `clientApi` を通す。
 - Cookie がないときは API-04 を呼ばず、ログイン前として表示する（D-80）。
 - Cookie は `mochikore_token`。HttpOnly・SameSite=Lax・Path=/・期限はログインから1年。Secure は本番だけ有効にする（08_認証と構成、D-78）。
 - 窓口が自分で返すエラー：Origin 不一致は 403 `origin_not_allowed`、許可していないAPIは 404 `not_found`、Laravel へつながらないときは 502 `server_error`（D-76）。

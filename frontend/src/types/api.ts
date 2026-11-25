@@ -173,6 +173,11 @@ export type PackingListDetail = PackingList & {
   items: PackingListItem[];
 };
 
+// API-63 チャンネルの認可（D-119・F-35）。pusher-js へそのまま渡す署名
+export type RealtimeAuth = {
+  auth: string;
+};
+
 // API-56 共同編集の招待リンク（D-119）
 export type InviteLink = {
   invite_token: string;

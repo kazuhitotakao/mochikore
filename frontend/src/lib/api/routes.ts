@@ -29,6 +29,11 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "POST", path: /^\/lists$/ },
   // API-05：持ち物のコピー・移動の移し先を選ぶとき、画面を開いた後に読む（D-118）。画面を開くときは Server Component から
   { method: "GET", path: /^\/lists$/ },
+  // API-07：共同編集で、ほかのメンバーの変更が届いたときに画面を開いたまま読み直す（D-119・F-35）。
+  // 画面を開くときは Server Component から読む
+  { method: "GET", path: /^\/lists\/\d+$/ },
+  // API-63：共同編集のリストのチャンネルを聞くための認可（D-119・F-35）
+  { method: "POST", path: /^\/realtime\/auth$/ },
   // API-08・09
   { method: "PATCH", path: /^\/lists\/\d+$/ },
   { method: "DELETE", path: /^\/lists\/\d+$/ },
