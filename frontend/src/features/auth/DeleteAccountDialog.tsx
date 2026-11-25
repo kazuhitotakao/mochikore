@@ -109,7 +109,8 @@ export function DeleteAccountDialog() {
   }
 
   return (
-    <div className="mt-2 border-t border-line-soft pt-6">
+    // SC-12-7：目立たないよう、ログアウトの下に文字だけで置く
+    <div className="flex justify-center">
       <button
         type="button"
         onClick={start}
