@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PackingListSummary } from "@/types/api";
-import { OwnListCard } from "./OwnListCard";
+import { OwnListCard, type RemovedReason } from "./OwnListCard";
 
 // 02_画面配置 共通4：ほかの結果通知と同じく、5秒で消す
 const NOTICE_DURATION_MS = 5000;
@@ -15,7 +15,7 @@ type Props = {
 };
 
 /**
- * SC-05 自分のリストのカードの並びと、削除・複製の結果の通知（D-120）。
+ * SC-05 自分のリストのカードの並びと、削除・複製・共同編集から抜けた結果の通知（D-120・D-119）。
  * 件数（○/100件）と「新しいリスト」は Server Component が出すので、削除・複製の後は読み直す。
  */
 export function OwnListIndex({ lists, children }: Props) {
@@ -52,11 +52,12 @@ export function OwnListIndex({ lists, children }: Props) {
     target?.focus();
   }, [removedIds]);
 
-  function handleRemoved(listId: number, index: number, deleted: boolean) {
+  function handleRemoved(listId: number, index: number, reason: RemovedReason) {
     focusAfterRemoval.current = index;
     setRemovedIds((current) => new Set(current).add(listId));
-    // 共通4：この画面で削除できたときだけ知らせる。ほかの画面で先に消えていたときは外すだけ
-    if (deleted) setNotice("リストを削除しました。");
+    // 共通4：この画面で削除できた・抜けたときだけ知らせる。ほかの画面で先に消えていたときは外すだけ
+    if (reason === "deleted") setNotice("リストを削除しました。");
+    if (reason === "left") setNotice("リストから抜けました。");
     // 件数と、100件のときに押せない「新しいリスト」を読み直す
     router.refresh();
   }
@@ -87,7 +88,7 @@ export function OwnListIndex({ lists, children }: Props) {
                   open ? list.id : current === list.id ? null : current,
                 )
               }
-              onRemoved={(deleted) => handleRemoved(list.id, index, deleted)}
+              onRemoved={(reason) => handleRemoved(list.id, index, reason)}
               onDuplicated={handleDuplicated}
             />
           ))}

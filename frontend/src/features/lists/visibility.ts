@@ -17,6 +17,9 @@ export function visibilityErrorMessage(error: unknown): string {
       return "公開するには持ち物が1件以上必要です。";
     case "list_moderated":
       return "このリストは運営により非公開になっています。";
+    // D-119：開いた後にメンバーが参加した・別の画面で招待リンクを作ったとき
+    case "list_collaborative":
+      return "共同編集中のリストは公開できません。";
     case "validation_error":
       return error.errors.is_public?.[0] ?? error.message;
     default:

@@ -9,14 +9,16 @@ export default async function ListsPage(props: PageProps<"/lists">) {
   // D-19：メール未認証なら Laravel が403を返し、SC-04へ移動する
   const lists = await readAsUser<PackingListSummary[]>("/lists", "/lists");
   const searchParams = await props.searchParams;
-  const isFull = lists.length >= MAX_LISTS;
+  // D-119：参加しているリストも並ぶが、100件の上限（D-50）は自分のリストだけで数える
+  const ownCount = lists.filter((list) => list.is_owner).length;
+  const isFull = ownCount >= MAX_LISTS;
 
   return (
     <main className="flex flex-col gap-6 py-8">
       <div className="flex items-baseline justify-between">
         <h1 className="text-2xl font-medium">自分のリスト</h1>
         <p className="text-sm text-muted">
-          {lists.length}/{MAX_LISTS}件
+          {ownCount}/{MAX_LISTS}件
         </p>
       </div>
 
@@ -25,7 +27,8 @@ export default async function ListsPage(props: PageProps<"/lists">) {
         <p role="status">メール認証が完了しました。</p>
       )}
 
-      {/* SC-05-4〜7：カードの「…」・左スワイプでの編集・複製・削除（D-120） */}
+      {/* SC-05-4〜7：カードの「…」・左スワイプでの編集・複製・削除（D-120）。
+          共同編集で参加しているリストも一緒に並べ、「…」から抜けられる（D-119） */}
       <OwnListIndex lists={lists}>
         {/* SC-05-3（D-73）：利用者の指示で、リストの一覧の下に置く。100件のときは押せない */}
         {isFull ? (

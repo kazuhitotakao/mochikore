@@ -49,16 +49,24 @@ type Props = {
   // 編集のときの戻り先（SC-06-6）。SC-07 から開いたときはその内容（チェック済みの表示も引き継ぐ、D-94）、
   // 自分のリスト一覧（SC-05）から開いたときは一覧（D-120）。「←」と同じ行き先を画面から渡す
   returnHref?: string;
+  // D-119：共同編集中（メンバーがいる・招待リンクがある）のリストは公開できない
+  collaborative?: boolean;
 };
 
 // SC-06 リスト作成・編集。新規は API-06、編集は API-08
-export function ListForm({ categories, list, returnHref }: Props) {
+export function ListForm({
+  categories,
+  list,
+  returnHref,
+  collaborative = false,
+}: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // D-85：入力の保存後に公開できなかった場合も、次の送信は保存済みの内容と比較する
   const [savedList, setSavedList] = useState(list);
   const [moderated, setModerated] = useState(Boolean(list?.moderated_at));
   const moderatedNoticeId = useId();
+  const collaborativeNoticeId = useId();
   const [notice, setNotice] = useState<string | null>(null);
   const [title, setTitle] = useState(list?.title ?? "");
   const [categoryId, setCategoryId] = useState<number | null>(
@@ -346,8 +354,14 @@ export function ListForm({ categories, list, returnHref }: Props) {
                 公開にするときだけ確認し、非公開に戻すときはすぐ切り替える（D-42・D-85） */}
             <VisibilitySwitch
               isPublic={savedList.is_public}
-              disabled={busy || moderated}
-              describedBy={moderated ? moderatedNoticeId : undefined}
+              disabled={busy || moderated || collaborative}
+              describedBy={
+                moderated
+                  ? moderatedNoticeId
+                  : collaborative
+                    ? collaborativeNoticeId
+                    : undefined
+              }
               onToggle={visibility.toggle}
             />
           </div>
@@ -358,6 +372,12 @@ export function ListForm({ categories, list, returnHref }: Props) {
             </p>
           )}
           {moderated && <ModeratedNotice id={moderatedNoticeId} />}
+          {/* D-119：押せない理由を文字でも伝える */}
+          {collaborative && !moderated && (
+            <p id={collaborativeNoticeId} className="text-sm text-muted">
+              共同編集中のリストは公開できません。
+            </p>
+          )}
           {/* 利用者の指示：保存ボタンに重ならないよう、公開設定の下に通知の場所を確保する */}
           <p role="status" className="min-h-6 text-sm">
             {notice}

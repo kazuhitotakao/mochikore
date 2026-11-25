@@ -32,6 +32,7 @@ import { SavedItemPanel } from "@/features/saved-items/SavedItemPanel";
 import type {
   Category,
   GroupFromItemResult,
+  InviteLink,
   ItemDeleteResult,
   ItemTransferResult,
   PackingListDetail,
@@ -63,6 +64,7 @@ import {
 import { ListMenu } from "./ListMenu";
 import { SelectionList } from "./SelectionList";
 import { SHOW_CHECKED_PARAM } from "./showChecked";
+import { CollaborativeBadge } from "./CollaborativeBadge";
 import { PublicBadge } from "./PublicBadge";
 import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
 import { TransferItemsDialog, type TransferMode } from "./TransferItemsDialog";
@@ -198,6 +200,16 @@ export function ListDetail({
   const [moderated, setModerated] = useState(Boolean(list.moderated_at));
   // D-114：限定公開のリンク。作る・止めるの結果をこの画面の中で持ち、開き直したときは API-07 の値から始める
   const [shareToken, setShareToken] = useState(list.share_token);
+  // D-119：共同編集のメンバーの数（所有者を除く）と招待リンク。招待・外す操作の結果をこの画面の中で持つ
+  const [memberCount, setMemberCount] = useState(list.member_count);
+  const [invite, setInvite] = useState<InviteLink | null>(
+    list.invite_token && list.invite_expires_at
+      ? {
+          invite_token: list.invite_token,
+          invite_expires_at: list.invite_expires_at,
+        }
+      : null,
+  );
   const moderatedNoticeId = useId();
   // 画面下の結果の通知。コピー・移動の後は移し先を「開く」リンクも添える（D-118）
   const [notice, setNotice] = useState<
@@ -1175,6 +1187,8 @@ export function ListDetail({
           <p className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-2">
             <span className="tag">{list.category.name}</span>
             {isPublic && <PublicBadge />}
+            {/* D-119：参加しているリストと、メンバーがいる自分のリストに付ける（公開中とは両立しない） */}
+            {(!list.is_owner || memberCount > 0) && <CollaborativeBadge />}
           </p>
           {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
           {!selecting && (
@@ -1213,6 +1227,12 @@ export function ListDetail({
                   setModerated(true);
                   setIsPublic(false);
                 }}
+                // SC-07-4・F-34：共同編集（D-119）
+                isOwner={list.is_owner}
+                memberCount={memberCount}
+                onMemberCountChange={setMemberCount}
+                invite={invite}
+                onInviteChange={setInvite}
               />
             </div>
           )}

@@ -4,6 +4,8 @@ export type User = {
   id: number;
   email: string;
   email_verified_at: string | null;
+  // D-119：共同編集のメンバーに見せる表示名。入れるまでは null
+  display_name: string | null;
   pending_email: string | null;
 };
 
@@ -36,6 +38,9 @@ export type PackingListSummary = {
   category: CategorySummary;
   items_count: number;
   is_public: boolean;
+  // D-119：共同編集で参加しているリストも並ぶ。is_owner は自分が所有者か、member_count は所有者を除くメンバーの数
+  is_owner: boolean;
+  member_count: number;
   updated_at: string;
 };
 
@@ -157,12 +162,49 @@ export type PackingListDetail = PackingList & {
   grouping_revision: number;
   // D-114：限定公開のリンク（32文字の英数字）。本人用の取得にだけ含め、なければ null
   share_token: string | null;
+  // D-119：is_owner は自分が所有者か、member_count は所有者を除く共同編集のメンバーの数。
+  // 招待リンク（32文字の英数字）と期限は所有者にだけ、期限内のものを返す
+  is_owner: boolean;
+  member_count: number;
+  invite_token: string | null;
+  invite_expires_at: string | null;
   // D-106：空グループのチェックは本人用の取得にだけ含める。
   groups: (PackingListGroup & { is_checked: boolean })[];
   items: PackingListItem[];
 };
 
-// 06_API一覧「エラーコード一覧」のうち Laravel が返す17種類と、Next.js の窓口だけが返す origin_not_allowed
+// API-56 共同編集の招待リンク（D-119）
+export type InviteLink = {
+  invite_token: string;
+  invite_expires_at: string;
+};
+
+// API-58 共同編集の所有者とメンバー（D-119）。見せるのは表示名だけで、メールアドレスは返らない
+export type ListMembers = {
+  owner: { display_name: string | null; is_me: boolean };
+  members: {
+    // メンバーを外すとき（API-59）に使う番号
+    id: number;
+    display_name: string | null;
+    joined_at: string;
+    is_me: boolean;
+  }[];
+};
+
+// API-61 招待リンクを開いた人に見せる内容（D-119）。member_count は所有者を除くメンバーの数
+export type Invitation = {
+  list: { id: number; title: string };
+  owner_display_name: string | null;
+  member_count: number;
+  status: "joinable" | "member" | "owner" | "full";
+};
+
+// API-62 参加した結果（D-119）
+export type InvitationJoinResult = {
+  list: { id: number; title: string };
+};
+
+// 06_API一覧「エラーコード一覧」のうち Laravel が返す21種類と、Next.js の窓口だけが返す origin_not_allowed
 export type ApiErrorCode =
   | "validation_error"
   | "email_already_registered"
@@ -173,6 +215,10 @@ export type ApiErrorCode =
   | "saved_group_limit_reached"
   | "item_limit_reached"
   | "list_has_no_items"
+  | "list_collaborative"
+  | "list_not_private"
+  | "member_limit_reached"
+  | "joined_list_limit_reached"
   | "link_invalid"
   | "unauthenticated"
   | "email_not_verified"

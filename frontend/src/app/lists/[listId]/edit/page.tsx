@@ -38,6 +38,8 @@ export default async function EditListPage(
   if (categoryRead.status === "rejected") throw categoryRead.reason;
   const list = listRead.value;
   const categories = categoryRead.value;
+  // D-119：リスト名・説明・カテゴリーを編集できるのは所有者だけ。共同編集のメンバーには画面を出さない
+  if (!list.is_owner) notFound();
   // 「←」と保存の後の戻り先（SC-06-6）。一覧から開いたときは一覧へ（D-120）。
   // D-94：SC-07 でチェック済みを表示したまま来たときは、戻ったときも表示したままにする
   const returnHref = fromIndex
@@ -51,7 +53,13 @@ export default async function EditListPage(
     <main className="flex flex-col gap-6 py-8">
       <BackLink href={returnHref} />
       <h1 className="text-2xl font-medium">リストを編集</h1>
-      <ListForm categories={categories} list={list} returnHref={returnHref} />
+      <ListForm
+        categories={categories}
+        list={list}
+        returnHref={returnHref}
+        // D-119：共同編集中（メンバーがいる・招待リンクがある）は公開のスイッチを押せなくする
+        collaborative={list.member_count > 0 || list.invite_token !== null}
+      />
     </main>
   );
 }

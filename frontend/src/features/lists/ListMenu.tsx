@@ -17,7 +17,8 @@ import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
-import type { ItemDeleteResult } from "@/types/api";
+import type { InviteLink, ItemDeleteResult } from "@/types/api";
+import { CollaborationDialog } from "./CollaborationDialog";
 import { bulkDeleteErrorMessage } from "./itemErrors";
 import { ShareLinkDialog } from "./ShareLinkDialog";
 import { withShowChecked } from "./showChecked";
@@ -55,6 +56,14 @@ type Props = {
   // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない
   transferDisabled: boolean;
   onModerated: () => void;
+  // SC-07-4・F-34：共同編集（D-119）。リストそのものの操作（編集・公開・リンクで共有・招待）は所有者だけ
+  isOwner: boolean;
+  // 所有者を除く共同編集のメンバーの数
+  memberCount: number;
+  onMemberCountChange: (count: number) => void;
+  // 招待リンク（所有者だけ。なければ null）
+  invite: InviteLink | null;
+  onInviteChange: (invite: InviteLink | null) => void;
 };
 
 type Confirming = "grouping" | "reset-checks" | "delete-checked" | null;
@@ -84,10 +93,16 @@ export function ListMenu({
   shareDisabled,
   transferDisabled,
   onModerated,
+  isOwner,
+  memberCount,
+  onMemberCountChange,
+  invite,
+  onInviteChange,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
+  const collaborativeNoteId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuContainer = useRef<HTMLDivElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -103,6 +118,15 @@ export function ListMenu({
   // SC-07-4・D-114：「リンクで共有」のダイアログを開いているか
   const [sharing, setSharing] = useState(false);
   const focusAfterSharing = useRef(false);
+  // SC-07-4・D-119：「共同編集」のダイアログを開いているか
+  const [collaborating, setCollaborating] = useState(false);
+  // D-119：共同編集中（メンバーがいる・招待リンクがある）は、公開・リンクで共有と両立しない
+  const collaborative = memberCount > 0 || invite !== null;
+  const inviteBlockedReason = shareDisabled
+    ? "このリストは運営により非公開になっています。"
+    : isPublic || shareToken !== null
+      ? "公開中・リンクで共有中のリストは、共同編集にできません。非公開に戻し、リンクを止めてから招待してください。"
+      : null;
 
   // 確認（子の ConfirmDialog）が閉じてから項目へカーソルを移す。子の effect が先に動くので、
   // 確認を開いている間（後ろの画面を操作できない間）に移そうとして失敗することはない
@@ -115,12 +139,12 @@ export function ListMenu({
       ?.focus();
   }, [menuOpen]);
 
-  // 「リンクで共有」を閉じた後は、「…」のボタンへカーソルを戻す（開いた元の操作へ戻れるように）
+  // 「リンクで共有」「共同編集」を閉じた後は、「…」のボタンへカーソルを戻す（開いた元の操作へ戻れるように）
   useEffect(() => {
-    if (sharing || !focusAfterSharing.current) return;
+    if (sharing || collaborating || !focusAfterSharing.current) return;
     focusAfterSharing.current = false;
     menuContainer.current?.querySelector("button")?.focus();
-  }, [sharing]);
+  }, [sharing, collaborating]);
 
   useEffect(() => {
     if (confirming !== null || sending || !focusAfterCheckedDelete.current)
@@ -252,11 +276,14 @@ export function ListMenu({
         >
           {/* ① 編集・整理 */}
           <MenuSection>
-            <li>
-              <Link href={editHref} prefetch={false} className={MENU_ITEM}>
-                <MenuLabel icon="edit">リストを編集</MenuLabel>
-              </Link>
-            </li>
+            {/* D-119：リスト名・説明・カテゴリーの編集は所有者だけ */}
+            {isOwner && (
+              <li>
+                <Link href={editHref} prefetch={false} className={MENU_ITEM}>
+                  <MenuLabel icon="edit">リストを編集</MenuLabel>
+                </Link>
+              </li>
+            )}
             <li>
               <button
                 type="button"
@@ -289,51 +316,89 @@ export function ListMenu({
           <MenuSection divided>
             {/* SC-07-4（利用者の指示）：リストをシンプルに見せるため、公開の切り替えはここに置く。
                 SC-06 と同じオン・オフの形と動き（D-73・D-85）。公開にするときは閉じてから確認を出す（D-42） */}
-            <li>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isPublic}
-                aria-describedby={publishDescribedBy}
-                disabled={publishDisabled}
-                data-menu-item="public"
-                onClick={() => {
-                  setMenuOpen(false);
-                  visibility.toggle();
-                }}
-                className={MENU_ITEM}
-              >
-                <MenuLabel icon="public">リストを公開</MenuLabel>
-                <span className="ml-auto flex">
-                  <SwitchIndicator on={isPublic} />
-                </span>
-              </button>
-            </li>
-            {/* SC-07-4・D-114：公開とは別に、リンクを知っている人だけに見せる。非公開のまま・0件でも使える */}
-            <li>
-              <button
-                type="button"
-                aria-describedby={
-                  shareDisabled ? publishDescribedBy : undefined
-                }
-                disabled={shareDisabled}
-                onClick={() => {
-                  setMenuOpen(false);
-                  setSharing(true);
-                }}
-                className={MENU_ITEM}
-              >
-                <MenuLabel icon="link">リンクで共有</MenuLabel>
-                {/* D-114（利用者の指示）：ダイアログを開かなくても共有中か分かるよう、行の右端に出す。
+            {isOwner && (
+              <>
+                <li>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isPublic}
+                    aria-describedby={
+                      collaborative ? collaborativeNoteId : publishDescribedBy
+                    }
+                    disabled={publishDisabled || collaborative}
+                    data-menu-item="public"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      visibility.toggle();
+                    }}
+                    className={MENU_ITEM}
+                  >
+                    <MenuLabel icon="public">リストを公開</MenuLabel>
+                    <span className="ml-auto flex">
+                      <SwitchIndicator on={isPublic} />
+                    </span>
+                  </button>
+                </li>
+                {/* SC-07-4・D-114：公開とは別に、リンクを知っている人だけに見せる。非公開のまま・0件でも使える */}
+                <li>
+                  <button
+                    type="button"
+                    aria-describedby={
+                      collaborative
+                        ? collaborativeNoteId
+                        : shareDisabled
+                          ? publishDescribedBy
+                          : undefined
+                    }
+                    disabled={shareDisabled || collaborative}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setSharing(true);
+                    }}
+                    className={MENU_ITEM}
+                  >
+                    <MenuLabel icon="link">リンクで共有</MenuLabel>
+                    {/* D-114（利用者の指示）：ダイアログを開かなくても共有中か分かるよう、行の右端に出す。
                     運営が非公開にしたリストはリンクが開けなくなるので出さない（D-48）。
                     公開のスイッチの右端は丸く、端をそろえると文字が右に出て見えるので、4px内側に置く（利用者の指示） */}
-                {shareToken !== null && !shareDisabled && (
+                    {shareToken !== null && !shareDisabled && (
+                      <span className="mr-1 ml-auto text-sm text-brand">
+                        共有中
+                      </span>
+                    )}
+                  </button>
+                </li>
+              </>
+            )}
+            {/* SC-07-4・D-119：招待した人と同じリストを一緒に編集する。メンバーには顔ぶれだけを見せる。
+                人数は所有者を入れて数え、「リンクで共有」の「共有中」と同じ位置に出す */}
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setCollaborating(true);
+                }}
+                className={MENU_ITEM}
+              >
+                <MenuLabel icon="people">共同編集</MenuLabel>
+                {collaborative && (
                   <span className="mr-1 ml-auto text-sm text-brand">
-                    共有中
+                    {memberCount > 0 ? `${memberCount + 1}人` : "招待中"}
                   </span>
                 )}
               </button>
             </li>
+            {/* 押せない理由を、メニューの中で文字でも伝える */}
+            {isOwner && collaborative && (
+              <li
+                id={collaborativeNoteId}
+                className="px-4 pt-1 pb-2 text-sm text-muted"
+              >
+                共同編集中は、公開・リンクで共有を使えません。
+              </li>
+            )}
           </MenuSection>
           {/* ③ チェック操作・持ち物の削除 */}
           <MenuSection divided>
@@ -432,6 +497,21 @@ export function ListMenu({
         visibility={visibility}
         onCancel={() => reopenMenu("public")}
       />
+
+      {collaborating && (
+        <CollaborationDialog
+          listId={listId}
+          isOwner={isOwner}
+          invite={invite}
+          onInviteChange={onInviteChange}
+          onMemberCountChange={onMemberCountChange}
+          inviteBlockedReason={inviteBlockedReason}
+          onClose={() => {
+            focusAfterSharing.current = true;
+            setCollaborating(false);
+          }}
+        />
+      )}
 
       {sharing && (
         <ShareLinkDialog

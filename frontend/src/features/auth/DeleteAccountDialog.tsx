@@ -141,12 +141,17 @@ export function DeleteAccountDialog() {
           <div id={descriptionId} className="flex flex-col gap-2 text-sm">
             <p>アカウントと、次のデータを削除します。</p>
             <ul className="list-disc space-y-1 pl-5">
-              <li>自分のリスト（コピーしたリストを含む）</li>
+              <li>
+                自分のリスト（コピーしたリストを含む。共同編集のメンバーも使えなくなります）
+              </li>
               <li>持ち物・チェック状態・グループ</li>
               <li>よく使う項目・よく使うグループ</li>
               <li>ログイン情報・パスワード再設定の情報</li>
             </ul>
             <p>ほかの人が自分用にコピーしたリストは残ります。</p>
+            <p>
+              メンバーとして参加しているリストからは外れ、足した持ち物はそのリストに残ります。
+            </p>
             <p>削除すると元に戻せません。</p>
           </div>
           {formError && (

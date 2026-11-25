@@ -89,6 +89,9 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
               <p>
                 メールアドレス、パスワード、メール認証の状態などを、会員登録・ログイン・本人確認や、登録確認・パスワード再設定のメール送信に使います。
               </p>
+              <p>
+                表示名は、共同編集を使うときにだけ入れていただき、同じリストのメンバーと、招待リンクを開いた人に表示します。
+              </p>
               <p className="text-sm text-muted">
                 パスワードは、元の文字列に戻せない形に変換して保存します。
               </p>
@@ -138,9 +141,15 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
           </div>
           <div className="flex flex-col gap-1">
             <dt className="font-bold">公開リストに表示しない情報</dt>
-            <dd>作成者のメールアドレス・チェック状態</dd>
+            <dd>作成者のメールアドレス・表示名・チェック状態</dd>
           </div>
         </dl>
+        <div className="flex flex-col gap-2 rounded-2xl border border-line p-5">
+          <h3 className="font-bold">共同編集</h3>
+          <p>
+            招待リンクから参加したメンバーは、そのリストの持ち物・グループ・チェック状態を見て、一緒に編集できます。メンバーどうしに見えるのは表示名だけで、メールアドレスは見えません。共同編集中のリストは公開できません。
+          </p>
+        </div>
         <div className="flex flex-col gap-2 rounded-2xl bg-sunken p-5">
           <h3 className="font-bold">ほかの人のコピーは残ります</h3>
           <p>
@@ -218,13 +227,15 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
         <div className="flex flex-col gap-3">
           <h3 className="font-bold">退会すると削除される情報</h3>
           <ul className="flex list-disc flex-col gap-2 pl-5">
-            <li>本人のリスト（コピーして保存したものを含む）</li>
+            <li>
+              本人のリスト（コピーして保存したものを含む。共同編集のメンバーも使えなくなります）
+            </li>
             <li>持ち物・チェック状態・グループ</li>
             <li>よく使う項目・よく使うグループ</li>
             <li>ログイン情報・パスワード再設定の情報</li>
           </ul>
           <p className="text-sm text-muted">
-            ほかの人が自分用にコピーしたリストは残ります。
+            ほかの人が自分用にコピーしたリストは残ります。メンバーとして参加していたリストからは外れ、足した持ち物はそのリストに残ります。
           </p>
         </div>
         <div className="flex flex-col gap-3">
