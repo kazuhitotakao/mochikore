@@ -57,6 +57,19 @@ services:
         condition: service_healthy
     command: php artisan serve --host=0.0.0.0 --port=8000
 
+  # 共同編集の配信（Laravel Reverb、D-119）。Laravelと同じイメージ・同じコードで、WebSocketのサーバーだけを動かす。
+  # 設定（backend/.env の REVERB_）や配信のコードを変えたら、restart で読み直す
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    working_dir: /workspace/backend
+    volumes:
+      - "${MOCHIKORE_HOST_WORKSPACE:?ルート.envにMacの絶対パスを設定してください}:/workspace"
+    ports:
+      - "127.0.0.1:8002:8080"
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+
   db:
     image: mysql:8.4
     environment:
