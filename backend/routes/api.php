@@ -21,6 +21,7 @@ use App\Http\Controllers\PackingListController;
 use App\Http\Controllers\PackingListGroupingController;
 use App\Http\Controllers\PackingListItemController;
 use App\Http\Controllers\PublicPackingListController;
+use App\Http\Controllers\RealtimeAuthController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\ReorderGroupsController;
 use App\Http\Controllers\ReorderPackingListItemsController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsurePackingListIsPublic;
+use App\Http\Middleware\NotifyListChange;
 use App\Models\PackingList;
 use Illuminate\Support\Facades\Route;
 
@@ -62,6 +64,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // D-19：自分のリストは、メール認証が済んでから使える
     Route::middleware(EnsureEmailIsVerified::class)->group(function () {
+        // API-63・D-119：共同編集のリストのチャンネルを聞くための認可。所有者・メンバーだけが通る。
+        // F-35：下のルートのうち NotifyListChange を付けたものは、成功するとほかのメンバーへ「変わった」と配信する
+        Route::post('/realtime/auth', RealtimeAuthController::class);
         // API-55・D-119：共同編集のメンバーに見せる表示名を変える
         Route::patch('/me', [UserController::class, 'update']);
         Route::post('/me/email-change', [EmailChangeController::class, 'store'])->middleware('throttle:email-change');
@@ -77,14 +82,15 @@ Route::middleware('auth:sanctum')->group(function () {
             ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}');
         // API-53・54・D-118：公開リスト・限定公開のリストから、選んだ持ち物を自分のリストへ取り込む
         Route::post('/public/lists/{list}/items/import', [ImportItemsController::class, 'fromPublic'])
-            ->middleware(EnsurePackingListIsPublic::class);
+            ->middleware([EnsurePackingListIsPublic::class, NotifyListChange::class]);
         Route::post('/shared/lists/{token}/items/import', [ImportItemsController::class, 'fromShared'])
-            ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}');
+            ->where('token', '[A-Za-z0-9]{'.PackingList::SHARE_TOKEN_LENGTH.'}')
+            ->middleware(NotifyListChange::class);
         Route::get('/lists', [PackingListController::class, 'index']);
         Route::post('/lists', [PackingListController::class, 'store']);
         Route::get('/lists/{list}', [PackingListController::class, 'show']);
-        Route::patch('/lists/{list}', [PackingListController::class, 'update']);
-        Route::delete('/lists/{list}', [PackingListController::class, 'destroy']);
+        Route::patch('/lists/{list}', [PackingListController::class, 'update'])->middleware(NotifyListChange::class);
+        Route::delete('/lists/{list}', [PackingListController::class, 'destroy'])->middleware(NotifyListChange::class);
         Route::patch('/lists/{list}/visibility', UpdateListVisibilityController::class);
         // API-46・47・D-114：限定公開のリンクを作る・止める
         Route::post('/lists/{list}/share-link', [ShareLinkController::class, 'store']);
@@ -94,8 +100,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/lists/{list}/invite-link', [InviteLinkController::class, 'destroy']);
         // API-58〜60・D-119：メンバーの一覧、所有者がメンバーを外す、メンバーが自分で抜ける
         Route::get('/lists/{list}/members', [ListMemberController::class, 'index']);
-        Route::delete('/lists/{list}/members/{member}', [ListMemberController::class, 'destroy']);
-        Route::delete('/lists/{list}/membership', [ListMemberController::class, 'leave']);
+        Route::delete('/lists/{list}/members/{member}', [ListMemberController::class, 'destroy'])->middleware(NotifyListChange::class);
+        Route::delete('/lists/{list}/membership', [ListMemberController::class, 'leave'])->middleware(NotifyListChange::class);
         // API-61・62・D-119：招待リンクを開いた人が、内容を見て参加する。形の違うリンクは経路に合わず404
         Route::get('/invites/{token}', [InvitationController::class, 'show'])
             ->where('token', '[A-Za-z0-9]{'.PackingList::INVITE_TOKEN_LENGTH.'}');
@@ -104,27 +110,27 @@ Route::middleware('auth:sanctum')->group(function () {
         // API-50・D-116：自分のリストを、入力した名前の新しいリストに複製する
         Route::post('/lists/{list}/duplicate', DuplicatePackingListController::class);
 
-        Route::post('/lists/{list}/reset-checks', ResetChecksController::class);
-        Route::post('/lists/{list}/items', [PackingListItemController::class, 'store']);
-        Route::patch('/lists/{list}/items/order', ReorderPackingListItemsController::class);
-        Route::patch('/lists/{list}/items/checks', BulkCheckItemsController::class);
-        Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class);
-        Route::post('/lists/{list}/items/bulk-delete', BulkDeleteItemsController::class);
+        Route::post('/lists/{list}/reset-checks', ResetChecksController::class)->middleware(NotifyListChange::class);
+        Route::post('/lists/{list}/items', [PackingListItemController::class, 'store'])->middleware(NotifyListChange::class);
+        Route::patch('/lists/{list}/items/order', ReorderPackingListItemsController::class)->middleware(NotifyListChange::class);
+        Route::patch('/lists/{list}/items/checks', BulkCheckItemsController::class)->middleware(NotifyListChange::class);
+        Route::post('/lists/{list}/items/bulk', BulkAddItemsController::class)->middleware(NotifyListChange::class);
+        Route::post('/lists/{list}/items/bulk-delete', BulkDeleteItemsController::class)->middleware(NotifyListChange::class);
         // API-51・52・D-118：選んだ持ち物を自分の別のリストへコピー・移動する
-        Route::post('/lists/{list}/items/copy', [TransferItemsController::class, 'copy']);
-        Route::post('/lists/{list}/items/move', [TransferItemsController::class, 'move']);
+        Route::post('/lists/{list}/items/copy', [TransferItemsController::class, 'copy'])->middleware(NotifyListChange::class);
+        Route::post('/lists/{list}/items/move', [TransferItemsController::class, 'move'])->middleware(NotifyListChange::class);
         Route::get('/lists/{list}/grouping', [PackingListGroupingController::class, 'show']);
-        Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update']);
-        Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class);
-        Route::patch('/groups/{group}/check', UpdateEmptyGroupCheckController::class);
-        Route::patch('/groups/{group}', UpdateGroupNameController::class);
+        Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update'])->middleware(NotifyListChange::class);
+        Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class)->middleware(NotifyListChange::class);
+        Route::patch('/groups/{group}/check', UpdateEmptyGroupCheckController::class)->middleware(NotifyListChange::class);
+        Route::patch('/groups/{group}', UpdateGroupNameController::class)->middleware(NotifyListChange::class);
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
-        Route::patch('/items/{item}', [PackingListItemController::class, 'update']);
-        Route::delete('/items/{item}', [PackingListItemController::class, 'destroy']);
+        Route::patch('/items/{item}', [PackingListItemController::class, 'update'])->middleware(NotifyListChange::class);
+        Route::delete('/items/{item}', [PackingListItemController::class, 'destroy'])->middleware(NotifyListChange::class);
         // 削除済みの持ち物を読み込めるよう withTrashed を付ける。完全に削除されたものは404
-        Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed();
+        Route::post('/items/{item}/restore', RestorePackingListItemController::class)->withTrashed()->middleware(NotifyListChange::class);
         // API-45・D-111：重ねられた持ち物（URL）をグループにし、重ねた持ち物を中へ移す
-        Route::post('/items/{item}/group', CreateGroupFromItemController::class);
+        Route::post('/items/{item}/group', CreateGroupFromItemController::class)->middleware(NotifyListChange::class);
 
         // F-21・F-22：よく使う項目も、メール認証が済んでから使える
         Route::get('/saved-items', [SavedItemController::class, 'index']);

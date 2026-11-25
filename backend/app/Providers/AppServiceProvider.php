@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Services\EmailVerification;
+use App\Services\ListChangeNotifier;
 use App\Services\PasswordResetService;
 use App\Services\TokenLifetime;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -45,6 +46,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('list-reports', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
         // D-49：端末やIPを変えても、本人ごとにメール変更の依頼を1時間10回までにする
         RateLimiter::for('email-change', fn (Request $request) => Limit::perHour(10)->by((string) $request->user()->getAuthIdentifier()));
+
+        // D-119・F-35：共同編集のリストごとのチャンネルは、所有者とメンバーにだけ聞かせる。
+        // Laravel 標準の /broadcasting/auth は置かず、メール認証済みの人だけが通る API-63 から認可する
+        ListChangeNotifier::registerChannel();
 
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
