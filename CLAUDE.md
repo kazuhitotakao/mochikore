@@ -40,6 +40,9 @@ Codex用のルートの `AGENTS.md` も同じ内容。片方を直したら、�
 | グループ | `packing_list_groups` / `PackingListGroup`。リスト内の任意の分類 |
 | よく使う項目 | `saved_items` / `SavedItem`。リストとは独立 |
 | 通報 | `list_reports` / `ListReport` |
+| 共同編集のメンバー | `packing_list_members` / `PackingListMember`。所有者は `packing_lists.user_id` で持ち、この表には入れない（D-119） |
+| 招待リンク | `packing_lists.invite_token`。共同編集に誘うリンク。見せるだけの限定公開のリンク（`share_token`、D-114）とは別 |
+| 表示名 | `users.display_name`。共同編集のメンバーにだけ見せる。公開リストには出さない（D-32） |
 
 カテゴリーとグループは別物。混同しない。テーブル・カラム名は設計書のとおりにする。
 
