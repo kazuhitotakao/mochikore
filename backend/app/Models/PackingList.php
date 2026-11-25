@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\PackingListFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,14 @@ class PackingList extends Model
     // D-114：限定公開のリンクの文字数（英数字）
     public const SHARE_TOKEN_LENGTH = 32;
 
+    // D-119：共同編集は、所有者を入れて1リスト10人まで
+    public const MAX_PEOPLE = 10;
+
+    // D-119：招待リンクの文字数（英数字）と、作ってから切れるまでの日数
+    public const INVITE_TOKEN_LENGTH = 32;
+
+    public const INVITE_LIFETIME_DAYS = 7;
+
     // D-117・V-25：公開リスト一覧（API-15）の並び順。省略は新しい順（D-23）
     public const SORT_NEWEST = 'newest';
 
@@ -39,6 +48,7 @@ class PackingList extends Model
         return [
             'is_public' => 'boolean',
             'moderated_at' => 'datetime',
+            'invite_expires_at' => 'datetime',
             'grouping_revision' => 'integer',
         ];
     }
@@ -75,5 +85,56 @@ class PackingList extends Model
     public function groups(): HasMany
     {
         return $this->hasMany(PackingListGroup::class);
+    }
+
+    /**
+     * 共同編集のメンバー（編集者）。所有者は含まない（D-119）。
+     *
+     * @return HasMany<PackingListMember, $this>
+     */
+    public function members(): HasMany
+    {
+        return $this->hasMany(PackingListMember::class);
+    }
+
+    /**
+     * D-119：所有者か、共同編集のメンバーとして使えるリストに絞る。
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeAccessibleBy(Builder $query, User $user): void
+    {
+        $query->where(fn (Builder $own) => $own
+            ->where('user_id', $user->id)
+            ->orWhereHas('members', fn (Builder $member) => $member->where('user_id', $user->id)));
+    }
+
+    public function isOwnedBy(User $user): bool
+    {
+        return $this->user_id === $user->id;
+    }
+
+    /**
+     * D-119：所有者か、共同編集のメンバーか。
+     */
+    public function isAccessibleBy(User $user): bool
+    {
+        return $this->isOwnedBy($user) || $this->members()->where('user_id', $user->id)->exists();
+    }
+
+    /**
+     * D-119：止めていない、期限内の招待リンクがあるか。
+     */
+    public function hasValidInvite(): bool
+    {
+        return $this->invite_token !== null && $this->invite_expires_at?->isFuture() === true;
+    }
+
+    /**
+     * D-119：共同編集中（メンバーがいる、または有効な招待リンクがある）は、公開・リンクで共有と両立させない。
+     */
+    public function isCollaborative(): bool
+    {
+        return $this->hasValidInvite() || $this->members()->exists();
     }
 }

@@ -71,6 +71,10 @@ class PackingListService
             }
 
             if ($locked->share_token === null) {
+                // D-119：共同編集中のリストは非公開だけ。メンバーが足した持ち物を、知らないうちにほかの人へ見せない
+                if ($locked->isCollaborative()) {
+                    throw new ApiException(ApiErrorCode::ListCollaborative, '共同編集中のリストは、リンクで共有できません。');
+                }
                 $locked->share_token = Str::random(PackingList::SHARE_TOKEN_LENGTH);
                 // D-114：リンクはリストの内容ではないので、自分のリスト一覧の順番（updated_at、D-24）を変えない
                 $locked->timestamps = false;
@@ -153,6 +157,11 @@ class PackingListService
 
                 if (! $locked->items()->exists()) {
                     throw new ApiException(ApiErrorCode::ListHasNoItems, '公開するには持ち物が1件以上必要です。');
+                }
+
+                // D-119：共同編集中のリストは非公開だけ。招待と同時に押されても、同じ親のロックで片方を断る
+                if ($locked->isCollaborative()) {
+                    throw new ApiException(ApiErrorCode::ListCollaborative, '共同編集中のリストは公開できません。');
                 }
             }
 

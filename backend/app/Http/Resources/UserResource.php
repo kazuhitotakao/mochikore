@@ -19,6 +19,8 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'email' => $this->email,
             'email_verified_at' => $this->email_verified_at,
+            // D-119：共同編集のメンバーに見せる表示名。入れるまでは null
+            'display_name' => $this->display_name,
             // D-107：確認リンクの期限（60分）を過ぎた変更先は確定できないので、確認中として返さない
             'pending_email' => $this->pending_email_requested_at
                 && ! $this->pending_email_requested_at->copy()->addMinutes(EmailChangeService::LINK_LIFETIME_MINUTES)->isPast()

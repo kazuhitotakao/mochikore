@@ -27,7 +27,7 @@ class PackingListGroupingController extends Controller
      */
     public function update(UpdateGroupingRequest $request, PackingList $list, GroupingService $service): JsonResponse
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         $groupKeyMap = $service->save(
             $list,

@@ -15,7 +15,7 @@ class BulkCheckItemsController extends Controller
      */
     public function __invoke(BulkCheckItemsRequest $request, PackingList $list, PackingListItemService $service): Response
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         $service->setChecks($list, $request->validated('item_ids'), $request->validated('is_checked'));
 

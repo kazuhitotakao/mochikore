@@ -18,8 +18,8 @@ class CreateGroupFromItemController extends Controller
      */
     public function __invoke(CreateGroupFromItemRequest $request, PackingListItem $item, GroupingService $service): JsonResponse
     {
-        // D-43：持ち物が入っているリストの本人でなければ、存在しない持ち物と同じ404
-        Gate::authorize('update', $item->packingList);
+        // D-43：持ち物が入っているリストの所有者・メンバーでなければ、存在しない持ち物と同じ404（D-119）
+        Gate::authorize('editContents', $item->packingList);
 
         $result = $service->createFromItem($item, $request->validated('item_id'));
 

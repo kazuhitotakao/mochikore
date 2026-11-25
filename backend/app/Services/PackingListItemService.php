@@ -23,10 +23,10 @@ class PackingListItemService
     /**
      * API-10 持ち物の追加。未分類（group_id は NULL）で全体の末尾に入れる。
      */
-    public function add(PackingList $list, string $name): PackingListItem
+    public function add(User $user, PackingList $list, string $name): PackingListItem
     {
-        // D-97：持ち物を増やすので、本人の1時間の件数に数える（本人のリストだけ追加できる）
-        return $this->additionLimiter->attempt($list->user_id, 1, fn () => DB::transaction(function () use ($list, $name) {
+        // D-97・D-119：持ち物を増やすので、足した本人（所有者か共同編集のメンバー）の1時間の件数に数える
+        return $this->additionLimiter->attempt($user->id, 1, fn () => DB::transaction(function () use ($list, $name) {
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
             $this->ensureRoom($locked, 1);
 
@@ -141,7 +141,7 @@ class PackingListItemService
      * API-25 削除した持ち物を戻す。D-35：同じ行を戻すので、id・名前・チェック状態は削除前のまま。
      * グループが消えていれば、DB（ON DELETE SET NULL）がすでに未分類にしている。
      */
-    public function restore(PackingListItem $item): PackingListItem
+    public function restore(User $user, PackingListItem $item): PackingListItem
     {
         $restore = fn () => DB::transaction(function () use ($item) {
             $locked = PackingList::whereKey($item->packing_list_id)->lockForUpdate()->firstOrFail();
@@ -173,9 +173,9 @@ class PackingListItemService
             return $target;
         });
 
-        // D-97：戻すと持ち物が1件増えるので数える。すでに戻っている（送り直し）ときは増えないので数えない
+        // D-97・D-119：戻すと持ち物が1件増えるので、戻した本人の件数に数える。すでに戻っている（送り直し）ときは増えないので数えない
         return $item->trashed()
-            ? $this->additionLimiter->attempt($item->packingList->user_id, 1, $restore)
+            ? $this->additionLimiter->attempt($user->id, 1, $restore)
             : $restore();
     }
 

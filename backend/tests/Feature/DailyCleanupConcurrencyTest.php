@@ -66,7 +66,7 @@ class DailyCleanupConcurrencyTest extends TestCase
                 $account = User::findOrFail($userId);
                 match ($operation) {
                     'verify' => app(EmailVerification::class)->verify($account, (string) $userId, sha1($account->email)),
-                    'restore' => app(PackingListItemService::class)->restore(PackingListItem::withTrashed()->findOrFail($itemId)),
+                    'restore' => app(PackingListItemService::class)->restore($account, PackingListItem::withTrashed()->findOrFail($itemId)),
                     'login' => app(AuthService::class)->issueToken($account),
                     'reset' => app(PasswordResetService::class)->sendLinkAfterResponse($account->email),
                 };

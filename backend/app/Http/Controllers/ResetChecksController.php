@@ -14,7 +14,7 @@ class ResetChecksController extends Controller
      */
     public function __invoke(PackingList $list, GroupCheckService $service): Response
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         // 削除済みの持ち物は対象にせず、チェックを保つ（SoftDeletes の範囲外）。
         // D-25：チェックだけでは親リストの更新日時を変えず、構造も変えないので revision も増やさない

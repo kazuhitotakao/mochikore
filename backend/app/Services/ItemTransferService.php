@@ -119,8 +119,9 @@ class ItemTransferService
             $to = null;
             if ($destinationListId !== null) {
                 $to = $locked->get($destinationListId);
-                // V-26：移し先は、元とは別の自分のリストだけ。他人のリストかどうかは知らせない
-                if ($to === null || $to->user_id !== $user->id || $to->id === $from->id) {
+                // V-26・D-119：移し先は、元とは別の、自分が所有するか共同編集のメンバーであるリストだけ。
+                // 他人のリストかどうかは知らせない
+                if ($to === null || ! $to->isAccessibleBy($user) || $to->id === $from->id) {
                     $key = $mode === self::IMPORT ? 'validation.import_items.destination' : 'validation.transfer_items.destination';
                     throw ValidationException::withMessages(['destination_list_id' => [__($key)]]);
                 }

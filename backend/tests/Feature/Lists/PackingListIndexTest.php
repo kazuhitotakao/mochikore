@@ -36,6 +36,9 @@ class PackingListIndexTest extends ListApiTestCase
             'category' => ['id' => $this->categoryId('買い物'), 'name' => '買い物'],
             'items_count' => 0,
             'is_public' => true,
+            // D-119：自分のリストで、共同編集のメンバーはいない
+            'is_owner' => true,
+            'member_count' => 0,
             'updated_at' => $new->updated_at->toJSON(),
         ], $response->json('data.0'));
     }

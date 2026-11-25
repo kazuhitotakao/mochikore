@@ -16,7 +16,7 @@ class ReorderPackingListItemsController extends Controller
      */
     public function __invoke(ReorderPackingListItemsRequest $request, PackingList $list, PackingListItemService $service): Response
     {
-        Gate::authorize('update', $list);
+        Gate::authorize('editContents', $list);
 
         $service->reorder($list, $request->validated('item_ids'), $request->validated('move'));
 

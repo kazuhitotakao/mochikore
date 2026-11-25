@@ -11,6 +11,9 @@ use App\Http\Controllers\EmailChangeController;
 use App\Http\Controllers\EmailVerificationNotificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\ImportItemsController;
+use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\InviteLinkController;
+use App\Http\Controllers\ListMemberController;
 use App\Http\Controllers\ListReportController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\LogoutController;
@@ -59,6 +62,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // D-19：自分のリストは、メール認証が済んでから使える
     Route::middleware(EnsureEmailIsVerified::class)->group(function () {
+        // API-55・D-119：共同編集のメンバーに見せる表示名を変える
+        Route::patch('/me', [UserController::class, 'update']);
         Route::post('/me/email-change', [EmailChangeController::class, 'store'])->middleware('throttle:email-change');
         // API-43・D-107：確認中の変更を取り消す。メールを送らないので、回数制限は付けない
         Route::delete('/me/email-change', [EmailChangeController::class, 'destroy']);
@@ -84,6 +89,18 @@ Route::middleware('auth:sanctum')->group(function () {
         // API-46・47・D-114：限定公開のリンクを作る・止める
         Route::post('/lists/{list}/share-link', [ShareLinkController::class, 'store']);
         Route::delete('/lists/{list}/share-link', [ShareLinkController::class, 'destroy']);
+        // API-56・57・D-119：共同編集の招待リンクを作る・止める（所有者だけ）
+        Route::post('/lists/{list}/invite-link', [InviteLinkController::class, 'store']);
+        Route::delete('/lists/{list}/invite-link', [InviteLinkController::class, 'destroy']);
+        // API-58〜60・D-119：メンバーの一覧、所有者がメンバーを外す、メンバーが自分で抜ける
+        Route::get('/lists/{list}/members', [ListMemberController::class, 'index']);
+        Route::delete('/lists/{list}/members/{member}', [ListMemberController::class, 'destroy']);
+        Route::delete('/lists/{list}/membership', [ListMemberController::class, 'leave']);
+        // API-61・62・D-119：招待リンクを開いた人が、内容を見て参加する。形の違うリンクは経路に合わず404
+        Route::get('/invites/{token}', [InvitationController::class, 'show'])
+            ->where('token', '[A-Za-z0-9]{'.PackingList::INVITE_TOKEN_LENGTH.'}');
+        Route::post('/invites/{token}/join', [InvitationController::class, 'join'])
+            ->where('token', '[A-Za-z0-9]{'.PackingList::INVITE_TOKEN_LENGTH.'}');
         // API-50・D-116：自分のリストを、入力した名前の新しいリストに複製する
         Route::post('/lists/{list}/duplicate', DuplicatePackingListController::class);
 

@@ -68,7 +68,9 @@ class PackingListItemLimitConcurrencyTest extends TestCase
                 });
 
                 try {
-                    app(PackingListItemService::class)->add(PackingList::findOrFail($listId), '同時に追加'.$index);
+                    $list = PackingList::findOrFail($listId);
+                    // D-119：回数は足した本人で数えるので、所有者として足す
+                    app(PackingListItemService::class)->add($list->user, $list, '同時に追加'.$index);
 
                     return 'created';
                 } catch (ApiException $error) {

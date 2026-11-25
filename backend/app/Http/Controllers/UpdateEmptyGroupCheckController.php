@@ -12,7 +12,7 @@ class UpdateEmptyGroupCheckController extends Controller
 {
     public function __invoke(UpdateEmptyGroupCheckRequest $request, PackingListGroup $group, GroupCheckService $service): Response
     {
-        Gate::authorize('update', $group->packingList);
+        Gate::authorize('editContents', $group->packingList);
 
         $service->setCheck($group, $request->validated('is_checked'));
 

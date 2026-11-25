@@ -10,7 +10,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 | FormRequest | 入力の形・長さ | 件数の上限、本人確認 |
 | Controller | 認可 → 処理の呼び出し → 応答 | 業務ルール、トランザクション |
 | Service | ロック、上限、`grouping_revision`、複数テーブルの更新 | Request・Response |
-| Policy | 本人のものかの判定 | 入力チェック |
+| Policy | 本人のもの・共同編集のメンバーかの判定 | 入力チェック |
 | Model | リレーション、型変換 | 業務の手順 |
 | Resource | 返す項目 | 取得処理 |
 
@@ -26,12 +26,13 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 入力エラーの文言は `lang/ja/validation.php` に日本語で用意する。
 - 応答は Resource で返し、Model をそのまま返さない。公開用は別の Resource にする。
 - 公開APIに作成者の情報と `is_checked` を返さない（F-09・F-10）。限定公開のリンク（API-48）も同じ。`share_token` は本人用の API-07 だけに返す（D-114）。
+- 共同編集（D-119）：`share_token`・`invite_token` は所有者にだけ返す。メンバーどうしには表示名（`display_name`）だけを返し、メールアドレス・利用者のIDを返さない。表示名は公開APIに返さない（D-32）。
 - 項目名は snake_case のまま（D-55）。返すものがなければ `response()->noContent()`（D-62）。
 - Resource の `data`・`links`・`meta` の形は変えない（D-53）。
 
 ## エラー
 
-- エラーは必ず `message` と `code` を返す。17種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
+- エラーは必ず `message` と `code` を返す。21種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
 - 標準の例外は `bootstrap/app.php` で変換する：入力エラー 422 `validation_error`、未ログイン 401 `unauthenticated`、回数制限 429 `too_many_requests` と `retry_after`、署名付きリンクの403 は 422 `link_invalid`、想定外 500 `server_error`（詳細は返さない）。
 - メール未認証の403は、標準の `verified` ではなく ApiException を投げる自作ミドルウェアで返す。
 
@@ -39,6 +40,9 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 - 権限は Laravel で判定する。画面で隠すだけにしない。
 - 他人のリストと存在しないリストは同じ 404 にする（D-43）。Policy では `Response::denyAsNotFound()` を使う。
+- 共同編集（D-119）：中身（持ち物・グループ）の操作は `editContents`、内容を見る・複製するのは `view` で、所有者とメンバーに許す。リストそのものの操作（API-08・公開・リンクで共有・招待・メンバーを外す）は `update`、削除は `delete` で、所有者だけに許す。メンバーが所有者だけの操作を呼んだときも 404。
+- 共同編集中（メンバーがいる・有効な招待リンクがある）のリストは公開・リンクで共有させず、公開中・リンクで共有中のリストは招待させない。どちらも親リストをロックしてから確かめる（D-119）。
+- 持ち物を足す回数（D-97）は、`$list->user_id` ではなく操作した本人で数える（D-119）。
 
 ## Eloquent
 
@@ -79,7 +83,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 ## Migration
 
-- `users` に `name` はない（D-32）。登録・Factory・Seeder・Resource で名前を扱わない。
+- `users` に `name` はない（D-32）。登録・Factory・Seeder・Resource で名前を扱わない。共同編集の表示名は `display_name`（D-119）で、会員登録では受け取らない。
 - アプリの時刻は `Asia/Tokyo`。MySQL は UTC のままなので、日時は Laravel の `now()` で入れる。`useCurrent()`・`CURRENT_TIMESTAMP`・SQL の `NOW()` を使わない（時刻が9時間ずれる）。
 - API の日時は UTC（末尾 `Z`）で返す（D-55）。Laravel の標準の JSON 変換に任せ、日本時間の文字列に直さない。
 - 適用済みのファイルを書き換えず、新しいファイルを足す。

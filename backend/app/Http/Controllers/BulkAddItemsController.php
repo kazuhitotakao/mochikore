@@ -16,8 +16,8 @@ class BulkAddItemsController extends Controller
      */
     public function __invoke(StoreBulkItemsRequest $request, PackingList $list, PackingListItemService $service): JsonResponse
     {
-        // 追加先のリストの本人でなければ、存在しないリストと同じ404（V-12）
-        Gate::authorize('update', $list);
+        // 追加先のリストの所有者・メンバーでなければ、存在しないリストと同じ404（V-12・D-119）
+        Gate::authorize('editContents', $list);
 
         $result = $service->addFromSavedItems(
             $list,
