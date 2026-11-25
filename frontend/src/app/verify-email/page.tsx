@@ -9,7 +9,8 @@ import { readVerificationLink } from "@/features/auth/verificationLink";
 export default async function VerifyEmailPage(
   props: PageProps<"/verify-email">,
 ) {
-  const link = readVerificationLink(await props.searchParams);
+  const searchParams = await props.searchParams;
+  const link = readVerificationLink(searchParams);
   // 別の端末で未ログインのときは、ログイン後に同じリンクへ戻る（SC-04-6）
   const currentPath = link
     ? `/verify-email?${new URLSearchParams(link)}`
@@ -32,6 +33,10 @@ export default async function VerifyEmailPage(
         </p>
         <p>メールに届いたリンクを開いてください。リンクは60分間有効です。</p>
         <p>登録から7日以内に認証しないと、アカウントは削除されます。</p>
+        {/* D-121：共同編集の招待リンクから登録した直後だけ、認証の後の行き先を伝える */}
+        {searchParams.invited === "1" && (
+          <p>メール認証が済むと、招待されたリストへ進みます。</p>
+        )}
       </div>
 
       <ResendVerificationButton />

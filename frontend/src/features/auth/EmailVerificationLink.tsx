@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import type { EmailVerificationResult } from "@/types/api";
+import { invitePath } from "./nextPath";
 import { useAuthErrorRedirect } from "./useAuthErrorRedirect";
 import { verificationApiPath, type VerificationLink } from "./verificationLink";
 
@@ -28,9 +30,13 @@ export function EmailVerificationLink({ link, currentPath }: Props) {
     if (started.current) return;
     started.current = true;
 
-    clientApi(verificationApiPath(link))
-      // SC-04-6：成功を伝えてSC-05へ移る。文は移動先で出す（SC-15の完了と同じ形）
-      .then(() => router.replace("/lists?verified=1"))
+    clientApi<EmailVerificationResult>(verificationApiPath(link))
+      // SC-04-6：成功を伝えてSC-05へ移る。文は移動先で出す（SC-15の完了と同じ形）。
+      // D-121：共同編集の招待リンクから登録した人は、招待の画面（SC-19）へ進める
+      .then((result) => {
+        const invite = invitePath(result.invite_token);
+        router.replace(invite ? `${invite}?verified=1` : "/lists?verified=1");
+      })
       .catch((error: unknown) => {
         // SC-04-6：ログイン後にこのリンクへ戻って、続けて認証する
         if (redirectOnAuthError(error, currentPath)) return;
