@@ -35,7 +35,7 @@ class ShowPublicPackingListTest extends ListApiTestCase
                 'category' => ['id' => $list->category->id, 'name' => $list->category->name],
                 'created_at' => $list->created_at->toJSON(),
                 'groups' => collect([$first, $later, $empty])->map(fn ($group) => [
-                    'id' => $group->id, 'name' => $group->name, 'sort_order' => $group->sort_order,
+                    'id' => $group->id, 'name' => $group->name, 'sort_order' => $group->sort_order, 'check_mode' => 'normal',
                 ])->all(),
                 'items' => collect([$checked, $unclassified, $lastItem])->map(fn ($item) => [
                     'id' => $item->id, 'name' => $item->name, 'group_id' => $item->group_id, 'sort_order' => $item->sort_order,

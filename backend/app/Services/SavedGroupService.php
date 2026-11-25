@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ApiErrorCode;
+use App\Enums\GroupCheckMode;
 use App\Exceptions\ApiException;
 use App\Models\SavedGroup;
 use App\Models\User;
@@ -13,17 +14,21 @@ class SavedGroupService
 {
     /**
      * API-40 よく使うグループの保存（F-28）。同じカテゴリーに同じ名前があれば、増やさずにそれを返す（V-21）。
+     * そのとき、チェックの動きが違えば新しい設定で上書きする（D-122）。
      * 新しく作ったものは wasRecentlyCreated が true になり、応答は201、既存なら200になる。
      */
-    public function save(User $user, string $name, int $categoryId): SavedGroup
+    public function save(User $user, string $name, int $categoryId, GroupCheckMode $checkMode): SavedGroup
     {
-        return DB::transaction(function () use ($user, $name, $categoryId) {
+        return DB::transaction(function () use ($user, $name, $categoryId, $checkMode) {
             // C-05：99件の人が同時に2件送っても101件にならないよう、本人の行をロックしてから数える
             User::whereKey($user->id)->lockForUpdate()->first();
 
             // name は utf8mb4_bin なので、「はは」と「ぱぱ」、大文字と小文字は別の名前になる（D-102）
             $existing = $user->savedGroups()->where('category_id', $categoryId)->where('name', $name)->first();
             if ($existing) {
+                // 同じ設定なら update は何も保存しない
+                $existing->update(['check_mode' => $checkMode]);
+
                 return $existing;
             }
 
@@ -33,10 +38,17 @@ class SavedGroupService
             }
 
             try {
-                return $user->savedGroups()->create(['name' => $name, 'category_id' => $categoryId]);
+                return $user->savedGroups()->create([
+                    'name' => $name,
+                    'category_id' => $categoryId,
+                    'check_mode' => $checkMode,
+                ]);
             } catch (UniqueConstraintViolationException) {
                 // C-05：ロックしていても一意制約に当たったときは、500にせず既存の候補を返す
-                return $user->savedGroups()->where('category_id', $categoryId)->where('name', $name)->firstOrFail();
+                $existing = $user->savedGroups()->where('category_id', $categoryId)->where('name', $name)->firstOrFail();
+                $existing->update(['check_mode' => $checkMode]);
+
+                return $existing;
             }
         });
     }

@@ -50,7 +50,7 @@ class UpdateGroupNameTest extends ListApiTestCase
         // 前後の空白は標準の TrimStrings が削る
         $this->rename('  食品  ')
             ->assertOk()
-            ->assertExactJson(['data' => ['id' => $this->group->id, 'name' => '食品', 'sort_order' => 0]]);
+            ->assertExactJson(['data' => ['id' => $this->group->id, 'name' => '食品', 'sort_order' => 0, 'check_mode' => 'normal']]);
 
         $this->assertSame('食品', $this->group->fresh()->name);
         $this->getJson("/api/lists/{$this->list->id}")->assertOk()->assertJsonPath('data.groups.0.name', '食品');
@@ -87,8 +87,8 @@ class UpdateGroupNameTest extends ListApiTestCase
         $this->putJson("/api/lists/{$this->list->id}/grouping", [
             'base_revision' => 4,
             'groups' => [
-                ['key' => 'g1', 'id' => $this->group->id, 'name' => 'スーパー'],
-                ['key' => 'g2', 'id' => $this->sibling->id, 'name' => '薬局'],
+                ['key' => 'g1', 'id' => $this->group->id, 'name' => 'スーパー', 'check_mode' => 'normal'],
+                ['key' => 'g2', 'id' => $this->sibling->id, 'name' => '薬局', 'check_mode' => 'normal'],
             ],
             'assignments' => [],
         ])->assertConflict()->assertJsonPath('code', 'grouping_conflict');
@@ -155,7 +155,8 @@ class UpdateGroupNameTest extends ListApiTestCase
     public function test_空の送信と定義していない項目は拒否する(): void
     {
         $this->actingAsUser($this->user)->patchJson("/api/groups/{$this->group->id}", [])
-            ->assertUnprocessable()->assertJsonValidationErrors(['_form', 'name']);
+            // C-03：変更する項目がないときは errors._form だけ。名前は送られたときだけ確かめる（D-122 で check_mode だけの変更もできる）
+            ->assertUnprocessable()->assertJsonValidationErrors(['_form'])->assertJsonMissingValidationErrors(['name']);
 
         $this->patchJson("/api/groups/{$this->group->id}", ['name' => '食品', 'sort_order' => 5])
             ->assertUnprocessable()->assertJsonPath('errors.sort_order.0', 'この項目は送信できません。');

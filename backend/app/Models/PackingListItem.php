@@ -37,6 +37,9 @@ class PackingListItem extends Model
     {
         return [
             'is_checked' => 'boolean',
+            // D-122：最後にチェックを付けた日時と、その1つ前。Fillable には入れず、チェックの処理だけが変える
+            'last_checked_at' => 'datetime',
+            'previous_checked_at' => 'datetime',
             'sort_order' => 'integer',
         ];
     }

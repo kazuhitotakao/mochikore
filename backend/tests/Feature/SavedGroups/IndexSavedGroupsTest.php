@@ -26,7 +26,8 @@ class IndexSavedGroupsTest extends ListApiTestCase
         $shopping = $this->categoryId('買い物');
         $travel = $this->categoryId('旅行・お泊まり');
         $old = SavedGroup::factory()->for($this->user)->create(['name' => '冷蔵', 'category_id' => $shopping, 'created_at' => now()->subDays(2)]);
-        $new = SavedGroup::factory()->for($this->user)->create(['name' => '薬局', 'category_id' => $shopping, 'created_at' => now()->subDay()]);
+        // D-122：チェックの動きも返す
+        $new = SavedGroup::factory()->for($this->user)->create(['name' => '薬局', 'category_id' => $shopping, 'check_mode' => 'repeat', 'created_at' => now()->subDay()]);
         // 同じ日時なら、新しく作った（idが大きい）順
         $sameTime = SavedGroup::factory()->for($this->user)->create(['name' => '洗面', 'category_id' => $travel, 'created_at' => $old->created_at]);
         SavedGroup::factory()->create(['name' => 'ほかの人の候補']);
@@ -35,9 +36,9 @@ class IndexSavedGroupsTest extends ListApiTestCase
             ->assertOk()
             ->assertExactJson([
                 'data' => [
-                    ['id' => $new->id, 'name' => '薬局', 'category' => ['id' => $shopping, 'name' => '買い物']],
-                    ['id' => $sameTime->id, 'name' => '洗面', 'category' => ['id' => $travel, 'name' => '旅行・お泊まり']],
-                    ['id' => $old->id, 'name' => '冷蔵', 'category' => ['id' => $shopping, 'name' => '買い物']],
+                    ['id' => $new->id, 'name' => '薬局', 'check_mode' => 'repeat', 'category' => ['id' => $shopping, 'name' => '買い物']],
+                    ['id' => $sameTime->id, 'name' => '洗面', 'check_mode' => 'normal', 'category' => ['id' => $travel, 'name' => '旅行・お泊まり']],
+                    ['id' => $old->id, 'name' => '冷蔵', 'check_mode' => 'normal', 'category' => ['id' => $shopping, 'name' => '買い物']],
                 ],
             ]);
     }

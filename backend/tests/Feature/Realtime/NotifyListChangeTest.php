@@ -78,7 +78,7 @@ class NotifyListChangeTest extends ListApiTestCase
             fn () => $this->postJson("/api/lists/{$id}/items", ['name' => '牛乳'])->assertCreated(),
             // チェックだけでも配信する（一覧の順番は変えないが、ほかの人の画面には出す）
             fn () => $this->patchJson("/api/items/{$item->id}", ['is_checked' => true])->assertOk(),
-            fn () => $this->patchJson("/api/lists/{$id}/items/checks", ['item_ids' => [$item->id], 'is_checked' => false])->assertNoContent(),
+            fn () => $this->patchJson("/api/lists/{$id}/items/checks", ['item_ids' => [$item->id], 'is_checked' => false])->assertOk(),
             fn () => $this->patchJson("/api/groups/{$group->id}", ['name' => '冷蔵庫'])->assertOk(),
             fn () => $this->patchJson("/api/groups/{$group->id}/check", ['is_checked' => true])->assertNoContent(),
             fn () => $this->postJson("/api/lists/{$id}/reset-checks")->assertNoContent(),

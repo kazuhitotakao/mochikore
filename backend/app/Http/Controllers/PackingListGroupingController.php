@@ -6,11 +6,14 @@ use App\Http\Requests\UpdateGroupingRequest;
 use App\Http\Resources\PackingListGroupingResource;
 use App\Models\PackingList;
 use App\Services\GroupingService;
+use App\Services\RepeatCheckService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
 class PackingListGroupingController extends Controller
 {
+    public function __construct(private RepeatCheckService $repeatChecks) {}
+
     /**
      * API-29 グループ整理用の最新状態。グループ整理（SC-09）を開くときと、よく使う項目の選択（SC-08）で
      * 一括追加（API-34）に使う最新の grouping_revision を読むときに呼ぶ（D-79）。
@@ -47,13 +50,17 @@ class PackingListGroupingController extends Controller
 
     /**
      * カテゴリーと、グループ・削除していない持ち物を（どちらも sort_order ASC、id ASC で）読む。
+     * D-122：繰り返し利用のグループのチェックは、日付が変わっていたらここで外す（API-07 と同じ）。
      */
     private function loadGrouping(PackingList $list): PackingList
     {
-        return $list->load([
+        $list->load([
             'category',
             'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ])->loadCount('members');
+        $this->repeatChecks->expireLoaded($list);
+
+        return $list;
     }
 }

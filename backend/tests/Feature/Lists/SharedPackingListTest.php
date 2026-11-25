@@ -48,7 +48,7 @@ class SharedPackingListTest extends ListApiTestCase
             array_keys($response->json('data')),
         );
         $response->assertJsonPath('data.title', '家族の旅行')
-            ->assertJsonPath('data.groups', [['id' => $group->id, 'name' => '洗面', 'sort_order' => 0]])
+            ->assertJsonPath('data.groups', [['id' => $group->id, 'name' => '洗面', 'sort_order' => 0, 'check_mode' => 'normal']])
             ->assertJsonPath('data.items', [
                 ['id' => $a->id, 'name' => '歯ブラシ', 'group_id' => $group->id, 'sort_order' => 1],
                 ['id' => $b->id, 'name' => 'タオル', 'group_id' => null, 'sort_order' => 2],

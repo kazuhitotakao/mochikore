@@ -34,7 +34,7 @@ use App\Http\Controllers\SharedPackingListController;
 use App\Http\Controllers\ShareLinkController;
 use App\Http\Controllers\TransferItemsController;
 use App\Http\Controllers\UpdateEmptyGroupCheckController;
-use App\Http\Controllers\UpdateGroupNameController;
+use App\Http\Controllers\UpdateGroupController;
 use App\Http\Controllers\UpdateListVisibilityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerifyEmailController;
@@ -123,7 +123,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/lists/{list}/grouping', [PackingListGroupingController::class, 'update'])->middleware(NotifyListChange::class);
         Route::patch('/lists/{list}/groups/order', ReorderGroupsController::class)->middleware(NotifyListChange::class);
         Route::patch('/groups/{group}/check', UpdateEmptyGroupCheckController::class)->middleware(NotifyListChange::class);
-        Route::patch('/groups/{group}', UpdateGroupNameController::class)->middleware(NotifyListChange::class);
+        Route::patch('/groups/{group}', UpdateGroupController::class)->middleware(NotifyListChange::class);
         // 削除済み（SoftDeletes）の持ち物は見つからず、404 になる
         Route::patch('/items/{item}', [PackingListItemController::class, 'update'])->middleware(NotifyListChange::class);
         Route::delete('/items/{item}', [PackingListItemController::class, 'destroy'])->middleware(NotifyListChange::class);

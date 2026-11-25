@@ -27,6 +27,7 @@ import { Icon } from "@/components/Icon";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import { CheckModeDialog } from "@/features/grouping/CheckModeDialog";
 import { SaveItemDialog } from "@/features/saved-items/SaveItemDialog";
 import { SavedItemPanel } from "@/features/saved-items/SavedItemPanel";
 import type {
@@ -44,6 +45,7 @@ import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
 import { ItemRow, itemCheckboxId } from "./ItemRow";
 import { bulkDeleteErrorMessage, isNotFound } from "./itemErrors";
+import { lastChecked } from "./lastChecked";
 import {
   moveItemToGroup,
   reorderVisibleGroups,
@@ -71,6 +73,7 @@ import { ShowCheckedSwitch } from "./ShowCheckedSwitch";
 import { TransferItemsDialog, type TransferMode } from "./TransferItemsDialog";
 import { useCollapsedGroups } from "./useCollapsedGroups";
 import { useRemoteListSync } from "./useRemoteListSync";
+import { useTokyoDay } from "./useTokyoDay";
 import { useVisibilityToggle } from "./useVisibilityToggle";
 import { visibilityChangedNotice } from "./visibility";
 import { ModeratedNotice } from "./VisibilitySwitch";
@@ -279,6 +282,8 @@ export function ListDetail({
   );
   // SC-07-17：よく使う項目に保存しようとしている持ち物。null なら保存のダイアログを出さない
   const [savingItem, setSavingItem] = useState<PackingListItem | null>(null);
+  // SC-07-25・D-122：「チェックの動き」のダイアログを開いているグループ。null なら出さない
+  const [checkModeGroupId, setCheckModeGroupId] = useState<number | null>(null);
   // SC-07-5・SC-08：よく使う項目の選択パネル。この画面の中で開くので、削除した持ち物の候補と
   // チェック済みの表示（SC-07-20）は、開け閉めしても消えない（D-94）
   const [panelOpen, setPanelOpen] = useState(false);
@@ -311,8 +316,9 @@ export function ListDetail({
     },
   });
   // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更が届くたびに API-07 を読み直して反映する。
-  // 所有者だけで招待リンクを出している間も聞き、最初の人が参加したらすぐ人数を変える
-  useRemoteListSync<PackingListDetail>({
+  // 所有者だけで招待リンクを出している間も聞き、最初の人が参加したらすぐ人数を変える。
+  // 戻り値を呼ぶと、共同編集でないリストでも API-07 を読み直す（D-122：日付が変わったとき・チェックの動きを変えたとき）
+  const syncNow = useRemoteListSync<PackingListDetail>({
     listId: list.id,
     path: `/lists/${list.id}`,
     realtime,
@@ -337,26 +343,50 @@ export function ListDetail({
     isWaitingToHide: isGroupWaitingToHide,
   } = useDelayedHide(handleEmptyGroupHideEnd);
 
+  // D-122：繰り返し利用のグループ。中の持ち物はチェックしても隠さず、前回チェックした日を出す。
+  // グループに入っていない持ち物は、いつも通常
+  const repeatGroupIds = new Set(
+    groups
+      .filter((group) => group.check_mode === "repeat")
+      .map((group) => group.id),
+  );
+  const isRepeatGroup = (groupId: number | null) =>
+    groupId !== null && repeatGroupIds.has(groupId);
+  // チェック済みとして隠す持ち物か。「チェック済みを表示（n件）」「チェック済みを削除（n件）」もこの持ち物だけを数える
+  const hidesWhenChecked = (item: PackingListItem) =>
+    item.is_checked && !isRepeatGroup(item.group_id);
+  // 繰り返し利用のチェックは、日付が変わる（日本時間の0時）と外れる。画面を開いたまま日付が変わったら読み直す
+  const today = useTokyoDay(() => {
+    if (repeatGroupIds.size > 0) syncNow();
+  });
+
   // D-95：画面は隠れたチェック済みも含む全件（items）を持ち、表示だけを絞る。
   // 隠している間にチェックを付けた持ち物は、少しの間だけ表示に残す（delayedIds）
   const visibleItems = showChecked
     ? items
-    : items.filter((item) => !item.is_checked || delayedIds.has(item.id));
+    : items.filter(
+        (item) => !hidesWhenChecked(item) || delayedIds.has(item.id),
+      );
   const previewItems = applyItemDragPreview(items, itemPreview);
+  // D-122：繰り返し利用のグループからチェック済みの持ち物を通常のグループへ動かしている間も、その行は出したままにする
   const sortableItems = showChecked
     ? previewItems
     : previewItems.filter(
-        (item) => !item.is_checked || delayedIds.has(item.id),
+        (item) =>
+          !hidesWhenChecked(item) ||
+          delayedIds.has(item.id) ||
+          item.id === draggingItemId,
       );
   const draggingItem = items.find((item) => item.id === draggingItemId);
-  const checkedItemIds = items
-    .filter((item) => item.is_checked)
-    .map((item) => item.id);
+  // 「チェックの動き」のダイアログの対象。ほかのメンバーがグループを消したら、ダイアログも出さない
+  const checkModeGroup = groups.find((group) => group.id === checkModeGroupId);
+  const checkedItemIds = items.filter(hidesWhenChecked).map((item) => item.id);
   const checkedCount = checkedItemIds.length;
   // SC-07-20（利用者の指示）：チェック済みのもの（持ち物か、チェックを付けた空のグループ、D-106）が
-  // 1つもないときは、表示のスイッチを出さない（SC-09と同じ）
+  // 1つもないときは、表示のスイッチを出さない（SC-09と同じ）。繰り返し利用の分は隠さないので数えない
   const hasChecked =
-    checkedCount > 0 || groups.some((group) => group.is_checked);
+    checkedCount > 0 ||
+    groups.some((group) => group.is_checked && group.check_mode !== "repeat");
   // スイッチが消えたまま「表示中」が残ると、次にチェックした持ち物が隠れないので、オフに戻す
   if (showChecked && !hasChecked) setShowChecked(false);
   // D-101：チェック済みを隠しているときは、中の全有効持ち物がチェック済みのグループ（未分類を含む）を
@@ -369,7 +399,10 @@ export function ListDetail({
             ? !visibleItems.some((item) => item.group_id === groupId)
             : groupId !== null &&
               groups.some(
-                (group) => group.id === groupId && group.is_checked,
+                (group) =>
+                  group.id === groupId &&
+                  group.is_checked &&
+                  group.check_mode !== "repeat",
               ) &&
               !delayedGroupIds.has(groupId),
         ),
@@ -424,6 +457,7 @@ export function ListDetail({
   function handleEmptyGroupHideEnd(groupId: number) {
     if (
       showChecked ||
+      isRepeatGroup(groupId) ||
       !groups.some((group) => group.id === groupId && group.is_checked)
     )
       return;
@@ -440,7 +474,8 @@ export function ListDetail({
     // 待っている間に全部表示へ切り替えた・チェックを外した・削除したときは、何も隠れない
     if (showChecked) return;
     const item = items.find((existing) => existing.id === itemId);
-    if (!item?.is_checked) return;
+    // 待っている間に繰り返し利用のグループへ移した・設定を変えたときも隠れない（D-122）
+    if (!item || !hidesWhenChecked(item)) return;
 
     // D-101：グループの持ち物が全部チェック済みなら、見出しごと隠れる。
     // そのときは、見出しのチェック欄にカーソルがあっても移す
@@ -499,7 +534,13 @@ export function ListDetail({
     if (before && before.is_checked !== item.is_checked) {
       groupCheckUndo.current.delete(item.group_id);
     }
-    if (!showChecked && item.is_checked && before && !before.is_checked) {
+    // D-122：繰り返し利用のグループの持ち物は、チェックしても隠さない
+    if (
+      !showChecked &&
+      hidesWhenChecked(item) &&
+      before &&
+      !before.is_checked
+    ) {
       hideLater(item.id);
     }
     if (!item.is_checked) cancelHide(item.id);
@@ -584,8 +625,8 @@ export function ListDetail({
     setDeletedItems((current) =>
       current.filter((deleted) => deleted.item.id !== item.id),
     );
-    // D-95：チェック済みのまま戻した持ち物は、隠している間は見えないので案内する
-    if (item.is_checked && !showChecked) {
+    // D-95：チェック済みのまま戻した持ち物は、隠している間は見えないので案内する（繰り返し利用のグループなら見えている）
+    if (hidesWhenChecked(item) && !showChecked) {
       setNotice("戻しました。チェック済みにあります。");
     }
   }
@@ -698,7 +739,7 @@ export function ListDetail({
         current.filter(
           (item) =>
             item.group_id === targetGroupId &&
-            (showChecked || !item.is_checked || delayedIds.has(item.id)),
+            (showChecked || !hidesWhenChecked(item) || delayedIds.has(item.id)),
         ),
         activeItem.id,
         overItem.id,
@@ -714,7 +755,7 @@ export function ListDetail({
       const previewGroup = moved.filter(
         (item) =>
           item.group_id === targetGroupId &&
-          (showChecked || !item.is_checked || delayedIds.has(item.id)),
+          (showChecked || !hidesWhenChecked(item) || delayedIds.has(item.id)),
       );
       const newIndex = previewGroup.findIndex(
         (item) => item.id === activeItem.id,
@@ -784,12 +825,25 @@ export function ListDetail({
     setItems(moved);
     setReordering(true);
     setReorderError(null);
+    // D-122：チェック済みの持ち物を繰り返し利用のグループから通常のグループへ出すと、チェック済みとして隠れる。
+    // 置いた直後に消えると分かりにくいので、チェックしたときと同じく少しだけ見せてから隠す（D-94）
+    const movedItem = move && moved.find((item) => item.id === move.item_id);
+    if (movedItem && !showChecked && hidesWhenChecked(movedItem)) {
+      hideLater(movedItem.id);
+    }
     try {
       await clientApi<void>(`/lists/${list.id}/items/order`, {
         method: "PATCH",
         body: { item_ids: moved.map((item) => item.id), ...(move && { move }) },
       });
-      if (move) clearEmptyGroupCheck(move.group_id);
+      if (move) {
+        clearEmptyGroupCheck(move.group_id);
+        // D-122：繰り返し利用のグループへ出し入れしたときは、今日より前のチェックが外れるので読み直す
+        const from = before.find((item) => item.id === move.item_id)?.group_id;
+        if (isRepeatGroup(move.group_id) || isRepeatGroup(from ?? null)) {
+          syncNow();
+        }
+      }
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (isNotFound(failure)) {
@@ -852,6 +906,12 @@ export function ListDetail({
             <ItemRow
               key={item.id}
               item={item}
+              // D-122：繰り返し利用のグループだけ、前回チェックした日を出す
+              lastChecked={
+                isRepeatGroup(item.group_id)
+                  ? lastChecked(item.last_checked_at, today)
+                  : null
+              }
               onChanged={handleChanged}
               onDeleted={handleDeleted}
               onSaveAsFavorite={setSavingItem}
@@ -888,8 +948,10 @@ export function ListDetail({
     if (!group || groupCheckInFlight.current) return;
     const checked = !group.is_checked;
     const version = emptyGroupCheckVersions.current.get(groupId) ?? 0;
+    // D-122：繰り返し利用のグループは隠さないので、チェック済みを表示しているときと同じ動きにする
+    const shown = showChecked || group.check_mode === "repeat";
     const undoing = group.is_checked && isGroupWaitingToHide(groupId);
-    if (group.is_checked && !showChecked && !undoing) return;
+    if (group.is_checked && !shown && !undoing) return;
     groupCheckInFlight.current = true;
     setGroupChecking(groupId);
     setGroupCheckError(null);
@@ -902,7 +964,7 @@ export function ListDetail({
       if ((emptyGroupCheckVersions.current.get(groupId) ?? 0) !== version)
         return;
       if (!checked) cancelGroupHide(groupId);
-      else if (!showChecked) hideGroupLater(groupId);
+      else if (!shown) hideGroupLater(groupId);
       setGroups((current) =>
         current.map((existing) =>
           existing.id === groupId
@@ -935,13 +997,16 @@ export function ListDetail({
     if (groupCheckInFlight.current) return;
 
     const allChecked = groupItems.every((item) => item.is_checked);
+    // D-122：繰り返し利用のグループは隠さないので、チェック済みを表示しているときと同じ動きにする
+    // （全部チェック済みなら全部外し、そうでなければ全部付ける。1秒の取り消しは使わない）
+    const shown = showChecked || isRepeatGroup(groupId);
     const previousIds = groupCheckUndo.current.get(groupId);
     const undoItems = groupItems.filter(
       (item) => previousIds?.has(item.id) && isWaitingToHide(item.id),
     );
-    const undoing = !showChecked && allChecked && undoItems.length > 0;
+    const undoing = !shown && allChecked && undoItems.length > 0;
     // D-99：表示中は全件解除し、非表示中は猶予内の取り消しだけにする。
-    const uncheckingAll = allChecked && !undoing && showChecked;
+    const uncheckingAll = allChecked && !undoing && shown;
     if (allChecked && !undoing && !uncheckingAll) return;
 
     const targets = undoing ? undoItems : groupItems;
@@ -955,14 +1020,19 @@ export function ListDetail({
       for (const item of targets) pauseHide(item.id);
     }
     try {
-      await clientApi<void>(`/lists/${list.id}/items/checks`, {
-        method: "PATCH",
-        body: { item_ids: [...targetIds], is_checked: checked },
-      });
+      // D-122：変えた後の持ち物（チェックと前回の日付）が返る
+      const saved = await clientApi<PackingListItem[]>(
+        `/lists/${list.id}/items/checks`,
+        {
+          method: "PATCH",
+          body: { item_ids: [...targetIds], is_checked: checked },
+        },
+      );
+      const savedById = new Map(saved.map((item) => [item.id, item]));
       if (undoing) {
         groupCheckUndo.current.delete(groupId);
         for (const item of targets) cancelHide(item.id);
-      } else if (!showChecked) {
+      } else if (!shown) {
         groupCheckUndo.current.set(
           groupId,
           new Set(changedItems.map((item) => item.id)),
@@ -971,10 +1041,18 @@ export function ListDetail({
       } else {
         groupCheckUndo.current.delete(groupId);
       }
+      // 保存できた値で表示する。付けた日のうちに外すと、前回の日付は付ける前に戻る
       setItems((current) =>
-        current.map((item) =>
-          targetIds.has(item.id) ? { ...item, is_checked: checked } : item,
-        ),
+        current.map((item) => {
+          const latest = savedById.get(item.id);
+          return latest
+            ? {
+                ...item,
+                is_checked: latest.is_checked,
+                last_checked_at: latest.last_checked_at,
+              }
+            : item;
+        }),
       );
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
@@ -1208,6 +1286,9 @@ export function ListDetail({
             ),
           )
         }
+        // D-122：チェックの動き。見出しのボタンから「チェックの動き」のダイアログを開く
+        checkMode={isRepeatGroup(groupId) ? "repeat" : "normal"}
+        onOpenCheckMode={() => setCheckModeGroupId(groupId)}
         collapsed={collapsed}
         onToggleCollapsed={() => {
           if (groupId !== null) collapsedGroups.toggle(groupId);
@@ -1458,6 +1539,28 @@ export function ListDetail({
             onListReloaded={(latest) => {
               // SC-08-6：409 で読み直した最新の持ち物を表示する。削除した持ち物の候補と表示切替は残す
               setItems(latest);
+            }}
+          />
+        )}
+
+        {/* SC-07-25・D-122：グループの見出しのボタンから開く「チェックの動き」 */}
+        {checkModeGroup && (
+          <CheckModeDialog
+            key={checkModeGroup.id}
+            group={checkModeGroup}
+            onCancel={() => setCheckModeGroupId(null)}
+            onSaved={(saved) => {
+              setCheckModeGroupId(null);
+              groupCheckUndo.current.delete(saved.id);
+              setGroups((current) =>
+                current.map((group) =>
+                  group.id === saved.id
+                    ? { ...group, check_mode: saved.check_mode }
+                    : group,
+                ),
+              );
+              // 繰り返し利用にすると、今日より前のチェックが外れる。保存された内容を読み直して表示する
+              syncNow();
             }}
           />
         )}

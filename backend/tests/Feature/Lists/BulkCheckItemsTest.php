@@ -52,11 +52,16 @@ class BulkCheckItemsTest extends ListApiTestCase
         return array_map(fn (string $name) => $this->items[$name]->id, $names);
     }
 
-    public function test_指定した持ち物だけをまとめてチェックし、204を返す(): void
+    public function test_指定した持ち物だけをまとめてチェックし、200で変えた後の持ち物を返す(): void
     {
         $this->actingAsUser($this->user)
             ->patchJson("/api/lists/{$this->list->id}/items/checks", ['item_ids' => $this->ids(['A', 'B']), 'is_checked' => true])
-            ->assertNoContent();
+            ->assertOk()
+            // D-122：画面が前回の日付を出せるよう、送った持ち物のチェックと日時を表示順で返す
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.id', $this->items['A']->id)
+            ->assertJsonPath('data.0.is_checked', true)
+            ->assertJsonPath('data.1.id', $this->items['B']->id);
 
         $this->assertTrue($this->items['A']->fresh()->is_checked);
         $this->assertTrue($this->items['B']->fresh()->is_checked);
@@ -73,7 +78,9 @@ class BulkCheckItemsTest extends ListApiTestCase
     {
         $this->actingAsUser($this->user)
             ->patchJson("/api/lists/{$this->list->id}/items/checks", ['item_ids' => $this->ids(['A', 'B']), 'is_checked' => false])
-            ->assertNoContent();
+            ->assertOk()
+            ->assertJsonPath('data.0.is_checked', false)
+            ->assertJsonPath('data.1.is_checked', false);
 
         $this->assertFalse($this->items['A']->fresh()->is_checked);
         $this->assertFalse($this->items['B']->fresh()->is_checked);

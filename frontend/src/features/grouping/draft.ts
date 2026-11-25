@@ -1,8 +1,14 @@
-import type { GroupingState } from "@/types/api";
+import type { GroupCheckMode, GroupingState } from "@/types/api";
 
-// SC-09 グループ整理の下書き（D-59・D-113）。構成・順番・所属だけを持ち、画面を離れるときにまとめて保存する
+// SC-09 グループ整理の下書き（D-59・D-113）。構成・順番・所属と、グループごとのチェックの動き（D-122）を持ち、
+// 画面を離れるときにまとめて保存する
 
-export type DraftGroup = { key: string; id: number | null; name: string };
+export type DraftGroup = {
+  key: string;
+  id: number | null;
+  name: string;
+  checkMode: GroupCheckMode;
+};
 export type Draft = {
   groups: DraftGroup[];
   // 持ち物ID → 所属するグループの key。null は未分類
@@ -20,6 +26,7 @@ export function draftFrom(state: GroupingState): Draft {
       key: groupKey(group.id),
       id: group.id,
       name: group.name,
+      checkMode: group.check_mode,
     })),
     assignment: Object.fromEntries(
       state.items.map((item) => [
@@ -40,16 +47,16 @@ export function sameDraft(a: Draft, b: Draft): boolean {
  * 自分が変えたところ（base と違うところ）は残し、変えていないところは latest に合わせる。
  *
  * - グループ：ほかの人が消したグループは消す。自分が名前を変えたものは自分の名前、そうでなければ最新の名前。
+ *   チェックの動き（D-122）も同じく、自分が変えたものは自分の設定、そうでなければ最新の設定。
  *   ほかの人が足したグループは足す。自分が足したグループと同じ名前を、ほかの人も足していたら1つにまとめる
+ *   （設定は、後から保存する自分のものにする）
  * - 順番：自分が並べ替えていなければ最新の順番、並べ替えていれば自分の順番（ほかの人が足した分は最後）
  * - 所属：自分が移した持ち物は自分の移し先、そうでなければ最新の所属。足された持ち物は最新の所属で入れ、
  *   消された持ち物は外す。同じ持ち物を2人が別のグループへ移したときは、後から保存する人（自分）が優先になる
  */
 export function rebaseDraft(draft: Draft, base: Draft, latest: Draft): Draft {
   const baseKeys = new Set(base.groups.map((group) => group.key));
-  const baseNames = new Map(
-    base.groups.map((group) => [group.key, group.name]),
-  );
+  const baseByKey = new Map(base.groups.map((group) => [group.key, group]));
   const latestByKey = new Map(latest.groups.map((group) => [group.key, group]));
   const draftKeys = new Set(draft.groups.map((group) => group.key));
   // 自分が足したグループの key → まとめた先（ほかの人が同じ名前で足したグループ）の key
@@ -70,7 +77,7 @@ export function rebaseDraft(draft: Draft, base: Draft, latest: Draft): Draft {
       if (twin) {
         mergedKeys.set(group.key, twin.key);
         takenKeys.add(twin.key);
-        kept.push(twin);
+        kept.push({ ...twin, checkMode: group.checkMode });
       } else {
         kept.push(group);
       }
@@ -80,10 +87,16 @@ export function rebaseDraft(draft: Draft, base: Draft, latest: Draft): Draft {
     const theirs = latestByKey.get(group.key);
     // ほかの人が消したグループは、自分の下書きからも消す
     if (!theirs) continue;
-    const renamedByMe =
-      baseNames.has(group.key) && baseNames.get(group.key) !== group.name;
+    const before = baseByKey.get(group.key);
+    const renamedByMe = before !== undefined && before.name !== group.name;
+    const modeChangedByMe =
+      before !== undefined && before.checkMode !== group.checkMode;
     takenKeys.add(group.key);
-    kept.push(renamedByMe ? group : theirs);
+    kept.push({
+      ...theirs,
+      name: renamedByMe ? group.name : theirs.name,
+      checkMode: modeChangedByMe ? group.checkMode : theirs.checkMode,
+    });
   }
 
   // 2. ほかの人が足したグループ（自分の下書きにも、前の保存済みにもないもの）

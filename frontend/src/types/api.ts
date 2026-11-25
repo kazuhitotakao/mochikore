@@ -85,10 +85,15 @@ export type PackingList = {
   updated_at: string;
 };
 
+// D-122：グループごとのチェックの動き。normal は「通常」（チェックしたら隠す）、
+// repeat は「繰り返し利用」（隠さず、前回チェックした日を出す。日付が変わるとチェックが外れる）
+export type GroupCheckMode = "normal" | "repeat";
+
 export type PackingListGroup = {
   id: number;
   name: string;
   sort_order: number;
+  check_mode: GroupCheckMode;
 };
 
 export type PackingListItem = {
@@ -98,12 +103,16 @@ export type PackingListItem = {
   group_id: number | null;
   sort_order: number;
   is_checked: boolean;
+  // D-122：最後にチェックを付けた日時（UTC）。チェックしたことがなければ null。
+  // 繰り返し利用のグループで「前回」として出す
+  last_checked_at: string | null;
 };
 
-// API-16：チェック状態を型にも含めず、公開画面から編集操作へ渡さない
+// API-16：チェック状態と前回チェックした日を型にも含めず、公開画面から編集操作へ渡さない。
+// グループの check_mode は「繰り返し利用」の印を出すために含む（D-122）
 export type PublicPackingListDetail = PublicPackingListSummary & {
   groups: PackingListGroup[];
-  items: Omit<PackingListItem, "is_checked">[];
+  items: Omit<PackingListItem, "is_checked" | "last_checked_at">[];
 };
 
 // よく使う項目1件。API-31・32 で同じ形（D-66・D-72）
@@ -113,10 +122,11 @@ export type SavedItem = {
   category: CategorySummary;
 };
 
-// よく使うグループ1件。API-39・40 で同じ形（D-102）
+// よく使うグループ1件。API-39・40 で同じ形（D-102）。チェックの動きも覚える（D-122）
 export type SavedGroup = {
   id: number;
   name: string;
+  check_mode: GroupCheckMode;
   category: CategorySummary;
 };
 

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { LoadingRows } from "@/components/LoadingRows";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
+import { RepeatBadge } from "@/features/lists/RepeatBadge";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
-import type { SavedGroup } from "@/types/api";
+import type { GroupCheckMode, SavedGroup } from "@/types/api";
 
 // 読み込んだ候補。null は読み込み中
 export type CandidatesState = { savedGroups: SavedGroup[] } | { error: string };
@@ -17,7 +18,8 @@ type Props = {
   takenNames: readonly string[];
   // グループが20件のときは押せない（D-57）
   full: boolean;
-  onPick: (name: string) => void;
+  // D-122：候補から足したグループは、覚えたチェックの動きで始まる
+  onPick: (name: string, checkMode: GroupCheckMode) => void;
   onRemoved: (savedGroupId: number) => void;
   onRetry: () => void;
 };
@@ -26,6 +28,7 @@ type Props = {
  * SC-09-11・12：「グループを追加」の入力欄の下に出す、よく使うグループの候補（F-28、D-102）。
  * このリストのカテゴリーの候補だけを、新しく保存した順に出す。カテゴリーは切り替えない。
  * 押すと、名前を入力して確定したときと同じく丸を下書きに足す（画面を離れるまで保存しない、D-113）。
+ * チェックの動きは、上の選ぶ欄ではなく、候補が覚えている設定を使う（D-122）。
  */
 export function SavedGroupCandidates({
   candidates,
@@ -103,12 +106,18 @@ export function SavedGroupCandidates({
                   {/* 指で押しやすいよう、候補と「削除」は高さ44px以上にする（利用者の指示） */}
                   <button
                     type="button"
-                    onClick={() => onPick(savedGroup.name)}
+                    onClick={() =>
+                      onPick(savedGroup.name, savedGroup.check_mode)
+                    }
                     disabled={taken || full}
                     className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded px-2 py-1 text-left disabled:opacity-50"
                   >
-                    <span className="min-w-0 flex-1 wrap-break-word">
-                      {savedGroup.name}
+                    {/* D-122：繰り返し利用で覚えた候補は、名前の下に印を付ける（名前の幅を狭めない）。通常の候補には出さない */}
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                      <span className="max-w-full wrap-break-word">
+                        {savedGroup.name}
+                      </span>
+                      {savedGroup.check_mode === "repeat" && <RepeatBadge />}
                     </span>
                     {/* 色だけでなく文字でも、追加できない理由を示す */}
                     {taken && (

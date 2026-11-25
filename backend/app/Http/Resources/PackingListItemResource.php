@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * 持ち物1件。API-10・11・25 の応答で、画面はこの値で表示を更新する（D-71）。
+ * 持ち物1件。API-10・11・25・37 の応答で、画面はこの値で表示を更新する（D-71）。
  */
 class PackingListItemResource extends JsonResource
 {
@@ -23,6 +23,8 @@ class PackingListItemResource extends JsonResource
             'group_id' => $this->group_id,
             'sort_order' => $this->sort_order,
             'is_checked' => $this->is_checked,
+            // D-122：最後にチェックを付けた日時（なければ null）。繰り返し利用のグループで「前回」として出す
+            'last_checked_at' => $this->last_checked_at,
         ];
     }
 }

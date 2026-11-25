@@ -17,6 +17,7 @@ import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
 import type { ItemDeleteResult, PackingListItem } from "@/types/api";
 import { isNotFound, itemErrorMessage } from "./itemErrors";
+import type { LastChecked } from "./lastChecked";
 import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
 import { useSwipeToDelete } from "./useSwipeToDelete";
 import { validateItemName } from "./validation";
@@ -26,6 +27,8 @@ export const ITEM_NAME_FIELD = "field min-h-9 min-w-0 flex-1 px-2 py-1";
 
 type Props = {
   item: PackingListItem;
+  // D-122：繰り返し利用のグループの持ち物に出す「前回 11/23・2日前」。出さないときは null
+  lastChecked?: LastChecked | null;
   onChanged: (item: PackingListItem) => void;
   onDeleted: (item: PackingListItem, result: ItemDeleteResult) => void;
   // SC-07-10・17：「よく使う項目に保存」を選んだとき
@@ -49,6 +52,7 @@ export function itemCheckboxId(itemId: number): string {
 // SC-07-7〜10 持ち物の行。左からチェック、名前、「…」。行のどこをつかんでも並べ替えられる（SC-07-9）
 export function ItemRow({
   item,
+  lastChecked = null,
   onChanged,
   onDeleted,
   onSaveAsFavorite,
@@ -89,6 +93,7 @@ export function ItemRow({
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
   const errorId = useId();
+  const lastCheckedId = useId();
   const [draft, setDraft] = useState(item.name);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -265,7 +270,10 @@ export function ItemRow({
               checked={item.is_checked}
               disabled={busy}
               aria-label={item.name}
-              aria-describedby={errorId}
+              // 前回チェックした日も、チェック欄の説明として読み上げる（D-122）
+              aria-describedby={
+                lastChecked ? `${lastCheckedId} ${errorId}` : errorId
+              }
               onChange={() => void toggleChecked()}
               className="size-5 shrink-0"
             />
@@ -299,6 +307,25 @@ export function ItemRow({
               >
                 {item.name}
               </button>
+            )}
+            {/* D-122：繰り返し利用のグループだけ、名前の右に前回チェックした日を小さく出す。
+                名前を入力している間は、入力欄を広く使うので出さない。
+                サーバーとブラウザで日付の境目がずれても、ブラウザの表示を使う */}
+            {lastChecked && !editing && (
+              // 幅の狭いスマホでは日付と「n日前」を2行に重ねて名前の幅を残し、640px以上では「・」でつないで1行にする
+              <span
+                id={lastCheckedId}
+                suppressHydrationWarning
+                className="flex shrink-0 flex-col items-end text-xs leading-4 whitespace-nowrap text-muted sm:flex-row"
+              >
+                <span suppressHydrationWarning>{lastChecked.date}</span>
+                {lastChecked.ago && (
+                  <span suppressHydrationWarning>
+                    <span className="hidden sm:inline">・</span>
+                    {lastChecked.ago}
+                  </span>
+                )}
+              </span>
             )}
 
             <div ref={menuContainer} data-no-drag className="relative">

@@ -14,13 +14,15 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * API-30 グループ整理の保存（F-19、D-56〜D-61、06_API一覧「グループ整理のAPI仕様」）。
- * グループの作成・名前・順番・削除と、持ち物の所属（group_id）だけを1回で置き換える。
+ * グループの作成・名前・チェックの動き（D-122）・順番・削除と、持ち物の所属（group_id）だけを1回で置き換える。
  * 持ち物の名前・全体の sort_order・チェック・削除日時は書き換えない（D-60）。
  */
 class GroupingService
 {
+    public function __construct(private RepeatCheckService $repeatChecks) {}
+
     /**
-     * @param  list<array{key: string, id: int|null, name: string}>  $groups  配列の順が見出しの順
+     * @param  list<array{key: string, id: int|null, name: string, check_mode: string}>  $groups  配列の順が見出しの順
      * @param  list<array{item_id: int, group_key: string|null}>  $assignments
      * @return array<string, int> groups の key と、保存後のグループIDの対応（group_key_map）
      */
@@ -49,6 +51,9 @@ class GroupingService
                 return $keyToId;
             }
 
+            // D-122：所属・設定を変える前に、今の設定で期限の切れたチェックを外す（通常のグループへ持ち出さない）
+            $this->repeatChecks->expire($locked);
+
             // D-61：送られなかった既存グループは削除する。中の持ち物は、削除済みも含めて
             // DB（ON DELETE SET NULL）が未分類にする
             $keptIds = array_values(array_filter(array_column($groups, 'id')));
@@ -56,7 +61,7 @@ class GroupingService
 
             $byId = $currentGroups->keyBy('id');
             foreach ($groups as $index => $group) {
-                $attributes = ['name' => $group['name'], 'sort_order' => $index];
+                $attributes = ['name' => $group['name'], 'sort_order' => $index, 'check_mode' => $group['check_mode']];
                 if ($group['id'] === null) {
                     $keyToId[$group['key']] = $locked->groups()->create($attributes)->id;
                 } else {
@@ -91,7 +96,7 @@ class GroupingService
      * 06_API一覧「キーと削除の意味」「所属の完全性」：グループIDはこのリストのものだけ。
      * 所属は、このリストの削除していない持ち物すべてを1件ずつ含むこと。違えば全体を拒否する。
      *
-     * @param  list<array{key: string, id: int|null, name: string}>  $groups
+     * @param  list<array{key: string, id: int|null, name: string, check_mode: string}>  $groups
      * @param  list<array{item_id: int, group_key: string|null}>  $assignments
      * @param  list<int>  $currentGroupIds
      * @param  list<int>  $activeItemIds
@@ -118,7 +123,7 @@ class GroupingService
     }
 
     /**
-     * @param  list<array{key: string, id: int|null, name: string}>  $groups
+     * @param  list<array{key: string, id: int|null, name: string, check_mode: string}>  $groups
      * @param  list<array{item_id: int, group_key: string|null}>  $assignments
      * @param  Collection<int, PackingListGroup>  $currentGroups  表示順
      * @param  array<int, int|null>  $currentItems  持ち物ID → 今の group_id
@@ -132,7 +137,8 @@ class GroupingService
 
         foreach ($groups as $index => $group) {
             $current = $currentGroups[$index];
-            if ($group['id'] !== $current->id || $group['name'] !== $current->name || $current->sort_order !== $index) {
+            if ($group['id'] !== $current->id || $group['name'] !== $current->name || $current->sort_order !== $index
+                || $group['check_mode'] !== $current->check_mode->value) {
                 return false;
             }
         }
@@ -178,31 +184,42 @@ class GroupingService
     }
 
     /**
-     * API-44 グループ名だけを変える（D-109）。持ち物・順番・チェックは変えない。
+     * API-44 グループの名前・チェックの動きを変える（D-109・D-122）。送られた項目だけを変え、持ち物の所属・順番は変えない。
+     *
+     * @param  array{name?: string, check_mode?: string}  $changes
      */
-    public function rename(PackingListGroup $group, string $name): PackingListGroup
+    public function update(PackingListGroup $group, array $changes): PackingListGroup
     {
-        return DB::transaction(function () use ($group, $name) {
+        return DB::transaction(function () use ($group, $changes) {
             // 整理（API-30）・並べ替えと同じ親リストをロックし、その後で同名を確かめる
             $locked = PackingList::whereKey($group->packing_list_id)->lockForUpdate()->firstOrFail();
             $target = $locked->groups()->whereKey($group->id)->firstOrFail();
+            $target->fill($changes);
 
-            // 同じ名前のままなら、revision も更新日時も変えない（28-05 の変化なしの保存と同じ）
-            if ($target->name === $name) {
+            // 同じ名前・同じ設定のままなら、revision も更新日時も変えない（28-05 の変化なしの保存と同じ）
+            if (! $target->isDirty()) {
                 return $target;
             }
 
-            // D-57：同じリストのほかのグループと同名は不可。照合順序に頼らず、PHP で完全一致を比べる
-            $taken = $locked->groups()->whereKeyNot($target->id)->pluck('name')
-                ->contains(fn (string $other) => $other === $name);
-            if ($taken) {
-                throw ValidationException::withMessages([
-                    'name' => [__('validation.group_name.duplicate')],
-                ]);
+            if ($target->isDirty('name')) {
+                // D-57：同じリストのほかのグループと同名は不可。照合順序に頼らず、PHP で完全一致を比べる
+                $taken = $locked->groups()->whereKeyNot($target->id)->pluck('name')
+                    ->contains(fn (string $other) => $other === $target->name);
+                if ($taken) {
+                    throw ValidationException::withMessages([
+                        'name' => [__('validation.group_name.duplicate')],
+                    ]);
+                }
             }
 
-            $target->update(['name' => $name]);
-            // D-59・D-109：グループの変更なので revision を増やし、開いたままの SC-09 が古い名前で上書きしないようにする。
+            if ($target->isDirty('check_mode')) {
+                // D-122：設定を変える前に、今の設定で期限の切れたチェックを外す。
+                // 通常へ変えたとき、昨日までのチェックがチェック済みとして隠れないようにする
+                $this->repeatChecks->expire($locked);
+            }
+
+            $target->save();
+            // D-59・D-109：グループの変更なので revision を増やし、開いたままの SC-09 が古い内容で上書きしないようにする。
             // D-24：一覧の上に戻す（increment は updated_at も更新する）
             $locked->increment('grouping_revision');
 
@@ -224,6 +241,9 @@ class GroupingService
             // 同時に削除・グループにされていたら存在しない持ち物と同じ404にし、グループを二重に作らない
             $target = $locked->items()->whereKey($base->id)->first()
                 ?? throw (new ModelNotFoundException)->setModel(PackingListItem::class);
+
+            // D-122：重ねた持ち物は繰り返し利用のグループから出ることがあるので、期限の切れたチェックを先に外す
+            $this->repeatChecks->expire($locked);
 
             // V-24：重ねた持ち物は、同じリストの削除していない別の持ち物だけ
             $moved = $itemId === $target->id ? null : $locked->items()->whereKey($itemId)->first();

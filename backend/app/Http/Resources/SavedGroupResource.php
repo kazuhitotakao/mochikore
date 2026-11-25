@@ -20,6 +20,8 @@ class SavedGroupResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            // D-122：候補から足したグループは、この設定で始まる
+            'check_mode' => $this->check_mode,
             'category' => [
                 'id' => $this->category->id,
                 'name' => $this->category->name,

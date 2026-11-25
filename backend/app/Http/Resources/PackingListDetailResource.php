@@ -38,6 +38,8 @@ class PackingListDetailResource extends JsonResource
                 'name' => $group->name,
                 'sort_order' => $group->sort_order,
                 'is_checked' => $group->is_checked,
+                // D-122：チェックの動き（normal・repeat）
+                'check_mode' => $group->check_mode,
             ]),
             'items' => $this->items->map(fn (PackingListItem $item) => [
                 'id' => $item->id,
@@ -45,6 +47,7 @@ class PackingListDetailResource extends JsonResource
                 'group_id' => $item->group_id,
                 'sort_order' => $item->sort_order,
                 'is_checked' => $item->is_checked,
+                'last_checked_at' => $item->last_checked_at,
             ]),
         ];
     }
