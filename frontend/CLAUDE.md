@@ -21,6 +21,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 - `params`・`searchParams`・`cookies()` は `await` する（Next.js 16で必須）。
 - 本人のデータをキャッシュしない。
 - 復元候補とSC-09の下書きは `useState` に置き、ブラウザへ保存しない（D-28）。
+- SC-09 の下書きの形と、共同編集でほかのメンバーの変更を取り込む処理（`rebaseDraft`・`rebaseHistory`）は `features/grouping/draft.ts` にまとめる。共同編集のリスト（API-29 の `is_owner`・`member_count`）では、合図が届いたとき・保存が409のときに、下書きを捨てずに取り込む。409 の後も自動では送り直さない。共同編集でないリストの409は、今までどおり破棄を確かめてから読み直す（D-59・D-119）。
 - SC-07のたたんだグループだけは、`useCollapsedGroups` で localStorage にリストごとのグループIDを覚える。名前などの中身は入れない（D-110）。
 - 認証が必要な画面への `Link` は `prefetch={false}` にする（D-36。先読みで期限を延ばさない）。
 
@@ -38,7 +39,7 @@ Next.jsは `node_modules/next/dist/docs/` の説明を優先する（インス�
 - トークンを扱う `login`・`register`・`logout`・`me`・`reset-password`（保存できたらCookieを消す）と、Server Componentの401でCookieを消す `session-expired`（D-76）は、共通の窓口とは別ファイルにする。
 - Laravel のトークンをブラウザの JavaScript や localStorage へ渡さない。ブラウザへは `user` だけ返す。
 - 共同編集の配信（F-35・D-119）：WebSocket は `lib/realtime/useListChannel.ts` だけで使う（pusher-js。laravel-echo は入れない）。チャンネルの認可は窓口の API-63 を通し、接続先（`REVERB_APP_KEY`・`REVERB_PUBLIC_*`）は `lib/realtime/config.ts`（server-only）で読んで Server Component から渡す。`NEXT_PUBLIC_` は付けない。
-- 配信で届くのは合図だけ。SC-07 は `useRemoteListSync` が API-07 を読み直して反映する。合図・画面に戻ったときの読み直しは自動の通信なので `userActivity: false` にする（D-36）。
+- 配信で届くのは合図だけ。SC-07 は `useRemoteListSync` が API-07 を、SC-09 は API-29 を読み直して反映する。合図・画面に戻ったときの読み直しは自動の通信なので `userActivity: false` にする（D-36）。
 - データを変える通信は `clientApi` が数えている（送信中は読み直しを待たせ、`X-Socket-ID` を添えて自分を配信先から外す）。データを変えない POST だけ `mutates: false` を付ける。画面から `fetch` を直接呼ぶと数えられないので、必ず `clientApi` を通す。
 - Cookie がないときは API-04 を呼ばず、ログイン前として表示する（D-80）。
 - Cookie は `mochikore_token`。HttpOnly・SameSite=Lax・Path=/・期限はログインから1年。Secure は本番だけ有効にする（08_認証と構成、D-78）。
