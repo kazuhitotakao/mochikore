@@ -17,7 +17,7 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { validateGroupName } from "@/features/grouping/validation";
 import { clientApi } from "@/lib/api/client";
-import type { PackingListGroup } from "@/types/api";
+import type { GroupCheckMode, PackingListGroup } from "@/types/api";
 import { isNotFound, itemErrorMessage } from "./itemErrors";
 import { ITEM_NAME_FIELD } from "./ItemRow";
 import { sectionId } from "./itemSorting";
@@ -45,6 +45,10 @@ type Props = {
   // D-109：見出しの名前を押して変える。同じリストのほかのグループ名は、同名の確認（V-14）に使う
   otherGroupNames?: readonly string[];
   onRenamed?: (group: PackingListGroup) => void;
+  // D-122：チェックの動き。たたむ矢印の左のボタン（通常は「…」、繰り返し利用はくり返しの矢印）から、
+  // 「チェックの動き」のダイアログ（SC-07-25）を開く
+  checkMode?: GroupCheckMode;
+  onOpenCheckMode?: () => void;
   // D-110：見出しの右端の矢印でたたむ・開く。たたんだときに出さない持ち物は、親が children から外す
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -80,6 +84,8 @@ function SortableGroupSection({
   onSwipeDelete = () => {},
   otherGroupNames = [],
   onRenamed = () => {},
+  checkMode = "normal",
+  onOpenCheckMode = () => {},
   collapsed = false,
   onToggleCollapsed = () => {},
   children,
@@ -284,6 +290,23 @@ function SortableGroupSection({
               （{count}件）
             </span>
           </h2>
+          {/* D-122（利用者の指示）：たたむ矢印の左に、チェックの動きを変えるボタンを置く。
+              通常のグループは「…」、繰り返し利用のグループは、くり返しの矢印を白い丸に入れた印にする
+              （色だけでなく形でも見分けられる）。押すと「チェックの動き」のダイアログ（SC-07-25）を開く */}
+          <button
+            type="button"
+            aria-label={`${title}のチェックの動きを変える（今は${checkMode === "repeat" ? "繰り返し利用" : "通常"}）`}
+            onClick={onOpenCheckMode}
+            className="-mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            {checkMode === "repeat" ? (
+              <span className="flex size-8 items-center justify-center rounded-full bg-background text-brand-deep ring-1 ring-line-soft">
+                <Icon name="repeat" className="size-4.5" />
+              </span>
+            ) : (
+              "…"
+            )}
+          </button>
           {/* D-110（利用者の指示）：名前を押すと名前の編集になるので、たたむ操作は右端の矢印に分ける。
               持ち物の行の「…」と同じ列・大きさ（44px）。開いているときは下向き、たたんだときは右向き */}
           <button

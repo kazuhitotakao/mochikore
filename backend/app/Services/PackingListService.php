@@ -124,9 +124,11 @@ class PackingListService
 
         $groupIds = [];
         foreach ($original->groups as $group) {
+            // D-122：チェックの動きは写す。前回チェックした日は写さない（持ち物は未チェックで始める）
             $groupIds[$group->id] = $copy->groups()->create([
                 'name' => $group->name,
                 'sort_order' => $group->sort_order,
+                'check_mode' => $group->check_mode,
             ])->id;
         }
 

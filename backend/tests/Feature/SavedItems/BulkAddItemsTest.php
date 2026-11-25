@@ -61,8 +61,8 @@ class BulkAddItemsTest extends ListApiTestCase
             'data' => [
                 'grouping_revision' => 4,
                 'items' => [
-                    ['id' => $added[0]->id, 'name' => '卵', 'group_id' => null, 'sort_order' => 6, 'is_checked' => false],
-                    ['id' => $added[1]->id, 'name' => '牛乳', 'group_id' => null, 'sort_order' => 7, 'is_checked' => false],
+                    ['id' => $added[0]->id, 'name' => '卵', 'group_id' => null, 'sort_order' => 6, 'is_checked' => false, 'last_checked_at' => null],
+                    ['id' => $added[1]->id, 'name' => '牛乳', 'group_id' => null, 'sort_order' => 7, 'is_checked' => false, 'last_checked_at' => null],
                 ],
             ],
         ]);

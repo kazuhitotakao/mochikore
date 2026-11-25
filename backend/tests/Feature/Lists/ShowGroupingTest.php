@@ -36,12 +36,12 @@ class ShowGroupingTest extends ListApiTestCase
                     // D-102：SC-09 がこのカテゴリーのよく使うグループを読むのに使う
                     'category' => ['id' => $this->categoryId('買い物'), 'name' => '買い物'],
                     'groups' => [
-                        ['id' => $first->id, 'name' => 'スーパー', 'sort_order' => 0],
-                        ['id' => $second->id, 'name' => '薬局', 'sort_order' => 1],
+                        ['id' => $first->id, 'name' => 'スーパー', 'sort_order' => 0, 'check_mode' => 'normal'],
+                        ['id' => $second->id, 'name' => '薬局', 'sort_order' => 1, 'check_mode' => 'normal'],
                     ],
                     'items' => [
-                        ['id' => $milk->id, 'name' => '牛乳', 'group_id' => null, 'sort_order' => 2, 'is_checked' => false],
-                        ['id' => $egg->id, 'name' => '卵', 'group_id' => $first->id, 'sort_order' => 4, 'is_checked' => true],
+                        ['id' => $milk->id, 'name' => '牛乳', 'group_id' => null, 'sort_order' => 2, 'is_checked' => false, 'last_checked_at' => null],
+                        ['id' => $egg->id, 'name' => '卵', 'group_id' => $first->id, 'sort_order' => 4, 'is_checked' => true, 'last_checked_at' => null],
                     ],
                 ],
             ]);

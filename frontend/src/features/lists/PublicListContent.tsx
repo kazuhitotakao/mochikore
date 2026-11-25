@@ -1,4 +1,5 @@
 import type { PublicPackingListDetail } from "@/types/api";
+import { RepeatBadge } from "./RepeatBadge";
 import { SelectMark } from "./SelectionList";
 
 type Item = PublicPackingListDetail["items"][number];
@@ -24,6 +25,8 @@ export function PublicListContent({ list, selection }: Props) {
   const sections = list.groups.map((group) => ({
     id: group.id,
     name: group.name,
+    // D-122：コピーするとこの設定になるので、繰り返し利用のグループには印を出す。前回チェックした日は出さない
+    repeat: group.check_mode === "repeat",
     items: list.items.filter((item) => item.group_id === group.id),
   }));
   const unclassified = list.items.filter((item) => item.group_id === null);
@@ -59,6 +62,7 @@ export function PublicListContent({ list, selection }: Props) {
               {/* D-73：SC-07と同じく、見出しを薄い緑の背景と太字にし、中の持ち物を1段右に下げる */}
               <SectionHeading
                 name={section.name}
+                repeat={section.repeat}
                 items={section.items}
                 className="bg-brand-soft"
                 selection={selection}
@@ -94,19 +98,32 @@ export function PublicListContent({ list, selection }: Props) {
 
 function SectionHeading({
   name,
+  repeat = false,
   items,
   className,
   selection,
 }: {
   name: string;
+  // D-122：繰り返し利用のグループか
+  repeat?: boolean;
   items: Item[];
   className: string;
   selection?: PublicListSelection;
 }) {
   const count = (
-    <span className="text-sm font-normal whitespace-nowrap text-muted">
-      （{items.length}件）
-    </span>
+    <>
+      <span className="text-sm font-normal whitespace-nowrap text-muted">
+        （{items.length}件）
+      </span>
+      {repeat && (
+        <>
+          {/* 行の途中では件数との間を空け、次の行へ折り返したときは左端にそろえる */}{" "}
+          <span className="inline-block align-middle">
+            <RepeatBadge />
+          </span>
+        </>
+      )}
+    </>
   );
 
   if (!selection) {

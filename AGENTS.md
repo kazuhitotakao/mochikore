@@ -43,6 +43,7 @@ frontend（Next.js 16）と backend（Laravel 13 + MySQL 8.4）を1つのリポ�
 | 共同編集のメンバー | `packing_list_members` / `PackingListMember`。所有者は `packing_lists.user_id` で持ち、この表には入れない（D-119） |
 | 招待リンク | `packing_lists.invite_token`。共同編集に誘うリンク。見せるだけの限定公開のリンク（`share_token`、D-114）とは別 |
 | 表示名 | `users.display_name`。共同編集のメンバーにだけ見せる。公開リストには出さない（D-32） |
+| チェックの動き | `packing_list_groups.check_mode`。`normal`＝通常（チェックしたら隠す）、`repeat`＝繰り返し利用（隠さず、前回チェックした日 `packing_list_items.last_checked_at` を出す。日本時間の0時でチェックが外れる、D-122） |
 
 カテゴリーとグループは別物。混同しない。テーブル・カラム名は設計書のとおりにする。
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\SavedGroups;
 
+use App\Enums\GroupCheckMode;
 use App\Models\SavedGroup;
 use App\Models\User;
 use Illuminate\Testing\TestResponse;
@@ -27,7 +28,8 @@ class StoreSavedGroupTest extends ListApiTestCase
      */
     private function save(array $body): TestResponse
     {
-        return $this->actingAsUser($this->user)->postJson('/api/saved-groups', $body);
+        // V-29・D-122：チェックの動きは必須。設定を確かめないテストでは「通常」で送る
+        return $this->actingAsUser($this->user)->postJson('/api/saved-groups', $body + ['check_mode' => 'normal']);
     }
 
     public function test_グループ名とカテゴリー1つで保存し、201で候補を返す(): void
@@ -41,6 +43,7 @@ class StoreSavedGroupTest extends ListApiTestCase
             'data' => [
                 'id' => $savedGroup->id,
                 'name' => '冷蔵',
+                'check_mode' => 'normal',
                 'category' => ['id' => $categoryId, 'name' => '買い物'],
             ],
         ]);
@@ -60,6 +63,69 @@ class StoreSavedGroupTest extends ListApiTestCase
             ->assertJsonPath('data.id', $existing->id);
 
         $this->assertSame(1, SavedGroup::count());
+    }
+
+    public function test_チェックの動きも一緒に覚える(): void
+    {
+        // D-122：候補から足したグループは、覚えた設定で始まる
+        $this->save(['name' => 'いつもの買い物', 'category_id' => $this->categoryId('買い物'), 'check_mode' => 'repeat'])
+            ->assertCreated()
+            ->assertJsonPath('data.check_mode', 'repeat');
+
+        $this->assertSame(GroupCheckMode::Repeat, SavedGroup::sole()->check_mode);
+    }
+
+    public function test_同じ名前を別の設定で保存し直すと、増やさずに新しい設定で上書きする(): void
+    {
+        $existing = SavedGroup::factory()->for($this->user)->create([
+            'name' => 'いつもの買い物',
+            'category_id' => $this->categoryId('買い物'),
+        ]);
+
+        $this->save(['name' => 'いつもの買い物', 'category_id' => $this->categoryId('買い物'), 'check_mode' => 'repeat'])
+            ->assertOk()
+            ->assertJsonPath('data.id', $existing->id)
+            ->assertJsonPath('data.check_mode', 'repeat');
+
+        $this->assertSame(1, SavedGroup::count());
+        $this->assertSame(GroupCheckMode::Repeat, $existing->fresh()->check_mode);
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function invalidCheckModes(): array
+    {
+        return [
+            'null' => [null],
+            '空欄' => [''],
+            '定義外の値' => ['hidden'],
+            '大文字' => ['REPEAT'],
+            '数値' => [1],
+            '配列' => [['repeat']],
+        ];
+    }
+
+    #[DataProvider('invalidCheckModes')]
+    public function test_チェックの動きが正しくなければ422で保存しない(mixed $checkMode): void
+    {
+        // V-29：省略・型違い・定義外の値のどれでも同じ文
+        $this->save(['name' => '冷蔵', 'category_id' => $this->categoryId('買い物'), 'check_mode' => $checkMode])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'validation_error')
+            ->assertJsonPath('errors.check_mode', ['チェックの動きを選び直してください。']);
+
+        $this->assertSame(0, SavedGroup::count());
+    }
+
+    public function test_チェックの動きを省略すると422で保存しない(): void
+    {
+        $this->actingAsUser($this->user)
+            ->postJson('/api/saved-groups', ['name' => '冷蔵', 'category_id' => $this->categoryId('買い物')])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.check_mode', ['チェックの動きを選び直してください。']);
+
+        $this->assertSame(0, SavedGroup::count());
     }
 
     public function test_別のカテゴリーや別の名前なら、別の候補として保存する(): void
@@ -161,7 +227,7 @@ class StoreSavedGroupTest extends ListApiTestCase
     public function test_メール未認証なら403、ログインしていなければ401(): void
     {
         $unverified = User::factory()->unverified()->create();
-        $body = ['name' => '冷蔵', 'category_id' => $this->categoryId('買い物')];
+        $body = ['name' => '冷蔵', 'category_id' => $this->categoryId('買い物'), 'check_mode' => 'normal'];
 
         $this->actingAsUser($unverified)->postJson('/api/saved-groups', $body)
             ->assertForbidden()

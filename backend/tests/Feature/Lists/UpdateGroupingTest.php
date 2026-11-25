@@ -46,6 +46,13 @@ class UpdateGroupingTest extends ListApiTestCase
     private function save(array $body, ?PackingList $list = null): TestResponse
     {
         $list ??= $this->list;
+        // V-29・D-122：グループのチェックの動きは必須。設定を確かめないテストでは「通常」で送る
+        if (is_array($body['groups'] ?? null)) {
+            $body['groups'] = array_map(
+                fn ($group) => is_array($group) ? $group + ['check_mode' => 'normal'] : $group,
+                $body['groups'],
+            );
+        }
 
         return $this->actingAsUser($this->user)->putJson("/api/lists/{$list->id}/grouping", $body);
     }
@@ -82,13 +89,13 @@ class UpdateGroupingTest extends ListApiTestCase
                 'member_count' => 0,
                 'category' => ['id' => $this->list->category->id, 'name' => $this->list->category->name],
                 'groups' => [
-                    ['id' => $supermarket->id, 'name' => 'スーパー', 'sort_order' => 0],
-                    ['id' => $pharmacy->id, 'name' => '薬局', 'sort_order' => 1],
+                    ['id' => $supermarket->id, 'name' => 'スーパー', 'sort_order' => 0, 'check_mode' => 'normal'],
+                    ['id' => $pharmacy->id, 'name' => '薬局', 'sort_order' => 1, 'check_mode' => 'normal'],
                 ],
                 'items' => [
-                    ['id' => $this->items['A']->id, 'name' => 'A', 'group_id' => $supermarket->id, 'sort_order' => 1, 'is_checked' => true],
-                    ['id' => $this->items['B']->id, 'name' => 'B', 'group_id' => $pharmacy->id, 'sort_order' => 2, 'is_checked' => false],
-                    ['id' => $this->items['C']->id, 'name' => 'C', 'group_id' => null, 'sort_order' => 3, 'is_checked' => false],
+                    ['id' => $this->items['A']->id, 'name' => 'A', 'group_id' => $supermarket->id, 'sort_order' => 1, 'is_checked' => true, 'last_checked_at' => null],
+                    ['id' => $this->items['B']->id, 'name' => 'B', 'group_id' => $pharmacy->id, 'sort_order' => 2, 'is_checked' => false, 'last_checked_at' => null],
+                    ['id' => $this->items['C']->id, 'name' => 'C', 'group_id' => null, 'sort_order' => 3, 'is_checked' => false, 'last_checked_at' => null],
                 ],
                 'group_key_map' => ['g1' => $supermarket->id, 'g2' => $pharmacy->id],
             ],

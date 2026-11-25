@@ -64,11 +64,12 @@ class CreateGroupFromItemTest extends ListApiTestCase
 
         $created = PackingListGroup::where('name', '洗面用具')->sole();
         $response->assertExactJson(['data' => [
-            'group' => ['id' => $created->id, 'name' => '洗面用具', 'sort_order' => 1],
+            // D-122：新しいグループのチェックの動きは「通常」
+            'group' => ['id' => $created->id, 'name' => '洗面用具', 'sort_order' => 1, 'check_mode' => 'normal'],
             // D-60：全体の順番とチェックは変えず、所属だけを変える
             'item' => [
                 'id' => $this->moved->id, 'name' => '歯ブラシ', 'group_id' => $created->id,
-                'sort_order' => 1, 'is_checked' => true,
+                'sort_order' => 1, 'is_checked' => true, 'last_checked_at' => null,
             ],
         ]]);
 
@@ -255,7 +256,7 @@ class CreateGroupFromItemTest extends ListApiTestCase
         // SC-09 を開いたときの revision（4）で「保存」しても、409 でグループは消えない
         $this->putJson("/api/lists/{$this->list->id}/grouping", [
             'base_revision' => 4,
-            'groups' => [['key' => 'g1', 'id' => $this->group->id, 'name' => 'スーパー']],
+            'groups' => [['key' => 'g1', 'id' => $this->group->id, 'name' => 'スーパー', 'check_mode' => 'normal']],
             'assignments' => [['item_id' => $this->moved->id, 'group_key' => 'g1']],
         ])->assertConflict()->assertJsonPath('code', 'grouping_conflict');
 

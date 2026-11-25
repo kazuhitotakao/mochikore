@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GroupCheckMode;
 use App\Models\PackingListGroup;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -24,6 +25,7 @@ class StoreSavedGroupRequest extends FormRequest
      *
      * V-21：名前は V-14（グループ名）、カテゴリーは V-05 と同じ条件。予約名「未分類」は使えない。
      * 同じカテゴリーの同名と100件の上限は SavedGroupService で確かめる。
+     * V-29・D-122：チェックの動き（normal・repeat）も一緒に覚える。
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -35,6 +37,7 @@ class StoreSavedGroupRequest extends FormRequest
                 Rule::notIn([PackingListGroup::RESERVED_NAME]),
             ],
             'category_id' => ['bail', 'required', 'integer:strict', Rule::exists('categories', 'id')],
+            'check_mode' => ['bail', 'required', 'string', Rule::in(GroupCheckMode::values())],
         ];
     }
 
@@ -56,6 +59,9 @@ class StoreSavedGroupRequest extends FormRequest
         return [
             'name.required' => __('validation.saved_group.required'),
             'name.not_in' => __('validation.saved_group.reserved'),
+            'check_mode.required' => __('validation.check_mode'),
+            'check_mode.string' => __('validation.check_mode'),
+            'check_mode.in' => __('validation.check_mode'),
         ];
     }
 }

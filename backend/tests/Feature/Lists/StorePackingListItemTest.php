@@ -39,6 +39,7 @@ class StorePackingListItemTest extends ListApiTestCase
                 'group_id' => null,
                 'sort_order' => 5,
                 'is_checked' => false,
+                'last_checked_at' => null,
             ],
         ]);
 

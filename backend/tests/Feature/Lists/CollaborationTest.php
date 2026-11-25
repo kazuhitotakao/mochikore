@@ -446,7 +446,7 @@ class CollaborationTest extends ListApiTestCase
         $this->actingAsUser($this->member);
         $milk = $this->postJson("/api/lists/{$id}/items", ['name' => 'バター'])->assertCreated()->json('data.id');
         $this->patchJson("/api/items/{$egg->id}", ['name' => 'たまご', 'is_checked' => true])->assertOk();
-        $this->patchJson("/api/lists/{$id}/items/checks", ['item_ids' => [$bread->id], 'is_checked' => true])->assertNoContent();
+        $this->patchJson("/api/lists/{$id}/items/checks", ['item_ids' => [$bread->id], 'is_checked' => true])->assertOk();
         $this->patchJson("/api/lists/{$id}/items/order", ['item_ids' => [$bread->id, $egg->id, $milk]])->assertNoContent();
         $this->patchJson("/api/groups/{$group->id}", ['name' => '冷蔵庫'])->assertOk();
         $this->patchJson("/api/groups/{$group->id}/check", ['is_checked' => true])->assertNoContent();
@@ -462,7 +462,7 @@ class CollaborationTest extends ListApiTestCase
         $grouping = $this->getJson("/api/lists/{$id}/grouping")->assertOk()->json('data');
         $this->putJson("/api/lists/{$id}/grouping", [
             'base_revision' => $grouping['grouping_revision'],
-            'groups' => [['key' => 'g1', 'id' => $group->id, 'name' => '冷蔵庫']],
+            'groups' => [['key' => 'g1', 'id' => $group->id, 'name' => '冷蔵庫', 'check_mode' => 'normal']],
             'assignments' => array_map(fn (array $item) => ['item_id' => $item['id'], 'group_key' => 'g1'], $grouping['items']),
         ])->assertOk();
 

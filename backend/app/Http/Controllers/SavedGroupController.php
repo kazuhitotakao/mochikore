@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\GroupCheckMode;
 use App\Http\Requests\IndexSavedGroupsRequest;
 use App\Http\Requests\StoreSavedGroupRequest;
 use App\Http\Resources\SavedGroupResource;
@@ -32,7 +33,7 @@ class SavedGroupController extends Controller
     }
 
     /**
-     * API-40 よく使うグループの保存（F-28）。新しく作ったら201、同じカテゴリーの同名があれば200で既存を返す。
+     * API-40 よく使うグループの保存（F-28）。新しく作ったら201、同じカテゴリーの同名があれば200で既存を返す（設定は新しいもので上書き、D-122）。
      */
     public function store(StoreSavedGroupRequest $request, SavedGroupService $service): SavedGroupResource
     {
@@ -40,6 +41,7 @@ class SavedGroupController extends Controller
             $request->user(),
             $request->validated('name'),
             $request->validated('category_id'),
+            GroupCheckMode::from($request->validated('check_mode')),
         );
 
         return new SavedGroupResource($savedGroup->load('category'));

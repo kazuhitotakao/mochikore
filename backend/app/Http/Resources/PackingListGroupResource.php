@@ -22,6 +22,7 @@ class PackingListGroupResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'sort_order' => $this->sort_order,
+            'check_mode' => $this->check_mode,
         ];
     }
 }

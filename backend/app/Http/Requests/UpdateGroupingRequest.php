@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GroupCheckMode;
 use App\Models\PackingListGroup;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -50,6 +51,8 @@ class UpdateGroupingRequest extends FormRequest
                 'bail', 'required', 'string', 'max:50', 'not_regex:'.self::LINE_BREAK_OR_TAB,
                 Rule::notIn([PackingListGroup::RESERVED_NAME]), 'distinct:strict',
             ],
+            // V-29・D-122：グループごとのチェックの動き。SC-09 の下書きは全グループの設定を持つので、必ず送る
+            'groups.*.check_mode' => ['bail', 'required', 'string', Rule::in(GroupCheckMode::values())],
 
             // 全有効持ち物を1件ずつ。group_key が null なら未分類
             'assignments' => ['bail', 'present', 'array', 'list'],
@@ -65,6 +68,20 @@ class UpdateGroupingRequest extends FormRequest
     public function attributes(): array
     {
         return ['groups.*.name' => __('validation.grouping.name_attribute')];
+    }
+
+    /**
+     * V-29：チェックの動きは、省略・型違い・定義外の値のどれでも同じ文にする。
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'groups.*.check_mode.required' => __('validation.check_mode'),
+            'groups.*.check_mode.string' => __('validation.check_mode'),
+            'groups.*.check_mode.in' => __('validation.check_mode'),
+        ];
     }
 
     /**

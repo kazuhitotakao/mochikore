@@ -46,6 +46,7 @@ import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type {
+  GroupCheckMode,
   GroupingSaveResult,
   GroupingState,
   PackingListItem,
@@ -66,6 +67,7 @@ import {
 } from "./SavedGroupCandidates";
 import { SelectMark } from "@/features/lists/SelectionList";
 import { ShowCheckedSwitch } from "@/features/lists/ShowCheckedSwitch";
+import { RepeatBadge } from "@/features/lists/RepeatBadge";
 import { withShowChecked } from "@/features/lists/showChecked";
 import { useRemoteListSync } from "@/features/lists/useRemoteListSync";
 import type { RealtimeConfig } from "@/lib/realtime/types";
@@ -338,10 +340,18 @@ export function GroupingEditor({
     draft.groups.every((group) => collapsedGroups.has(group.key));
   // D-95：出さないチェック済みも下書きには残し、今の所属のまま保存する（API-30 は全有効持ち物の所属を受け取る）
   // 切り替えても下書き（所属・丸・名前）は変えないので、隠した後に戻しても動かした所属が残る
+  // D-122：繰り返し利用のグループ（下書きの設定・所属で判定）の持ち物は、SC-07 と同じくチェックしても隠さない
+  const repeatKeys = new Set(
+    draft.groups
+      .filter((group) => group.checkMode === "repeat")
+      .map((group) => group.key),
+  );
+  const hidesWhenChecked = (item: PackingListItem) =>
+    item.is_checked && !repeatKeys.has(draft.assignment[item.id] ?? "");
   const shownItems = showChecked
     ? state.items
-    : state.items.filter((item) => !item.is_checked);
-  const checkedCount = state.items.filter((item) => item.is_checked).length;
+    : state.items.filter((item) => !hidesWhenChecked(item));
+  const checkedCount = state.items.filter(hidesWhenChecked).length;
   // SC-09-2・14：「←」の右のスイッチ。2つとも出すときは、640px未満で上下に重ねる（D-73）
   const hasCollapseSwitch = draft.groups.length > 0;
   const hasCheckedSwitch = checkedCount > 0;
@@ -425,7 +435,7 @@ export function GroupingEditor({
 
   // SC-09-5「よく使うグループに保存」：丸の今の名前を、このリストのカテゴリーでその場で保存する（API-40）。
   // 画面を離れるときの下書きの保存は待たない。同じ名前がすでにあれば、既存の候補が返る（D-102）
-  async function saveAsFavorite(name: string) {
+  async function saveAsFavorite(name: string, checkMode: GroupCheckMode) {
     if (savingFavorite) return;
 
     setSavingFavorite(true);
@@ -434,16 +444,25 @@ export function GroupingEditor({
     try {
       const saved = await clientApi<SavedGroup>("/saved-groups", {
         method: "POST",
-        body: { name, category_id: categoryId },
+        // D-122：チェックの動きも一緒に覚える
+        body: { name, category_id: categoryId, check_mode: checkMode },
       });
-      // 新しく保存した候補は、候補のいちばん上に足す（新しく保存した順）
-      setCandidates((previous) =>
-        previous &&
-        "savedGroups" in previous &&
-        !previous.savedGroups.some((savedGroup) => savedGroup.id === saved.id)
-          ? { ...previous, savedGroups: [saved, ...previous.savedGroups] }
-          : previous,
-      );
+      // 新しく保存した候補は、候補のいちばん上に足す（新しく保存した順）。
+      // 同じ名前がすでにあれば、新しい設定で上書きされた候補に差し替える（D-122）
+      setCandidates((previous) => {
+        if (!previous || !("savedGroups" in previous)) return previous;
+        const exists = previous.savedGroups.some(
+          (savedGroup) => savedGroup.id === saved.id,
+        );
+        return {
+          ...previous,
+          savedGroups: exists
+            ? previous.savedGroups.map((savedGroup) =>
+                savedGroup.id === saved.id ? saved : savedGroup,
+              )
+            : [saved, ...previous.savedGroups],
+        };
+      });
       setNotice("保存しました");
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
@@ -688,21 +707,22 @@ export function GroupingEditor({
     );
   }
 
-  function addGroup(name: string) {
+  function addGroup(name: string, checkMode: GroupCheckMode) {
     newGroupCount.current += 1;
     const key = `new${newGroupCount.current}`;
     changeDraft({
       ...draft,
-      groups: [...draft.groups, { key, id: null, name }],
+      groups: [...draft.groups, { key, id: null, name, checkMode }],
     });
     setNameDialog(null);
   }
 
-  function renameGroup(key: string, name: string) {
+  // SC-09-5：名前とチェックの動き（D-122）を下書きで変える
+  function editGroup(key: string, name: string, checkMode: GroupCheckMode) {
     changeDraft({
       ...draft,
       groups: draft.groups.map((group) =>
-        group.key === key ? { ...group, name } : group,
+        group.key === key ? { ...group, name, checkMode } : group,
       ),
     });
     setNameDialog(null);
@@ -807,7 +827,12 @@ export function GroupingEditor({
         method: "PUT",
         body: {
           base_revision: state.grouping_revision,
-          groups: draft.groups.map(({ key, id, name }) => ({ key, id, name })),
+          groups: draft.groups.map(({ key, id, name, checkMode }) => ({
+            key,
+            id,
+            name,
+            check_mode: checkMode,
+          })),
           assignments: state.items.map((item) => ({
             item_id: item.id,
             group_key: draft.assignment[item.id] ?? null,
@@ -969,6 +994,7 @@ export function GroupingEditor({
                   key={group.key}
                   dropKey={group.key}
                   name={group.name}
+                  checkMode={group.checkMode}
                   items={itemsIn(group.key)}
                   collapsed={collapsedGroups.has(group.key)}
                   onToggleCollapsed={() => toggleCollapsed(group.key)}
@@ -977,7 +1003,9 @@ export function GroupingEditor({
                     setNameDialog({ mode: "rename", key: group.key })
                   }
                   favoriteDisabled={savingFavorite}
-                  onSaveAsFavorite={() => void saveAsFavorite(group.name)}
+                  onSaveAsFavorite={() =>
+                    void saveAsFavorite(group.name, group.checkMode)
+                  }
                   onDelete={() => deleteGroup(group.key)}
                   selection={selectedIds}
                   onSelectItem={toggleSelected}
@@ -1103,6 +1131,7 @@ export function GroupingEditor({
           title="グループを追加"
           submitLabel="追加"
           initialName=""
+          initialCheckMode="normal"
           otherNames={otherNames(null)}
           onSubmit={addGroup}
           onCancel={() => setNameDialog(null)}
@@ -1143,11 +1172,15 @@ export function GroupingEditor({
       )}
       {renaming && (
         <GroupNameDialog
-          title="名前を変更"
+          // D-122：名前のほかにチェックの動きも変えられるので、「名前を変更」から「グループを編集」にした
+          title="グループを編集"
           submitLabel="変更"
           initialName={renaming.name}
+          initialCheckMode={renaming.checkMode}
           otherNames={otherNames(renaming.key)}
-          onSubmit={(name) => renameGroup(renaming.key, name)}
+          onSubmit={(name, checkMode) =>
+            editGroup(renaming.key, name, checkMode)
+          }
           onCancel={() => setNameDialog(null)}
         />
       )}
@@ -1181,6 +1214,8 @@ type GroupCircleProps = {
   // ドラッグで置いたときの移し先
   dropKey: string;
   name: string;
+  // D-122：繰り返し利用のグループには印を付ける
+  checkMode: GroupCheckMode;
   items: PackingListItem[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -1201,6 +1236,7 @@ type GroupCircleProps = {
 function GroupCircle({
   dropKey,
   name,
+  checkMode,
   items,
   collapsed,
   onToggleCollapsed,
@@ -1270,7 +1306,7 @@ function GroupCircle({
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="min-w-0 font-bold wrap-break-word text-brand-deep">
-          {/* D-109：名前を押すと「名前を変更」を開く（持ち物を押すと移し先を選ぶのと同じ）。
+          {/* D-109・D-122：名前を押すと「グループを編集」（名前とチェックの動き）を開く。
               短く押したときだけ開き、長押し（0.3秒）して動かしたときは丸の並べ替えにする */}
           <button
             type="button"
@@ -1279,12 +1315,21 @@ function GroupCircle({
             className="text-left font-bold wrap-break-word disabled:opacity-50"
           >
             {name}
-            <span className="sr-only">（名前を変更）</span>
+            <span className="sr-only">（名前・チェックの動きを変更）</span>
           </button>
           {/* 件数はSC-07の見出しと同じ控えめな14pxにし、名前と見分けやすくする（D-73、利用者の指示） */}
           <span className="inline-block text-sm font-normal whitespace-nowrap text-muted">
             （{items.length}件）
           </span>
+          {/* D-122：繰り返し利用のグループに印を付ける。設定は名前を押して開く「グループを編集」で変える */}
+          {checkMode === "repeat" && (
+            <>
+              {/* 行の途中では件数との間を空け、次の行へ折り返したときは左端にそろえる */}{" "}
+              <span className="inline-block align-middle">
+                <RepeatBadge />
+              </span>
+            </>
+          )}
         </h2>
         {/* 押せる範囲（44px）は保ったまま上下を余白に重ね、名前と持ち物の間を詰める（D-73、利用者の指示） */}
         <div data-no-drag className="-my-2 -mr-2 flex shrink-0 items-center">

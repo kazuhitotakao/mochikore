@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\GroupCheckMode;
 use Database\Factories\PackingListGroupFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * リスト内の任意の分類（D-56）。リストの用途であるカテゴリー（Category）とは別物。
  */
-#[Fillable(['name', 'sort_order', 'is_checked'])]
+#[Fillable(['name', 'sort_order', 'is_checked', 'check_mode'])]
 class PackingListGroup extends Model
 {
     /** @use HasFactory<PackingListGroupFactory> */
@@ -24,6 +25,13 @@ class PackingListGroup extends Model
     public const RESERVED_NAME = '未分類';
 
     /**
+     * D-122：DBの既定値と同じ「通常」。作った直後のモデルでも、読み直さずに設定を返せるようにする。
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = ['check_mode' => GroupCheckMode::Normal->value];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -31,6 +39,7 @@ class PackingListGroup extends Model
         return [
             'sort_order' => 'integer',
             'is_checked' => 'boolean',
+            'check_mode' => GroupCheckMode::class,
         ];
     }
 

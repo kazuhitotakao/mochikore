@@ -18,7 +18,10 @@ use Illuminate\Validation\ValidationException;
  */
 class PackingListItemService
 {
-    public function __construct(private ItemAdditionLimiter $additionLimiter) {}
+    public function __construct(
+        private ItemAdditionLimiter $additionLimiter,
+        private RepeatCheckService $repeatChecks,
+    ) {}
 
     /**
      * API-10 持ち物の追加。未分類（group_id は NULL）で全体の末尾に入れる。
@@ -52,6 +55,9 @@ class PackingListItemService
     public function update(PackingListItem $item, array $attributes): PackingListItem
     {
         return DB::transaction(function () use ($item, $attributes) {
+            if (array_key_exists('is_checked', $attributes)) {
+                $this->recordCheck($item, $attributes['is_checked']);
+            }
             $item->fill($attributes);
             $renamed = $item->isDirty('name');
             $item->save();
@@ -63,6 +69,26 @@ class PackingListItemService
 
             return $item;
         });
+    }
+
+    /**
+     * D-122：チェックを付けた日時を覚える（繰り返し利用のグループで「前回」として出す）。
+     * 付けたその日のうちに外したら、押し間違いとして付ける前の日時へ戻す。翌日以降に外したときは残す。
+     */
+    private function recordCheck(PackingListItem $item, bool $checked): void
+    {
+        // 同じ状態の送り直しでは、日時を進めない
+        if ($checked === $item->is_checked) {
+            return;
+        }
+
+        if ($checked) {
+            $item->previous_checked_at = $item->last_checked_at;
+            $item->last_checked_at = now();
+        } elseif ($item->last_checked_at?->gte(today())) {
+            $item->last_checked_at = $item->previous_checked_at;
+            $item->previous_checked_at = null;
+        }
     }
 
     /**
@@ -115,6 +141,11 @@ class PackingListItemService
                 throw ValidationException::withMessages([
                     'item_ids' => [__('validation.bulk_delete.items')],
                 ]);
+            }
+
+            if ($groupIds !== []) {
+                // D-122：消すグループに残る持ち物は未分類（通常）へ移るので、期限の切れたチェックを先に外す
+                $this->repeatChecks->expire($locked);
             }
 
             if ($itemIds !== []) {
@@ -210,6 +241,8 @@ class PackingListItemService
                         'move' => [__('validation.custom.move.list')],
                     ]);
                 }
+                // D-122：繰り返し利用のグループから出すとき、期限の切れたチェックを持ち出さない
+                $this->repeatChecks->expire($locked);
                 // group_id は Fillable に入れていないので、クエリで直接変える
                 $locked->items()->whereKey($move['item_id'])->update(['group_id' => $move['group_id']]);
                 if ($move['group_id'] !== null) {
@@ -239,19 +272,43 @@ class PackingListItemService
     /**
      * API-37 選んだ持ち物をまとめてチェック・解除する（F-25、D-99）。SC-07 はグループの見出しのチェックで、
      * そのグループの全有効持ち物を送る。チェックだけなので構造は変えず、revision も親リストの更新日時も変えない（D-25）。
+     * 画面が前回の日付を出せるよう、変えた後の持ち物を返す（D-122）。
      *
      * @param  list<int>  $itemIds
+     * @return Collection<int, PackingListItem>
      */
-    public function setChecks(PackingList $list, array $itemIds, bool $checked): void
+    public function setChecks(PackingList $list, array $itemIds, bool $checked): Collection
     {
-        // V-19：同じリストの削除していない持ち物だけ。1件でも違えば、何も変えずに全体を拒否する
-        if ($list->items()->whereKey($itemIds)->count() !== count($itemIds)) {
-            throw ValidationException::withMessages([
-                'item_ids' => [__('validation.bulk_check.items')],
-            ]);
-        }
+        return DB::transaction(function () use ($list, $itemIds, $checked) {
+            // V-19：同じリストの削除していない持ち物だけ。1件でも違えば、何も変えずに全体を拒否する
+            if ($list->items()->whereKey($itemIds)->count() !== count($itemIds)) {
+                throw ValidationException::withMessages([
+                    'item_ids' => [__('validation.bulk_check.items')],
+                ]);
+            }
 
-        $list->items()->whereKey($itemIds)->update(['is_checked' => $checked]);
+            // D-122：日時を変えるのは、状態が変わる持ち物だけ（1件ずつのチェック recordCheck と同じ決まり）
+            if ($checked) {
+                // MySQL は左から順に代入するので、今の日時を1つ前へ写してから、新しい日時を入れる
+                $list->items()->whereKey($itemIds)->where('is_checked', false)->update([
+                    'previous_checked_at' => DB::raw('last_checked_at'),
+                    'last_checked_at' => now(),
+                    'is_checked' => true,
+                ]);
+            } else {
+                // 今日付けたチェックは、付ける前の日時へ戻す。それより前のチェックは、日時を残して外す
+                $list->items()->whereKey($itemIds)->where('is_checked', true)
+                    ->where('last_checked_at', '>=', today())
+                    ->update([
+                        'last_checked_at' => DB::raw('previous_checked_at'),
+                        'previous_checked_at' => null,
+                        'is_checked' => false,
+                    ]);
+                $list->items()->whereKey($itemIds)->where('is_checked', true)->update(['is_checked' => false]);
+            }
+
+            return $list->items()->whereKey($itemIds)->orderBy('sort_order')->orderBy('id')->get();
+        });
     }
 
     /**

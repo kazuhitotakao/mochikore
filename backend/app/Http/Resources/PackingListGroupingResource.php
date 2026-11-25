@@ -34,6 +34,8 @@ class PackingListGroupingResource extends JsonResource
                 'id' => $group->id,
                 'name' => $group->name,
                 'sort_order' => $group->sort_order,
+                // D-122：チェックの動き（normal・repeat）。SC-09 のダイアログで選び、API-30 で保存する
+                'check_mode' => $group->check_mode,
             ]),
             'items' => PackingListItemResource::collection($this->items)->resolve($request),
         ];

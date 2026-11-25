@@ -42,6 +42,7 @@ class UpdatePackingListItemTest extends ListApiTestCase
                     'group_id' => null,
                     'sort_order' => 2,
                     'is_checked' => false,
+                    'last_checked_at' => null,
                 ],
             ]);
 

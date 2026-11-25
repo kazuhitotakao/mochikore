@@ -23,7 +23,10 @@ class ItemTransferService
 
     private const IMPORT = 'import';
 
-    public function __construct(private ItemAdditionLimiter $additionLimiter) {}
+    public function __construct(
+        private ItemAdditionLimiter $additionLimiter,
+        private RepeatCheckService $repeatChecks,
+    ) {}
 
     /**
      * API-51 コピー。元の持ち物は残し、移し先には未チェックで入れる。
@@ -115,6 +118,10 @@ class ItemTransferService
                 ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $from = $locked->get($source->id) ?? abort(404);
             $ensureSource($from);
+            if ($mode === self::MOVE) {
+                // D-122：移動はチェックを保つので、繰り返し利用のグループの期限の切れたチェックを先に外す
+                $this->repeatChecks->expire($from);
+            }
 
             $to = null;
             if ($destinationListId !== null) {

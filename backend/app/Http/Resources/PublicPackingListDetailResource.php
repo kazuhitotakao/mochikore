@@ -19,6 +19,8 @@ class PublicPackingListDetailResource extends PublicPackingListSummaryResource
                 'id' => $group->id,
                 'name' => $group->name,
                 'sort_order' => $group->sort_order,
+                // D-122：「繰り返し利用」の印を出すための設定だけを返す。前回チェックした日は返さない
+                'check_mode' => $group->check_mode,
             ]),
             // D-95：作成者がチェック済みを隠していても全有効項目を返し、チェック状態は返さない
             'items' => $this->items->map(fn (PackingListItem $item) => [

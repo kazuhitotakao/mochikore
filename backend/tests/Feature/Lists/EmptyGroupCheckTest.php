@@ -141,7 +141,7 @@ class EmptyGroupCheckTest extends ListApiTestCase
         $item = PackingListItem::factory()->for($this->list)->create();
         $this->actingAsUser($this->user)->putJson("/api/lists/{$this->list->id}/grouping", [
             'base_revision' => 3,
-            'groups' => [['key' => 'existing', 'id' => $this->group->id, 'name' => $this->group->name]],
+            'groups' => [['key' => 'existing', 'id' => $this->group->id, 'name' => $this->group->name, 'check_mode' => 'normal']],
             'assignments' => [['item_id' => $item->id, 'group_key' => 'existing']],
         ])->assertOk();
         $this->assertFalse($this->group->fresh()->is_checked);
