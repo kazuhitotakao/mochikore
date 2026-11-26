@@ -9,7 +9,6 @@ use App\Http\Resources\PackingListResource;
 use App\Http\Resources\PackingListSummaryResource;
 use App\Models\PackingList;
 use App\Services\PackingListService;
-use App\Services\RepeatCheckService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -48,7 +47,7 @@ class PackingListController extends Controller
     /**
      * API-07 自分のリスト・参加しているリストの内容。削除済みの持ち物は返さない。
      */
-    public function show(PackingList $list, RepeatCheckService $repeatChecks): PackingListDetailResource
+    public function show(PackingList $list): PackingListDetailResource
     {
         Gate::authorize('view', $list);
 
@@ -58,8 +57,6 @@ class PackingListController extends Controller
             'groups' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ])->loadCount('members');
-        // D-122：繰り返し利用のグループのチェックは、日付が変わっていたらここで外す（定期処理は使わない）
-        $repeatChecks->expireLoaded($list);
 
         return new PackingListDetailResource($list);
     }

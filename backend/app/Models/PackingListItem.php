@@ -31,6 +31,11 @@ class PackingListItem extends Model
     public const MAX_ADDED_PER_HOUR = 1000;
 
     /**
+     * D-122：チェックを付けてからこの秒数のうちに1件ずつ外したら、押し間違いとして付ける前の日時へ戻す。
+     */
+    public const CHECK_CORRECTION_SECONDS = 60;
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

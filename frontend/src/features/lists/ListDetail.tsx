@@ -16,6 +16,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
+  arrayMove,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { getEventCoordinates } from "@dnd-kit/utilities";
@@ -42,6 +43,7 @@ import type {
 } from "@/types/api";
 import type { RealtimeConfig } from "@/lib/realtime/types";
 import { AddItemRow } from "./AddItemRow";
+import { AnimatedItemList } from "./AnimatedItemList";
 import { DeletedItems, type DeletedItem } from "./DeletedItems";
 import { GroupSection } from "./GroupSection";
 import { ItemRow, itemCheckboxId } from "./ItemRow";
@@ -326,8 +328,7 @@ export function ListDetail({
   });
   // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更が届くたびに API-07 を読み直して反映する。
   // 所有者だけで招待リンクを出している間も聞き、最初の人が参加したらすぐ人数を変える。
-  // 戻り値を呼ぶと、共同編集でないリストでも API-07 を読み直す（D-122：日付が変わったとき・チェックの動きを変えたとき）
-  const syncNow = useRemoteListSync<PackingListDetail>({
+  useRemoteListSync<PackingListDetail>({
     listId: list.id,
     path: `/lists/${list.id}`,
     realtime,
@@ -351,6 +352,13 @@ export function ListDetail({
     cancelHide: cancelGroupHide,
     isWaitingToHide: isGroupWaitingToHide,
   } = useDelayedHide(handleEmptyGroupHideEnd);
+  // D-122（利用者の指示）：繰り返し利用のグループでチェックを付けた持ち物は、付いたことが分かるよう、
+  // 隠すときと同じ1秒だけ元の位置に残してから下へ動かす。その間に外したら動かさない
+  const {
+    delayedIds: settlingIds,
+    hideLater: sinkLater,
+    cancelHide: cancelSink,
+  } = useDelayedHide(handleSinkDelayEnd);
 
   // D-122：繰り返し利用のグループ。中の持ち物はチェックしても隠さず、前回チェックした日を出す。
   // グループに入っていない持ち物は、いつも通常
@@ -364,10 +372,51 @@ export function ListDetail({
   // チェック済みとして隠す持ち物か。「チェック済みを表示（n件）」「チェック済みを削除（n件）」もこの持ち物だけを数える
   const hidesWhenChecked = (item: PackingListItem) =>
     item.is_checked && !isRepeatGroup(item.group_id);
-  // 繰り返し利用のチェックは、日付が変わる（日本時間の0時）と外れる。画面を開いたまま日付が変わったら読み直す
-  const today = useTokyoDay(() => {
-    if (repeatGroupIds.size > 0) syncNow();
-  });
+  // 繰り返し利用のグループで、下（チェック済みの側）に並べる持ち物か。付けた直後の1秒はまだ元の位置に残す
+  const sinksInRepeat = (item: PackingListItem) =>
+    item.is_checked && !settlingIds.has(item.id);
+  // 日付が変わったら、前回の日付（「前回 今日」→「前回 11/25・1日前」）を描き直す。チェックは自動では外れない
+  const today = useTokyoDay();
+
+  // D-122（利用者の指示）：繰り返し利用のグループの中は、未チェックを上、チェック済みを下に並べる。
+  // 保存した順番（sort_order）は変えず、表示だけを並べ替える。上・下それぞれの中は元の順のまま
+  // （お店の売り場の順に並べている人の並びを崩さないため）
+  function arrangeInGroup(
+    groupId: number | null,
+    groupItems: PackingListItem[],
+  ): PackingListItem[] {
+    if (!isRepeatGroup(groupId)) return groupItems;
+    return [
+      ...groupItems.filter((item) => !sinksInRepeat(item)),
+      ...groupItems.filter(sinksInRepeat),
+    ];
+  }
+
+  // D-122：繰り返し利用のグループへ持ち物を置くとき、未チェックの持ち物をチェック済みの間に置いたら
+  // 未チェックの最後へ、チェック済みの持ち物を未チェックの間に置いたらチェック済みの先頭へ並べる。
+  // 置いた位置の目印（anchor）を、持ち物と同じ側の端の持ち物に置き換える
+  function anchorInRepeatGroup(
+    all: PackingListItem[],
+    moving: PackingListItem,
+    groupId: number | null,
+    anchor: { id: number; before: boolean } | null,
+  ): { id: number; before: boolean } | null {
+    if (!anchor || !isRepeatGroup(groupId)) return anchor;
+    const target = all.find((item) => item.id === anchor.id);
+    const sinks = sinksInRepeat(moving);
+    if (!target || sinksInRepeat(target) === sinks) return anchor;
+    const sameSide = all.filter(
+      (item) =>
+        item.group_id === groupId &&
+        item.id !== moving.id &&
+        sinksInRepeat(item) === sinks,
+    );
+    // 同じ側にほかの持ち物がなければ、どこに置いても並びは同じなので、そのまま
+    if (sameSide.length === 0) return anchor;
+    return sinks
+      ? { id: sameSide[0].id, before: true }
+      : { id: sameSide[sameSide.length - 1].id, before: false };
+  }
 
   // D-95：画面は隠れたチェック済みも含む全件（items）を持ち、表示だけを絞る。
   // 隠している間にチェックを付けた持ち物は、少しの間だけ表示に残す（delayedIds）
@@ -460,7 +509,7 @@ export function ListDetail({
     document
       .getElementById(targetId)
       ?.focus({ preventScroll: pointerInput.current });
-  }, [items, delayedIds, groups, delayedGroupIds]);
+  }, [items, delayedIds, groups, delayedGroupIds, settlingIds]);
 
   // D-106：空の見出しが隠れるときだけ、その中のカーソルを表示のスイッチへ移す。
   function handleEmptyGroupHideEnd(groupId: number) {
@@ -524,11 +573,41 @@ export function ListDetail({
       : SHOW_CHECKED_SWITCH_ID;
   }
 
-  // 画面に出す並び。グループがあるときはグループ順に並べ、未分類を最後に置く（SC-07-6）
+  // D-122：繰り返し利用のグループでチェックした行が、1秒たって下へ動く直前に呼ばれる。
+  // その行にカーソルがあれば、続けてチェックできるよう、後ろにある未チェックの持ち物へ移す（隠すときと同じ、SC-07-7）。
+  // 後ろになければ、動いた行のチェック欄に戻す（行を動かすと、ブラウザがカーソルを外すことがあるため）
+  function handleSinkDelayEnd(itemId: number) {
+    const item = items.find((existing) => existing.id === itemId);
+    // 待っている間に外した・通常のグループへ移した・設定を変えたときは動かない
+    if (!item || !item.is_checked || !isRepeatGroup(item.group_id)) return;
+
+    const row = document.getElementById(itemCheckboxId(itemId))?.closest("li");
+    const active = document.activeElement;
+    const focusInRow = row && active && row.contains(active);
+    const focusLost = !active || active === document.body;
+    if (!focusInRow && !focusLost) return;
+
+    const displayed = displayOrder();
+    const next = displayed
+      .slice(displayed.indexOf(item) + 1)
+      .find(
+        (other) =>
+          !other.is_checked &&
+          (other.group_id === null ||
+            !collapsedGroups.collapsed.has(other.group_id)),
+      );
+    pendingFocusId.current = itemCheckboxId(next ? next.id : itemId);
+  }
+
+  // 画面に出す並び。グループがあるときはグループ順に並べ、未分類を最後に置く（SC-07-6）。
+  // 繰り返し利用のグループの中は、未チェックが上・チェック済みが下（D-122）
   function displayOrder(): PackingListItem[] {
     if (groups.length === 0) return items;
     return [...groups.map((group) => group.id), null].flatMap((groupId) =>
-      items.filter((item) => item.group_id === groupId),
+      arrangeInGroup(
+        groupId,
+        items.filter((item) => item.group_id === groupId),
+      ),
     );
   }
 
@@ -543,16 +622,16 @@ export function ListDetail({
     if (before && before.is_checked !== item.is_checked) {
       groupCheckUndo.current.delete(item.group_id);
     }
-    // D-122：繰り返し利用のグループの持ち物は、チェックしても隠さない
-    if (
-      !showChecked &&
-      hidesWhenChecked(item) &&
-      before &&
-      !before.is_checked
-    ) {
-      hideLater(item.id);
+    // D-122：繰り返し利用のグループの持ち物は、チェックしても隠さず、1秒たってから下へ動かす
+    if (before && !before.is_checked && item.is_checked) {
+      if (isRepeatGroup(item.group_id)) sinkLater(item.id);
+      else if (!showChecked && hidesWhenChecked(item)) hideLater(item.id);
     }
-    if (!item.is_checked) cancelHide(item.id);
+    // 外したら待たずに戻す（繰り返し利用のグループでは、すぐ未チェックの側へ戻る）
+    if (!item.is_checked) {
+      cancelHide(item.id);
+      cancelSink(item.id);
+    }
 
     setItems((current) =>
       current.map((existing) => (existing.id === item.id ? item : existing)),
@@ -672,7 +751,12 @@ export function ListDetail({
       current,
       activeItem.id,
       to,
-      overItem ? { id: overItem.id, before } : null,
+      anchorInRepeatGroup(
+        current,
+        activeItem,
+        to,
+        overItem ? { id: overItem.id, before } : null,
+      ),
     );
     const preview = {
       itemId: activeItem.id,
@@ -735,12 +819,17 @@ export function ListDetail({
         current,
         activeItem.id,
         targetGroupId,
-        overItem
-          ? {
-              id: overItem.id,
-              before: dropsBefore(active, over, activatorEvent),
-            }
-          : null,
+        anchorInRepeatGroup(
+          current,
+          activeItem,
+          targetGroupId,
+          overItem
+            ? {
+                id: overItem.id,
+                before: dropsBefore(active, over, activatorEvent),
+              }
+            : null,
+        ),
       );
     } else if (overItem && active.id !== over.id) {
       moved = reorderVisibleItems(
@@ -756,7 +845,33 @@ export function ListDetail({
     }
 
     const changedGroup = original.group_id !== targetGroupId;
-    if (!changedGroup) {
+    if (!changedGroup && isRepeatGroup(targetGroupId)) {
+      // D-122：繰り返し利用のグループの中は、画面の並び（未チェックが上・チェック済みが下）で置いた位置を決め、
+      // 同じ側の隣の持ち物を目印にして全体の順番へ移す。反対側へ置いたときは、同じ側の端に並べる
+      const display = arrangeInGroup(
+        targetGroupId,
+        current.filter((item) => item.group_id === targetGroupId),
+      );
+      const from = display.findIndex((item) => item.id === original.id);
+      const to = overItem
+        ? display.findIndex((item) => item.id === overItem.id)
+        : -1;
+      const placed =
+        from >= 0 && to >= 0 ? arrayMove(display, from, to) : display;
+      const index = placed.findIndex((item) => item.id === original.id);
+      const sameSide = (item: PackingListItem) =>
+        item.id !== original.id &&
+        sinksInRepeat(item) === sinksInRepeat(original);
+      const next = placed.slice(index + 1).find(sameSide);
+      const previous = placed.slice(0, index).reverse().find(sameSide);
+      const anchor = next
+        ? { id: next.id, before: true }
+        : previous
+          ? { id: previous.id, before: false }
+          : null;
+      if (!anchor) return;
+      moved = moveItemToGroup(items, original.id, targetGroupId, anchor);
+    } else if (!changedGroup) {
       // D-95：別グループから戻った場合も、隠れた持ち物と他グループの位置は元のままにする。
       const inGroup = visibleItems.filter(
         (item) => item.group_id === targetGroupId,
@@ -845,14 +960,7 @@ export function ListDetail({
         method: "PATCH",
         body: { item_ids: moved.map((item) => item.id), ...(move && { move }) },
       });
-      if (move) {
-        clearEmptyGroupCheck(move.group_id);
-        // D-122：繰り返し利用のグループへ出し入れしたときは、今日より前のチェックが外れるので読み直す
-        const from = before.find((item) => item.id === move.item_id)?.group_id;
-        if (isRepeatGroup(move.group_id) || isRepeatGroup(from ?? null)) {
-          syncNow();
-        }
-      }
+      if (move) clearEmptyGroupCheck(move.group_id);
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (isNotFound(failure)) {
@@ -959,13 +1067,26 @@ export function ListDetail({
 
   // 名前付きグループの中だけ1段下げ、末尾の持ち物は見出しと同じ列にそろえる（利用者の指示）。
   // pl-7 はチェック欄（size-5）と見出しとのすき間（gap-2）を合わせた幅
-  function renderItems(sectionItems: PackingListItem[], indented = false) {
+  function renderItems(
+    groupId: number | null,
+    sectionItems: PackingListItem[],
+  ) {
     return (
       <SortableContext
         items={sectionItems}
         strategy={verticalListSortingStrategy}
       >
-        <ul className={`flex flex-col ${indented ? "pl-7" : ""}`}>
+        {/* D-122：繰り返し利用のグループで、チェックで上下に移る行を滑らかに動かす。
+            ドラッグ中・並べ替えの保存中は、dnd-kit の動きと重ねない */}
+        <AnimatedItemList
+          animate={
+            isRepeatGroup(groupId) &&
+            draggingItemId === null &&
+            !draggingGroup &&
+            !reordering
+          }
+          className={`flex flex-col ${groupId !== null ? "pl-7" : ""}`}
+        >
           {sectionItems.map((item) => (
             <ItemRow
               key={item.id}
@@ -986,7 +1107,7 @@ export function ListDetail({
               {...swipeProps(`item-${item.id}`)}
             />
           ))}
-        </ul>
+        </AnimatedItemList>
       </SortableContext>
     );
   }
@@ -1050,6 +1171,23 @@ export function ListDetail({
     }
   }
 
+  // API-37 で保存できたチェックと前回の日付で表示する（D-122。まとめて外したときは、前回の日付は残る）
+  function applySavedChecks(saved: PackingListItem[]) {
+    const savedById = new Map(saved.map((item) => [item.id, item]));
+    setItems((current) =>
+      current.map((item) => {
+        const latest = savedById.get(item.id);
+        return latest
+          ? {
+              ...item,
+              is_checked: latest.is_checked,
+              last_checked_at: latest.last_checked_at,
+            }
+          : item;
+      }),
+    );
+  }
+
   // F-25・D-99：全件チェック後、隠れるまでの1秒間だけ直前の状態へ戻せる（利用者の指示）。
   // API-37、09_バリデーション15・34行Jメモ（V-09・V-19）と38〜45行Jメモ（C-01〜08）を確認。
   async function handleGroupCheck(groupId: number | null) {
@@ -1092,7 +1230,6 @@ export function ListDetail({
           body: { item_ids: [...targetIds], is_checked: checked },
         },
       );
-      const savedById = new Map(saved.map((item) => [item.id, item]));
       if (undoing) {
         groupCheckUndo.current.delete(groupId);
         for (const item of targets) cancelHide(item.id);
@@ -1105,19 +1242,14 @@ export function ListDetail({
       } else {
         groupCheckUndo.current.delete(groupId);
       }
-      // 保存できた値で表示する。付けた日のうちに外すと、前回の日付は付ける前に戻る
-      setItems((current) =>
-        current.map((item) => {
-          const latest = savedById.get(item.id);
-          return latest
-            ? {
-                ...item,
-                is_checked: latest.is_checked,
-                last_checked_at: latest.last_checked_at,
-              }
-            : item;
-        }),
-      );
+      // D-122：繰り返し利用のグループでまとめて付けた持ち物も、1秒たってから下へ動かす。外したらすぐ戻す
+      if (isRepeatGroup(groupId)) {
+        for (const item of changedItems) {
+          if (checked) sinkLater(item.id);
+          else cancelSink(item.id);
+        }
+      }
+      applySavedChecks(saved);
     } catch (failure) {
       if (redirectIfAuthError(failure)) return;
       if (isNotFound(failure)) {
@@ -1300,8 +1432,10 @@ export function ListDetail({
   }
 
   function renderSection(groupId: number | null, title: string) {
-    const sectionItems = sortableItems.filter(
-      (item) => item.group_id === groupId,
+    // D-122：繰り返し利用のグループは、未チェックを上・チェック済みを下に並べて出す
+    const sectionItems = arrangeInGroup(
+      groupId,
+      sortableItems.filter((item) => item.group_id === groupId),
     );
     // D-110：たたんだグループの持ち物は出さない。ドラッグで入れようとしている持ち物だけは、
     // 入る位置（グループの最後）が分かるよう見出しの下に出す。件数はたたむ前と同じ数を出す
@@ -1358,7 +1492,7 @@ export function ListDetail({
           if (groupId !== null) collapsedGroups.toggle(groupId);
         }}
       >
-        {renderItems(shownItems, groupId !== null)}
+        {renderItems(groupId, shownItems)}
         {groupId === null && (
           // 利用者の指示で、空の未分類にも入力行を残す。未保存の行は件数に含めない。
           <div className="flex flex-col">
@@ -1611,7 +1745,15 @@ export function ListDetail({
         {checkModeGroup && (
           <CheckModeDialog
             key={checkModeGroup.id}
+            listId={list.id}
             group={checkModeGroup}
+            // D-122：繰り返し利用のグループのチェックは自動では外れないので、このダイアログからまとめて外す
+            checkedItemIds={items
+              .filter(
+                (item) =>
+                  item.group_id === checkModeGroup.id && item.is_checked,
+              )
+              .map((item) => item.id)}
             onCancel={() => setCheckModeGroupId(null)}
             onSaved={(saved) => {
               setCheckModeGroupId(null);
@@ -1623,8 +1765,12 @@ export function ListDetail({
                     : group,
                 ),
               );
-              // 繰り返し利用にすると、今日より前のチェックが外れる。保存された内容を読み直して表示する
-              syncNow();
+            }}
+            onUnchecked={(saved) => {
+              setCheckModeGroupId(null);
+              groupCheckUndo.current.delete(checkModeGroup.id);
+              for (const item of saved) cancelSink(item.id);
+              applySavedChecks(saved);
             }}
           />
         )}

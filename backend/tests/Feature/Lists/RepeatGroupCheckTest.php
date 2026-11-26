@@ -11,8 +11,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
 /**
- * D-122 繰り返し利用のグループ：チェックを付けた日時（前回の日付）を覚え、日付が変わる（日本時間の0時）とチェックを外す。
- * 定期処理は使わず、リストを読むとき（API-07・29）と、所属・設定を変える前に外す。
+ * D-122 繰り返し利用のグループ：チェックを付けた日時（前回の日付）を覚える。チェックは自動では外さず、利用者が外す。
+ * 外しても日時は残し、付けてから1分以内に1件ずつ外したときだけ、押し間違いとして付ける前の日時へ戻す。
  */
 class RepeatGroupCheckTest extends ListApiTestCase
 {
@@ -128,84 +128,53 @@ class RepeatGroupCheckTest extends ListApiTestCase
         $this->check($this->tissue)->assertOk()->assertJsonPath('data.last_checked_at', $checkedAt->toJSON());
     }
 
-    public function test_日付が変わると、繰り返し利用のチェックだけが外れ、前回の日付は残る(): void
+    public function test_日付が変わっても、チェックは外れず前回の日付も残る(): void
     {
         $checkedAt = $this->at('2026-11-25 23:59:00');
         $this->check($this->milk)->assertOk();
         $this->check($this->miso)->assertOk();
-        $this->check($this->tissue)->assertOk();
+        // この機能より前に付けたチェック（日時を覚えていない）も外さない
+        $this->egg->forceFill(['is_checked' => true])->save();
         $listUpdatedAt = $this->list->fresh()->updated_at;
 
-        // 日本時間の0時ちょうどから、前の日のチェックは外れる
-        $this->at('2026-11-26 00:00:00');
+        $this->at('2026-11-27 08:00:00');
         $items = $this->showItems();
 
-        $this->assertFalse($items['牛乳']['is_checked']);
+        $this->assertTrue($items['牛乳']['is_checked']);
         $this->assertSame($checkedAt->toJSON(), $items['牛乳']['last_checked_at']);
-        // 通常のグループ・グループに入っていない持ち物は、今までどおりチェック済みのまま
+        $this->assertTrue($items['卵']['is_checked']);
+        $this->assertNull($items['卵']['last_checked_at']);
         $this->assertTrue($items['味噌']['is_checked']);
-        $this->assertTrue($items['ティッシュ']['is_checked']);
 
-        // 読んだときに保存もする。チェックだけなので、revision も親リストの更新日時も変えない（D-25）
-        $this->assertFalse($this->milk->fresh()->is_checked);
+        // グループ整理の読み込み（API-29）でも外さない
+        $grouping = collect($this->actingAsUser($this->user)->getJson("/api/lists/{$this->list->id}/grouping")->assertOk()
+            ->assertJsonPath('data.groups.0.check_mode', 'repeat')
+            ->json('data.items'))->keyBy('name');
+        $this->assertTrue($grouping['牛乳']['is_checked']);
+
+        $this->assertTrue($this->milk->fresh()->is_checked);
         $list = $this->list->fresh();
         $this->assertSame(3, $list->grouping_revision);
         $this->assertTrue($list->updated_at->equalTo($listUpdatedAt));
     }
 
-    public function test_同じ日のうちは、チェックは外れない(): void
-    {
-        $this->at('2026-11-25 00:00:00');
-        $this->check($this->milk)->assertOk();
-
-        $this->at('2026-11-25 23:59:59');
-
-        $this->assertTrue($this->showItems()['牛乳']['is_checked']);
-        $this->assertTrue($this->milk->fresh()->is_checked);
-    }
-
-    public function test_日時のない古いチェックは、繰り返し利用では外れる(): void
-    {
-        // この機能より前に付けたチェック（日時を覚えていない）
-        $this->milk->forceFill(['is_checked' => true])->save();
-
-        $this->at('2026-11-25 10:00:00');
-        $items = $this->showItems();
-
-        $this->assertFalse($items['牛乳']['is_checked']);
-        $this->assertNull($items['牛乳']['last_checked_at']);
-    }
-
-    public function test_グループ整理の読み込みでも、日付が変わったチェックは外れる(): void
-    {
-        $this->at('2026-11-25 10:00:00');
-        $this->check($this->milk)->assertOk();
-        $this->check($this->miso)->assertOk();
-
-        $this->at('2026-11-26 08:00:00');
-        $items = collect($this->actingAsUser($this->user)->getJson("/api/lists/{$this->list->id}/grouping")->assertOk()
-            ->assertJsonPath('data.groups.0.check_mode', 'repeat')
-            ->json('data.items'))->keyBy('name');
-
-        $this->assertFalse($items['牛乳']['is_checked']);
-        $this->assertTrue($items['味噌']['is_checked']);
-        $this->assertFalse($this->milk->fresh()->is_checked);
-    }
-
-    public function test_付けたその日のうちに外すと、付ける前の日付に戻る(): void
+    public function test_付けてから1分以内に外すと、付ける前の日付に戻る(): void
     {
         // 初めてのチェックをすぐ外すと、まだチェックしていない状態に戻る
         $this->at('2026-11-23 09:00:00');
         $this->check($this->egg)->assertOk();
         $this->check($this->egg, false)->assertOk()->assertJsonPath('data.last_checked_at', null);
 
+        // 買った日に使い切って外しても、日付は残る
         $before = $this->at('2026-11-23 09:30:00');
         $this->check($this->milk)->assertOk();
+        $this->at('2026-11-23 18:00:00');
+        $this->check($this->milk, false)->assertOk()->assertJsonPath('data.last_checked_at', $before->toJSON());
 
-        // 2日後に付けて、押し間違いとして外す
+        // 2日後に付けて、ちょうど1分後に押し間違いとして外す
         $this->at('2026-11-25 10:00:00');
-        $this->showItems();
         $this->check($this->milk)->assertOk()->assertJsonPath('data.last_checked_at', now()->toJSON());
+        $this->at('2026-11-25 10:01:00');
         $this->check($this->milk, false)->assertOk()
             ->assertJsonPath('data.is_checked', false)
             ->assertJsonPath('data.last_checked_at', $before->toJSON());
@@ -215,16 +184,39 @@ class RepeatGroupCheckTest extends ListApiTestCase
         $this->check($this->milk, false)->assertOk()->assertJsonPath('data.last_checked_at', $before->toJSON());
     }
 
-    public function test_翌日以降に外したときは、前回の日付を残す(): void
+    public function test_付けてから1分を過ぎて外すと、同じ日でも前回の日付を残す(): void
     {
-        $checkedAt = $this->at('2026-11-23 09:00:00');
-        $this->check($this->miso)->assertOk();
+        $checkedAt = $this->at('2026-11-25 10:00:00');
+        $this->check($this->milk)->assertOk();
 
-        $this->at('2026-11-25 10:00:00');
-
-        $this->check($this->miso, false)->assertOk()
+        $this->at('2026-11-25 10:01:01');
+        $this->check($this->milk, false)->assertOk()
             ->assertJsonPath('data.is_checked', false)
             ->assertJsonPath('data.last_checked_at', $checkedAt->toJSON());
+
+        // 次に付けてすぐ外したときは、残した日付へ戻る
+        $this->at('2026-11-28 09:00:00');
+        $this->check($this->milk)->assertOk();
+        $this->check($this->milk, false)->assertOk()->assertJsonPath('data.last_checked_at', $checkedAt->toJSON());
+    }
+
+    public function test_共同編集のメンバーが1分以内に外したときも、付ける前の日付に戻る(): void
+    {
+        $member = User::factory()->create();
+        $this->list->members()->create(['user_id' => $member->id]);
+        $before = $this->at('2026-11-23 09:00:00');
+        $this->check($this->milk)->assertOk();
+        $this->at('2026-11-23 18:00:00');
+        $this->check($this->milk, false)->assertOk();
+
+        // 所有者が付けた直後に、メンバーが外す。経過はサーバーの時刻で数える
+        $this->at('2026-11-25 10:00:00');
+        $this->check($this->milk)->assertOk();
+        $this->at('2026-11-25 10:00:30');
+        $this->app['auth']->forgetGuards();
+        $this->actingAsUser($member)->patchJson("/api/items/{$this->milk->id}", ['is_checked' => false])
+            ->assertOk()
+            ->assertJsonPath('data.last_checked_at', $before->toJSON());
     }
 
     public function test_同じ状態の送り直しや名前の変更では、日時を変えない(): void
@@ -232,7 +224,7 @@ class RepeatGroupCheckTest extends ListApiTestCase
         $checkedAt = $this->at('2026-11-25 10:00:00');
         $this->check($this->milk)->assertOk();
 
-        $this->at('2026-11-25 11:00:00');
+        $this->at('2026-11-25 10:00:20');
         $this->check($this->milk)->assertOk()->assertJsonPath('data.last_checked_at', $checkedAt->toJSON());
         $this->actingAsUser($this->user)->patchJson("/api/items/{$this->milk->id}", ['name' => '低脂肪乳'])
             ->assertOk()
@@ -244,18 +236,17 @@ class RepeatGroupCheckTest extends ListApiTestCase
         $this->check($this->milk, false)->assertOk()->assertJsonPath('data.last_checked_at', null);
     }
 
-    public function test_まとめてチェックでも日時を覚え、外すと今日付けた分だけ前の日付に戻る(): void
+    public function test_まとめてチェックでも日時を覚え、まとめて外すと1分以内でも日付を残す(): void
     {
-        $before = $this->at('2026-11-23 09:00:00');
+        $this->at('2026-11-23 09:00:00');
         $this->check($this->egg)->assertOk();
+        $this->check($this->egg, false)->assertOk();
 
-        $this->at('2026-11-25 10:00:00');
-        $this->showItems();
-        $first = now();
+        $first = $this->at('2026-11-25 10:00:00');
         $this->check($this->milk)->assertOk();
 
         // すでにチェック済みの持ち物（牛乳）は日時を進めず、変わる持ち物（卵）だけ今の日時にする
-        $second = $this->at('2026-11-25 11:00:00');
+        $second = $this->at('2026-11-25 10:00:10');
         $this->bulkCheck([$this->milk, $this->egg], true)->assertOk()
             ->assertJsonPath('data.0.name', '牛乳')
             ->assertJsonPath('data.0.last_checked_at', $first->toJSON())
@@ -263,24 +254,13 @@ class RepeatGroupCheckTest extends ListApiTestCase
             ->assertJsonPath('data.1.is_checked', true)
             ->assertJsonPath('data.1.last_checked_at', $second->toJSON());
 
-        // 今日付けたチェックをまとめて外すと、それぞれ付ける前の日付に戻る
+        // グループ単位でまとめて外すときは、付けてからの時間に関係なく日付を残す
+        $this->at('2026-11-25 10:00:20');
         $this->bulkCheck([$this->milk, $this->egg], false)->assertOk()
             ->assertJsonPath('data.0.is_checked', false)
-            ->assertJsonPath('data.0.last_checked_at', null)
+            ->assertJsonPath('data.0.last_checked_at', $first->toJSON())
             ->assertJsonPath('data.1.is_checked', false)
-            ->assertJsonPath('data.1.last_checked_at', $before->toJSON());
-    }
-
-    public function test_まとめて外すとき、前の日に付けたチェックは日付を残す(): void
-    {
-        $checkedAt = $this->at('2026-11-23 09:00:00');
-        $this->check($this->miso)->assertOk();
-
-        $this->at('2026-11-25 10:00:00');
-
-        $this->bulkCheck([$this->miso], false)->assertOk()
-            ->assertJsonPath('data.0.is_checked', false)
-            ->assertJsonPath('data.0.last_checked_at', $checkedAt->toJSON());
+            ->assertJsonPath('data.1.last_checked_at', $second->toJSON());
     }
 
     public function test_チェックを全部外しても、前回の日付は残る(): void
@@ -298,14 +278,12 @@ class RepeatGroupCheckTest extends ListApiTestCase
         }
     }
 
-    public function test_並べ替えで通常のグループへ移すとき、期限の切れたチェックを持ち出さない(): void
+    public function test_並べ替えで通常のグループへ移しても、前の日のチェックと日付を保つ(): void
     {
         $checkedAt = $this->at('2026-11-24 10:00:00');
         $this->check($this->milk)->assertOk();
 
-        // 日付が変わった後、読み直さずに（開いたままの画面から）グループの外へ移す
         $this->at('2026-11-25 10:00:00');
-        $this->check($this->egg)->assertOk();
         $this->actingAsUser($this->user)->patchJson("/api/lists/{$this->list->id}/items/order", [
             'item_ids' => [$this->egg->id, $this->miso->id, $this->tissue->id, $this->milk->id],
             'move' => ['item_id' => $this->milk->id, 'group_id' => null],
@@ -313,13 +291,11 @@ class RepeatGroupCheckTest extends ListApiTestCase
 
         $milk = $this->milk->fresh();
         $this->assertNull($milk->group_id);
-        $this->assertFalse($milk->is_checked);
+        $this->assertTrue($milk->is_checked);
         $this->assertTrue($milk->last_checked_at->equalTo($checkedAt));
-        // 今日付けたチェックはそのまま
-        $this->assertTrue($this->egg->fresh()->is_checked);
     }
 
-    public function test_グループを消すとき、残る持ち物の期限の切れたチェックを外す(): void
+    public function test_グループを消しても、残る持ち物のチェックは外さない(): void
     {
         $this->at('2026-11-24 10:00:00');
         $this->check($this->milk)->assertOk();
@@ -334,14 +310,14 @@ class RepeatGroupCheckTest extends ListApiTestCase
         ])->assertOk();
         $this->actingAsUser($this->user)->postJson("/api/items/{$this->egg->id}/restore")->assertOk()
             ->assertJsonPath('data.group_id', null)
-            ->assertJsonPath('data.is_checked', false);
+            ->assertJsonPath('data.is_checked', true);
 
         $milk = $this->milk->fresh();
         $this->assertNull($milk->group_id);
-        $this->assertFalse($milk->is_checked);
+        $this->assertTrue($milk->is_checked);
     }
 
-    public function test_重ねてグループにするとき、期限の切れたチェックを持ち出さない(): void
+    public function test_重ねてグループにしても、前の日のチェックを保つ(): void
     {
         $this->at('2026-11-24 10:00:00');
         $this->check($this->milk)->assertOk();
@@ -351,10 +327,10 @@ class RepeatGroupCheckTest extends ListApiTestCase
             ->postJson("/api/items/{$this->tissue->id}/group", ['item_id' => $this->milk->id])
             ->assertCreated()
             ->assertJsonPath('data.group.check_mode', 'normal')
-            ->assertJsonPath('data.item.is_checked', false);
+            ->assertJsonPath('data.item.is_checked', true);
     }
 
-    public function test_別のリストへ移動するとき、期限の切れたチェックを外し、今日のチェックと日付は保つ(): void
+    public function test_別のリストへ移動しても、前の日のチェックと日付を保つ(): void
     {
         $destination = PackingList::factory()->for($this->user)->create();
         $old = $this->at('2026-11-24 10:00:00');
@@ -367,12 +343,12 @@ class RepeatGroupCheckTest extends ListApiTestCase
             'destination_list_id' => $destination->id,
         ])->assertOk();
 
+        // D-118：移動はチェックと日付を保つ
         $milk = $this->milk->fresh();
         $egg = $this->egg->fresh();
         $this->assertSame($destination->id, $milk->packing_list_id);
-        $this->assertFalse($milk->is_checked);
+        $this->assertTrue($milk->is_checked);
         $this->assertTrue($milk->last_checked_at->equalTo($old));
-        // D-118：移動はチェックを保つ
         $this->assertTrue($egg->is_checked);
         $this->assertTrue($egg->last_checked_at->equalTo($today));
     }
