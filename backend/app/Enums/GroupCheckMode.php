@@ -7,7 +7,7 @@ enum GroupCheckMode: string
 {
     // チェックしたら隠す（D-94）
     case Normal = 'normal';
-    // 隠さず、前回チェックした日を出す。日付が変わるとチェックが外れる
+    // 隠さず、前回チェックした日を出す。チェックは自動では外れず、利用者が外す
     case Repeat = 'repeat';
 
     /**

@@ -149,23 +149,20 @@ class GroupCheckModeTest extends ListApiTestCase
         $this->assertSame(4, $this->list->fresh()->grouping_revision);
     }
 
-    public function test_通常へ変えるとき、昨日までのチェックは外し、今日のチェックは保つ(): void
+    public function test_通常へ変えても、前の日のチェックと日付はそのまま(): void
     {
-        $egg = PackingListItem::factory()->for($this->list)->create(['name' => '卵', 'sort_order' => 3, 'group_id' => $this->repeat->id]);
         $this->check($this->milk);
 
-        // 日付が変わった後、読み直さずに（開いたままの画面から）通常へ変える
+        // D-122：チェックは自動では外れない。日付が変わった後に通常へ変えても、チェック済みのまま（通常なので隠れる）
         $this->travelTo(Carbon::parse('2026-11-25 10:00:00'));
-        $this->check($egg);
         $this->change($this->repeat, 'normal')->assertOk();
 
-        // 昨日のチェックを、チェック済みとして通常のグループへ持ち出さない
-        $this->assertFalse($this->milk->fresh()->is_checked);
-        $this->assertTrue($this->milk->fresh()->last_checked_at->equalTo(Carbon::parse('2026-11-24 10:00:00')));
-        $this->assertTrue($egg->fresh()->is_checked);
+        $milk = $this->milk->fresh();
+        $this->assertTrue($milk->is_checked);
+        $this->assertTrue($milk->last_checked_at->equalTo(Carbon::parse('2026-11-24 10:00:00')));
     }
 
-    public function test_繰り返し利用へ変えると、読んだときに今日より前のチェックが外れる(): void
+    public function test_繰り返し利用へ変えても、前の日のチェックと日付はそのまま(): void
     {
         $this->check($this->miso);
 
@@ -173,7 +170,7 @@ class GroupCheckModeTest extends ListApiTestCase
         $this->change($this->normal, 'repeat')->assertOk();
 
         $items = collect($this->getJson("/api/lists/{$this->list->id}")->assertOk()->json('data.items'))->keyBy('name');
-        $this->assertFalse($items['味噌']['is_checked']);
+        $this->assertTrue($items['味噌']['is_checked']);
         $this->assertSame(Carbon::parse('2026-11-24 10:00:00')->toJSON(), $items['味噌']['last_checked_at']);
     }
 
@@ -227,12 +224,12 @@ class GroupCheckModeTest extends ListApiTestCase
         $this->assertSame(GroupCheckMode::Repeat, $this->normal->fresh()->check_mode);
     }
 
-    public function test_グループ整理で繰り返し利用のグループから移すとき、期限の切れたチェックを持ち出さない(): void
+    public function test_グループ整理で繰り返し利用のグループから出し入れしても、チェックと日付を保つ(): void
     {
         $this->check($this->milk);
         $this->check($this->miso);
 
-        // 日付が変わった後、読み直さずに保存する。牛乳は通常のグループへ、味噌は繰り返し利用のグループへ
+        // D-122：日付が変わった後に保存しても、チェックは外さない。牛乳は通常のグループへ、味噌は繰り返し利用のグループへ
         $this->travelTo(Carbon::parse('2026-11-25 10:00:00'));
         $response = $this->saveGrouping([
             ['key' => 'a', 'id' => $this->repeat->id, 'name' => 'いつもの買い物', 'check_mode' => 'repeat'],
@@ -241,11 +238,9 @@ class GroupCheckModeTest extends ListApiTestCase
 
         $items = collect($response->json('data.items'))->keyBy('name');
         $this->assertSame($this->normal->id, $items['牛乳']['group_id']);
-        $this->assertFalse($items['牛乳']['is_checked']);
-        // 繰り返し利用のグループへ入った持ち物も、今日より前のチェックは外して返す
-        $this->assertFalse($items['味噌']['is_checked']);
-        $this->assertFalse($this->milk->fresh()->is_checked);
-        $this->assertFalse($this->miso->fresh()->is_checked);
+        $this->assertTrue($items['牛乳']['is_checked']);
+        $this->assertTrue($items['味噌']['is_checked']);
+        $this->assertTrue($this->milk->fresh()->last_checked_at->equalTo(Carbon::parse('2026-11-24 10:00:00')));
     }
 
     /**

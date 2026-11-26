@@ -8,6 +8,7 @@ export const CHECKED_HIDE_DELAY_MS = 1000;
 /**
  * チェック済みを隠している間にチェックを付けた持ち物を、少しの間だけ表示したままにする。
  * 時間が来たら onHide を呼んでから表示から外す（onHide で次のカーソルの位置を決められる）。
+ * D-122：繰り返し利用のグループでは、チェックを付けた持ち物を下へ動かすまで、同じ時間だけ元の位置に残すのにも使う。
  */
 export function useDelayedHide(onHide: (itemId: number) => void) {
   const [delayedIds, setDelayedIds] = useState<ReadonlySet<number>>(

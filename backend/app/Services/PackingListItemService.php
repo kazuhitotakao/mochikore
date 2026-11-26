@@ -18,10 +18,7 @@ use Illuminate\Validation\ValidationException;
  */
 class PackingListItemService
 {
-    public function __construct(
-        private ItemAdditionLimiter $additionLimiter,
-        private RepeatCheckService $repeatChecks,
-    ) {}
+    public function __construct(private ItemAdditionLimiter $additionLimiter) {}
 
     /**
      * API-10 持ち物の追加。未分類（group_id は NULL）で全体の末尾に入れる。
@@ -73,7 +70,9 @@ class PackingListItemService
 
     /**
      * D-122：チェックを付けた日時を覚える（繰り返し利用のグループで「前回」として出す）。
-     * 付けたその日のうちに外したら、押し間違いとして付ける前の日時へ戻す。翌日以降に外したときは残す。
+     * 外しても日時は残す（チェックはこれからの予定、日時は過去の記録として分けて持つ）。
+     * ただし付けてから1分以内に外したら、押し間違いとして付ける前の日時へ戻す。
+     * 経過はサーバーの時刻で数え、共同編集でほかのメンバーが外したときも同じにする。
      */
     private function recordCheck(PackingListItem $item, bool $checked): void
     {
@@ -85,7 +84,7 @@ class PackingListItemService
         if ($checked) {
             $item->previous_checked_at = $item->last_checked_at;
             $item->last_checked_at = now();
-        } elseif ($item->last_checked_at?->gte(today())) {
+        } elseif ($item->last_checked_at?->gte(now()->subSeconds(PackingListItem::CHECK_CORRECTION_SECONDS))) {
             $item->last_checked_at = $item->previous_checked_at;
             $item->previous_checked_at = null;
         }
@@ -141,11 +140,6 @@ class PackingListItemService
                 throw ValidationException::withMessages([
                     'item_ids' => [__('validation.bulk_delete.items')],
                 ]);
-            }
-
-            if ($groupIds !== []) {
-                // D-122：消すグループに残る持ち物は未分類（通常）へ移るので、期限の切れたチェックを先に外す
-                $this->repeatChecks->expire($locked);
             }
 
             if ($itemIds !== []) {
@@ -241,8 +235,6 @@ class PackingListItemService
                         'move' => [__('validation.custom.move.list')],
                     ]);
                 }
-                // D-122：繰り返し利用のグループから出すとき、期限の切れたチェックを持ち出さない
-                $this->repeatChecks->expire($locked);
                 // group_id は Fillable に入れていないので、クエリで直接変える
                 $locked->items()->whereKey($move['item_id'])->update(['group_id' => $move['group_id']]);
                 if ($move['group_id'] !== null) {
@@ -287,8 +279,8 @@ class PackingListItemService
                 ]);
             }
 
-            // D-122：日時を変えるのは、状態が変わる持ち物だけ（1件ずつのチェック recordCheck と同じ決まり）
             if ($checked) {
+                // D-122：日時を進めるのは、状態が変わる持ち物だけ（1件ずつのチェック recordCheck と同じ決まり）。
                 // MySQL は左から順に代入するので、今の日時を1つ前へ写してから、新しい日時を入れる
                 $list->items()->whereKey($itemIds)->where('is_checked', false)->update([
                     'previous_checked_at' => DB::raw('last_checked_at'),
@@ -296,15 +288,9 @@ class PackingListItemService
                     'is_checked' => true,
                 ]);
             } else {
-                // 今日付けたチェックは、付ける前の日時へ戻す。それより前のチェックは、日時を残して外す
-                $list->items()->whereKey($itemIds)->where('is_checked', true)
-                    ->where('last_checked_at', '>=', today())
-                    ->update([
-                        'last_checked_at' => DB::raw('previous_checked_at'),
-                        'previous_checked_at' => null,
-                        'is_checked' => false,
-                    ]);
-                $list->items()->whereKey($itemIds)->where('is_checked', true)->update(['is_checked' => false]);
+                // D-122：グループ単位でまとめて外すときは、付けてからの時間に関係なく日時を残す
+                // （1分以内の押し間違いとして戻すのは、1件ずつ外したときだけ）
+                $list->items()->whereKey($itemIds)->update(['is_checked' => false]);
             }
 
             return $list->items()->whereKey($itemIds)->orderBy('sort_order')->orderBy('id')->get();

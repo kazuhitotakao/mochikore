@@ -86,7 +86,7 @@ export type PackingList = {
 };
 
 // D-122：グループごとのチェックの動き。normal は「通常」（チェックしたら隠す）、
-// repeat は「繰り返し利用」（隠さず、前回チェックした日を出す。日付が変わるとチェックが外れる）
+// repeat は「繰り返し利用」（隠さず、前回チェックした日を出す。チェックは自動では外れず、利用者が外す）
 export type GroupCheckMode = "normal" | "repeat";
 
 export type PackingListGroup = {

@@ -19,8 +19,6 @@ use Illuminate\Validation\ValidationException;
  */
 class GroupingService
 {
-    public function __construct(private RepeatCheckService $repeatChecks) {}
-
     /**
      * @param  list<array{key: string, id: int|null, name: string, check_mode: string}>  $groups  配列の順が見出しの順
      * @param  list<array{item_id: int, group_key: string|null}>  $assignments
@@ -50,9 +48,6 @@ class GroupingService
             if ($this->isUnchanged($groups, $assignments, $currentGroups, $currentItems->all(), $keyToId)) {
                 return $keyToId;
             }
-
-            // D-122：所属・設定を変える前に、今の設定で期限の切れたチェックを外す（通常のグループへ持ち出さない）
-            $this->repeatChecks->expire($locked);
 
             // D-61：送られなかった既存グループは削除する。中の持ち物は、削除済みも含めて
             // DB（ON DELETE SET NULL）が未分類にする
@@ -212,12 +207,6 @@ class GroupingService
                 }
             }
 
-            if ($target->isDirty('check_mode')) {
-                // D-122：設定を変える前に、今の設定で期限の切れたチェックを外す。
-                // 通常へ変えたとき、昨日までのチェックがチェック済みとして隠れないようにする
-                $this->repeatChecks->expire($locked);
-            }
-
             $target->save();
             // D-59・D-109：グループの変更なので revision を増やし、開いたままの SC-09 が古い内容で上書きしないようにする。
             // D-24：一覧の上に戻す（increment は updated_at も更新する）
@@ -241,9 +230,6 @@ class GroupingService
             // 同時に削除・グループにされていたら存在しない持ち物と同じ404にし、グループを二重に作らない
             $target = $locked->items()->whereKey($base->id)->first()
                 ?? throw (new ModelNotFoundException)->setModel(PackingListItem::class);
-
-            // D-122：重ねた持ち物は繰り返し利用のグループから出ることがあるので、期限の切れたチェックを先に外す
-            $this->repeatChecks->expire($locked);
 
             // V-24：重ねた持ち物は、同じリストの削除していない別の持ち物だけ
             $moved = $itemId === $target->id ? null : $locked->items()->whereKey($itemId)->first();
@@ -336,9 +322,6 @@ class GroupingService
             if ($locked->items()->count() + 1 > PackingListItem::MAX_PER_LIST) {
                 throw new ApiException(ApiErrorCode::ItemLimitReached, '1つのリストに入れられる持ち物は2,000件までです。');
             }
-
-            // D-122：所属を変える前に、繰り返し利用のグループの期限の切れたチェックを外す
-            $this->repeatChecks->expire($locked);
 
             // group_id は Fillable に入れていないので、クエリで直接変える。全体の順番とチェックは変えない（D-60）
             $locked->items()->whereKey($moved->id)->update(['group_id' => $previousGroupId]);
