@@ -12,6 +12,7 @@ import {
 } from "react";
 import { Icon } from "@/components/Icon";
 import { useDismiss } from "@/components/useDismiss";
+import { useMenuPlacement } from "@/components/useMenuPlacement";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
@@ -100,6 +101,9 @@ export function ItemRow({
   const menuContainer = useRef<HTMLDivElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuContainer, menuOpen, closeMenu);
+  // D-125：画面（分割表示では上下のリスト）の下に入りきらないときは、上に開く
+  const menu = useRef<HTMLUListElement>(null);
+  useMenuPlacement(menuOpen, menu, menuContainer);
   const [error, setError] = useState<string | null>(null);
   // D-105：「…」の「削除」と同じく、確認なしで削除して「削除した持ち物」へ移す（D-27）。
   // 名前の入力中・送信中・メニューを開いている間・並べ替えの保存中・ドラッグ中は横に引かない
@@ -303,7 +307,9 @@ export function ItemRow({
                   setDraft(item.name);
                   setEditing(true);
                 }}
-                className="min-w-0 flex-1 cursor-grab text-left wrap-break-word"
+                // D-125：まとめ表示でリストが2件のスマホでは（分割表示・通常表示とも、dense:）、見える量を増やすため文字を14px・行を36pxに詰める
+                // （利用者の指示。押せる範囲44pxの例外）。名前の入力欄は、iPhone で拡大されないよう16pxのまま
+                className="min-w-0 flex-1 cursor-grab text-left wrap-break-word dense:text-sm"
               >
                 {item.name}
               </button>
@@ -337,15 +343,16 @@ export function ItemRow({
                 disabled={busy}
                 onClick={() => setMenuOpen((open) => !open)}
                 // 指で押しやすいよう、押せる範囲を44px四方以上にする（利用者の指示）
-                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted hover:bg-sunken disabled:opacity-50"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted hover:bg-sunken disabled:opacity-50 dense:min-h-9 dense:min-w-9"
               >
                 …
               </button>
               {/* SC-07-10 */}
               {menuOpen && (
                 <ul
+                  ref={menu}
                   id={menuId}
-                  className="absolute right-0 z-10 mt-1 w-60 menu py-1"
+                  className="absolute right-0 z-10 mt-1 w-60 menu py-1 data-up:bottom-full data-up:mt-0 data-up:mb-1"
                 >
                   <li>
                     <button

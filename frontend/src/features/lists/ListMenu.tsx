@@ -21,7 +21,7 @@ import type { InviteLink, ItemDeleteResult } from "@/types/api";
 import { CollaborationDialog } from "./CollaborationDialog";
 import { bulkDeleteErrorMessage } from "./itemErrors";
 import { ShareLinkDialog } from "./ShareLinkDialog";
-import { withShowChecked } from "./showChecked";
+import { listPagePath } from "@/features/combined-views/returnPath";
 import type { VisibilityToggle } from "./useVisibilityToggle";
 import { PublishConfirmDialog } from "./VisibilitySwitch";
 
@@ -64,6 +64,8 @@ type Props = {
   // 招待リンク（所有者だけ。なければ null）
   invite: InviteLink | null;
   onInviteChange: (invite: InviteLink | null) => void;
+  // D-124：まとめ表示（SC-20）から開いたときの、そのまとめ表示のID（なければ null）
+  combinedViewId: number | null;
 };
 
 type Confirming = "grouping" | "reset-checks" | "delete-checked" | null;
@@ -98,6 +100,7 @@ export function ListMenu({
   onMemberCountChange,
   invite,
   onInviteChange,
+  combinedViewId,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -182,11 +185,15 @@ export function ListMenu({
 
   // D-95（利用者の指示）：チェック済みを表示しているときだけ、整理画面でもチェック済みを分類できるようにする。
   // D-94：SC-06・SC-09 から戻ったときも表示を引き継ぐ。表示の切替は画面の中の状態なので、開くときのURLで渡す
-  const groupingHref = withShowChecked(
-    `/lists/${listId}/grouping`,
+  // D-124：まとめ表示から開いたときは、SC-06・SC-09 から戻った後も「←」でまとめ表示へ戻れるよう、開いた元も渡す
+  const groupingHref = listPagePath(`/lists/${listId}/grouping`, {
     showChecked,
-  );
-  const editHref = withShowChecked(`/lists/${listId}/edit`, showChecked);
+    combinedViewId,
+  });
+  const editHref = listPagePath(`/lists/${listId}/edit`, {
+    showChecked,
+    combinedViewId,
+  });
 
   // SC-07-4・F-19：押したときだけ整理画面（SC-09）を開く（D-56）
   function openGrouping() {

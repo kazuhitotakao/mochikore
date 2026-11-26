@@ -23,9 +23,11 @@ import { getEventCoordinates } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Icon } from "@/components/Icon";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
+import { listPagePath } from "@/features/combined-views/returnPath";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { CheckModeDialog } from "@/features/grouping/CheckModeDialog";
@@ -66,6 +68,7 @@ import {
   groupIdOfSection,
   isSectionId,
   itemSortAnnouncements,
+  restrictToScrollArea,
   restrictToVerticalAxis,
   screenReaderInstructions,
   sectionId,
@@ -179,22 +182,48 @@ function keepExisting(
   return kept.length === selected.size ? selected : new Set(kept);
 }
 
+const DRAG_MODIFIERS = [restrictToVerticalAxis];
+const SPLIT_DRAG_MODIFIERS = [restrictToVerticalAxis, restrictToScrollArea];
+// D-125：分割表示の上下の一方に出すときの、中身のスクロールする入れ物。左右の余白まで広げ、余白の分だけ中を戻す。
+// 上下に分けると見える量が減るので、間の余白も詰める（利用者の指示。行・見出しは各部品の dense: で詰める）
+const COMBINED_SPLIT_SCROLL =
+  "split:-mx-5 split:flex split:min-h-0 split:flex-1 split:flex-col split:gap-2 split:overflow-x-hidden split:overflow-y-auto split:overscroll-contain split:px-5 split:pt-2 split:pb-4";
+
+// D-124：まとめ表示（SC-20）の中の1つのリストとして出すときの枠。リストそのものの操作（「…」）・説明文は出さず、
+// 見出し（リスト名・共同編集の印・たたむ矢印）の下に、SC-07 と同じ中身を出す
+export type CombinedFrame = {
+  viewId: number;
+  // リストごとたたんでいるか（この端末のブラウザに覚える）
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  // 画面下の通知・エラーを出す場所。リストが複数並ぶので、画面に1つだけ置き、そこへ出す
+  footer: HTMLElement | null;
+  // D-125：分割表示で上下の一方に出しているとき。持ち上げた行を、そのリストのスクロールする範囲の中に留める。
+  // 上下の形（見出しの固定・中身のスクロール）は CSS（split:）で決めるので、開いたときから分割表示で描ける
+  split: boolean;
+};
+
 type Props = {
   list: PackingListDetail;
   // SC-07-17：よく使う項目に保存するときのカテゴリーの選択肢（API-18）
   categories: Category[];
   // D-94：チェック済みを表示したまま SC-06・SC-09 へ行って戻ったときだけ true
   initialShowChecked: boolean;
-  // 共通2の「←」。SC-07-4・D-73：同じ行の右端に「…」を置く
-  backLink: ReactNode;
-  // 「←」の下、見出しの上に出す通知（公開リストをコピーした直後など）
+  // 共通2の「←」。SC-07-4・D-73：同じ行の右端に「…」を置く（SC-07 だけ）
+  backLink?: ReactNode;
+  // 「←」の下、見出しの上に出す通知（公開リストをコピーした直後など、SC-07 だけ）
   notice?: ReactNode;
   // F-35・D-119：共同編集の配信の接続先。設定がなければ null（開き直すと最新になる）
   realtime: RealtimeConfig | null;
+  // D-124：SC-07 をまとめ表示から開いたときの、そのまとめ表示のID。SC-06・SC-09 へ進むときにも渡す
+  combinedViewId?: number | null;
+  // D-124：まとめ表示（SC-20）の中に出すとき
+  combined?: CombinedFrame;
 };
 
 // SC-07 自分のリストの内容（通常画面）。持ち物の追加・削除で件数や公開の表示が変わるので、
-// 画面の状態として持ち、保存できた値（D-71）で表示を更新する
+// 画面の状態として持ち、保存できた値（D-71）で表示を更新する。
+// まとめ表示（SC-20、D-124）でも同じ部品を使い、リストごとに1つずつ並べる（同じ処理を二重に持たない）
 export function ListDetail({
   list,
   categories,
@@ -202,11 +231,17 @@ export function ListDetail({
   backLink,
   notice: topNotice,
   realtime,
+  combinedViewId = null,
+  combined,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   // サーバーとブラウザで同じ値になるIDを渡し、読み上げ用の要素のIDをそろえる
   const dndId = useId();
+  // D-124：まとめ表示では同じ画面に複数のリストが並ぶので、カーソルの移り先のスイッチもリストごとに分ける
+  const showCheckedSwitchId = `${SHOW_CHECKED_SWITCH_ID}-${list.id}`;
+  const combinedHeadingId = useId();
+  const combinedContentId = useId();
   const sensors = useItemSortSensors();
   const [items, setItems] = useState(list.items);
   // D-98：グループの順番は見出しを動かして変えるので、画面の状態として持つ
@@ -524,7 +559,7 @@ export function ListDetail({
     const active = document.activeElement;
     // 送信中のdisabledでカーソルが外れた場合も、既存の持ち物と同じ移動先に戻す。
     if (!active || active === document.body || section?.contains(active))
-      pendingFocusId.current = SHOW_CHECKED_SWITCH_ID;
+      pendingFocusId.current = showCheckedSwitchId;
   }
 
   // 少し待った後、チェック済みの行が表示から外れる直前に呼ばれる
@@ -570,7 +605,7 @@ export function ListDetail({
       );
     pendingFocusId.current = next
       ? itemCheckboxId(next.id)
-      : SHOW_CHECKED_SWITCH_ID;
+      : showCheckedSwitchId;
   }
 
   // D-122：繰り返し利用のグループでチェックした行が、1秒たって下へ動く直前に呼ばれる。
@@ -1491,6 +1526,8 @@ export function ListDetail({
         onToggleCollapsed={() => {
           if (groupId !== null) collapsedGroups.toggle(groupId);
         }}
+        // D-124：まとめ表示ではリスト名が h2 なので、グループは1段下げる
+        headingLevel={combined ? 3 : 2}
       >
         {renderItems(groupId, shownItems)}
         {groupId === null && (
@@ -1502,7 +1539,7 @@ export function ListDetail({
             <button
               type="button"
               onClick={() => setPanelOpen(true)}
-              className="group flex min-h-11 items-center gap-2 self-start rounded-lg pr-2 text-brand hover:text-brand-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              className="group flex min-h-11 items-center gap-2 self-start rounded-lg pr-2 text-brand hover:text-brand-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dense:min-h-9"
             >
               <Icon name="saved-add" />
               <span className="text-sm font-medium underline-offset-4 group-hover:underline">
@@ -1517,283 +1554,391 @@ export function ListDetail({
 
   const footerVisible = selecting || notice || reorderError || groupCheckError;
 
+  // D-124：まとめ表示（SC-20）のリストの見出し。リスト名を押すと SC-07 を開き、「←」でまとめ表示へ戻る。
+  // スマホでは、そのリストを見ている間は画面の上に残し、どのリストの持ち物かが分かるようにする。
+  // 個人用のリストには印を付けない（SC-05・SC-07 と同じ）。
+  // D-125：分割表示では、上下それぞれの上に固定する。たたむと見出しだけになり、もう一方が残りの高さを使う。
+  // リストが2件のスマホでは（分割表示・通常表示とも、dense:）、見える量を増やすため高さ40px・文字16pxに詰める（利用者の指示）
+  function renderCombinedHeader(frame: CombinedFrame) {
+    return (
+      <div
+        data-split-head
+        className="sticky top-0 z-20 -mx-5 flex min-h-12 shrink-0 items-center gap-2 border-b border-line bg-background px-5 lg:mx-0 lg:px-0 dense:min-h-10"
+      >
+        <h2
+          id={combinedHeadingId}
+          className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1 text-lg font-medium dense:text-base"
+        >
+          <Link
+            href={listPagePath(`/lists/${list.id}`, {
+              combinedViewId: frame.viewId,
+            })}
+            prefetch={false}
+            className="min-w-0 rounded wrap-break-word underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          >
+            {meta.title}
+          </Link>
+          {/* D-110 と同じく、件数はたたんだときだけ薄い色で出す */}
+          {frame.collapsed && (
+            <span className="shrink-0 text-sm font-normal whitespace-nowrap text-faint">
+              （{visibleItems.length}件）
+            </span>
+          )}
+        </h2>
+        {(!list.is_owner || memberCount > 0) && <CollaborativeBadge />}
+        <button
+          type="button"
+          aria-expanded={!frame.collapsed}
+          aria-controls={combinedContentId}
+          aria-label={
+            frame.collapsed ? `${meta.title}を開く` : `${meta.title}をたたむ`
+          }
+          onClick={frame.onToggleCollapsed}
+          className="-mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-brand hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dense:min-h-9 dense:min-w-9"
+        >
+          <Icon
+            name="chevron"
+            className={`size-5 transition-transform duration-200 ${frame.collapsed ? "-rotate-90" : ""}`}
+          />
+        </button>
+      </div>
+    );
+  }
+
+  // 画面下の通知・エラー・選ぶ表示の操作。SC-07 は画面下に固定して出し、まとめ表示（D-124）は画面に1つの欄へ出す
+  function placeFooter(body: ReactNode): ReactNode {
+    if (!combined) {
+      return (
+        <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
+          {body}
+        </div>
+      );
+    }
+    return combined.footer ? createPortal(body, combined.footer) : null;
+  }
+
+  const FrameTag = combined ? "section" : "div";
+
   return (
     <>
-      {/* 選ぶ表示の操作や通知を出している間は、最後の行が固定表示に隠れないよう余白をとる。 */}
-      <div
-        className={`flex flex-col gap-4 ${footerVisible ? "pb-40" : "pb-8"}`}
+      {/* 選ぶ表示の操作や通知を出している間は、最後の行が固定表示に隠れないよう余白をとる。
+          まとめ表示（D-124）では、余白は画面の側でとる */}
+      <FrameTag
+        aria-labelledby={combined ? combinedHeadingId : undefined}
+        className={
+          combined
+            ? "flex flex-col gap-3 dense:gap-2 split:min-h-0 split:flex-1 split:gap-0"
+            : `flex flex-col gap-4 ${footerVisible ? "pb-40" : "pb-8"}`
+        }
       >
-        {/* SC-07-4・D-73：「…」は「←」と同じ行の右端に置き、リスト名に横幅をすべて使う。
+        {combined ? (
+          renderCombinedHeader(combined)
+        ) : (
+          <>
+            {/* SC-07-4・D-73：「…」は「←」と同じ行の右端に置き、リスト名に横幅をすべて使う。
             「…」の押せる範囲（44px）は上下の余白に重ね、見出しの位置は「←」だけのときと変えない */}
-        <div className="mb-2 flex items-start justify-between gap-3">
-          {backLink}
-          {/* SC-07-2（利用者の指示）：カテゴリーと公開中の印は「←」の横の空きに置き、リスト名の下の行をなくして
+            <div className="mb-2 flex items-start justify-between gap-3">
+              {backLink}
+              {/* SC-07-2（利用者の指示）：カテゴリーと公開中の印は「←」の横の空きに置き、リスト名の下の行をなくして
               一覧を上げる。非公開はふつうの状態なので出さず、ほかの人に見えている「公開中」だけを出す。
               高さは「←」の丸（36px）にそろえ、中央を合わせる */}
-          <p className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-2">
-            <span className="tag">{meta.category.name}</span>
-            {isPublic && <PublicBadge />}
-            {/* D-119：参加しているリストと、メンバーがいる自分のリストに付ける（公開中とは両立しない） */}
-            {(!list.is_owner || memberCount > 0) && <CollaborativeBadge />}
-          </p>
-          {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
-          {!selecting && (
-            <div className="-mt-1 -mb-2">
-              <ListMenu
-                listId={list.id}
-                showChecked={showChecked}
-                onChecksReset={handleChecksReset}
-                checkedItemIds={checkedItemIds}
-                onCheckedItemsDeleted={(itemIds, result) =>
-                  handleBulkDeleted(itemIds, [], result)
-                }
-                hasDeletedItems={deletedItems.length > 0}
-                saving={reordering || groupChecking !== undefined}
-                canSelectToDelete={items.length > 0 || groups.length > 0}
-                onSelectToDelete={() => setSelectingMode(true)}
-                // SC-07-21・D-118：持ち物が1件以上あるときだけ選べる
-                canSelectToTransfer={items.length > 0}
-                onSelectToTransfer={() => setSelectingMode(true, "transfer")}
-                // SC-07-4・F-08：SC-06 と同じ処理（useVisibilityToggle）。画面を移らないので、
-                // チェック済みの表示と削除した持ち物の候補はそのまま残る（D-28）
-                isPublic={isPublic}
-                publishDisabled={
-                  visibility.sending || visibilityBlocked || moderated
-                }
-                publishDescribedBy={moderated ? moderatedNoticeId : undefined}
-                // 公開の確認も「…」の中に置き、「キャンセル」で「…」を開き直す（D-73）
-                visibility={visibility}
-                // SC-07-4・F-29：限定公開のリンク。運営が非公開にしたリストでは作れない（D-114）
-                shareToken={shareToken}
-                onShareTokenChange={setShareToken}
-                shareDisabled={moderated}
-                // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない
-                transferDisabled={moderated}
-                onModerated={() => {
-                  setModerated(true);
-                  setIsPublic(false);
-                }}
-                // SC-07-4・F-34：共同編集（D-119）
-                isOwner={list.is_owner}
-                memberCount={memberCount}
-                onMemberCountChange={setMemberCount}
-                invite={invite}
-                onInviteChange={setInvite}
-              />
-            </div>
-          )}
-        </div>
-        {topNotice}
-
-        {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しはリスト名だけにする。
-            公開の切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
-        <header className="flex flex-col gap-2">
-          <h1 className="text-2xl font-medium wrap-break-word">{meta.title}</h1>
-          {(visibility.error || moderated) && (
-            <div className="flex flex-col gap-1">
-              {/* 非公開にできなかった理由はリスト名の下に出す。公開の失敗は確認の中に出す */}
-              {visibility.error && (
-                <p role="alert" className="text-sm text-danger">
-                  {visibility.error}
-                </p>
+              <p className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-2">
+                <span className="tag">{meta.category.name}</span>
+                {isPublic && <PublicBadge />}
+                {/* D-119：参加しているリストと、メンバーがいる自分のリストに付ける（公開中とは両立しない） */}
+                {(!list.is_owner || memberCount > 0) && <CollaborativeBadge />}
+              </p>
+              {/* 選ぶ表示の間は、ほかの操作をしない（D-100） */}
+              {!selecting && (
+                <div className="-mt-1 -mb-2">
+                  <ListMenu
+                    listId={list.id}
+                    showChecked={showChecked}
+                    onChecksReset={handleChecksReset}
+                    checkedItemIds={checkedItemIds}
+                    onCheckedItemsDeleted={(itemIds, result) =>
+                      handleBulkDeleted(itemIds, [], result)
+                    }
+                    hasDeletedItems={deletedItems.length > 0}
+                    saving={reordering || groupChecking !== undefined}
+                    canSelectToDelete={items.length > 0 || groups.length > 0}
+                    onSelectToDelete={() => setSelectingMode(true)}
+                    // SC-07-21・D-118：持ち物が1件以上あるときだけ選べる
+                    canSelectToTransfer={items.length > 0}
+                    onSelectToTransfer={() =>
+                      setSelectingMode(true, "transfer")
+                    }
+                    // SC-07-4・F-08：SC-06 と同じ処理（useVisibilityToggle）。画面を移らないので、
+                    // チェック済みの表示と削除した持ち物の候補はそのまま残る（D-28）
+                    isPublic={isPublic}
+                    publishDisabled={
+                      visibility.sending || visibilityBlocked || moderated
+                    }
+                    publishDescribedBy={
+                      moderated ? moderatedNoticeId : undefined
+                    }
+                    // 公開の確認も「…」の中に置き、「キャンセル」で「…」を開き直す（D-73）
+                    visibility={visibility}
+                    // SC-07-4・F-29：限定公開のリンク。運営が非公開にしたリストでは作れない（D-114）
+                    shareToken={shareToken}
+                    onShareTokenChange={setShareToken}
+                    shareDisabled={moderated}
+                    // D-118：運営が非公開にしたリストの持ち物はコピー・移動できない
+                    transferDisabled={moderated}
+                    onModerated={() => {
+                      setModerated(true);
+                      setIsPublic(false);
+                    }}
+                    // SC-07-4・F-34：共同編集（D-119）
+                    isOwner={list.is_owner}
+                    memberCount={memberCount}
+                    onMemberCountChange={setMemberCount}
+                    invite={invite}
+                    onInviteChange={setInvite}
+                    combinedViewId={combinedViewId}
+                  />
+                </div>
               )}
-              {moderated && <ModeratedNotice id={moderatedNoticeId} />}
             </div>
+            {topNotice}
+
+            {/* SC-07-2（利用者の指示）：リストをシンプルに見せるため、見出しはリスト名だけにする。
+            公開の切り替えは「…」の中のスイッチで行う（SC-07-4）。持ち物の件数は出さない（D-95） */}
+            <header className="flex flex-col gap-2">
+              <h1 className="text-2xl font-medium wrap-break-word">
+                {meta.title}
+              </h1>
+              {(visibility.error || moderated) && (
+                <div className="flex flex-col gap-1">
+                  {/* 非公開にできなかった理由はリスト名の下に出す。公開の失敗は確認の中に出す */}
+                  {visibility.error && (
+                    <p role="alert" className="text-sm text-danger">
+                      {visibility.error}
+                    </p>
+                  )}
+                  {moderated && <ModeratedNotice id={moderatedNoticeId} />}
+                </div>
+              )}
+            </header>
+
+            {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
+            {meta.description && (
+              <p className="whitespace-pre-wrap">{meta.description}</p>
+            )}
+          </>
+        )}
+
+        {/* D-124：まとめ表示でリストをたたんだときは、中身を出さない。入力の途中の文字や削除した持ち物の候補を
+            残すため、外さずに隠す。SC-07 では入れ物を作らない（contents）ので、並びと余白は今までと同じ。
+            D-125：分割表示では、この入れ物だけをスクロールさせる。端まで来ても、もう一方のリストや画面全体へ
+            スクロールを伝えない。スクロール位置はまとめ表示の側で覚える（useSplitScrollMemory） */}
+        <div
+          id={combined ? combinedContentId : undefined}
+          data-split-scroll={combined ? "" : undefined}
+          className={
+            combined?.collapsed
+              ? "hidden"
+              : `contents ${combined ? COMBINED_SPLIT_SCROLL : ""}`
+          }
+        >
+          {selecting && (
+            // SC-07-18：「選んで削除」の選ぶ表示。隠したグループは出さない（D-101）
+            <SelectionList
+              groups={groups}
+              hiddenGroupIds={hiddenSectionIds}
+              visibleItems={visibleItems}
+              selectedItemIds={selectedItemIds}
+              selectedGroupIds={selectedGroupIds}
+              disabled={bulkDeleting || transfer !== null}
+              onToggleItem={(itemId) =>
+                setSelectedItemIds((current) => toggleInSet(current, itemId))
+              }
+              onToggleGroup={(groupId) =>
+                setSelectedGroupIds((current) => toggleInSet(current, groupId))
+              }
+            />
           )}
-        </header>
 
-        {/* SC-07-3：説明文があるときだけ。途中の改行はそのまま見せる */}
-        {meta.description && (
-          <p className="whitespace-pre-wrap">{meta.description}</p>
-        )}
-
-        {selecting && (
-          // SC-07-18：「選んで削除」の選ぶ表示。隠したグループは出さない（D-101）
-          <SelectionList
-            groups={groups}
-            hiddenGroupIds={hiddenSectionIds}
-            visibleItems={visibleItems}
-            selectedItemIds={selectedItemIds}
-            selectedGroupIds={selectedGroupIds}
-            disabled={bulkDeleting || transfer !== null}
-            onToggleItem={(itemId) =>
-              setSelectedItemIds((current) => toggleInSet(current, itemId))
-            }
-            onToggleGroup={(groupId) =>
-              setSelectedGroupIds((current) => toggleInSet(current, groupId))
-            }
-          />
-        )}
-
-        {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
-        <div className={selecting ? "hidden" : "flex flex-col gap-3"}>
-          {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、チェック済みのものがあるときだけ出す
+          {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
+          <div className={selecting ? "hidden" : "flex flex-col gap-3"}>
+            {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、チェック済みのものがあるときだけ出す
               （チェック済みの空グループだけを隠しているときも出し直せるように、空グループのチェックも数える）。
               画面の表示だけを変え、通信しない。
               「選んで削除」の間は、選ぶ対象が変わらないよう、この入れ物ごと出さない（D-100） */}
-          {hasChecked && (
-            <ShowCheckedSwitch
-              id={SHOW_CHECKED_SWITCH_ID}
-              on={showChecked}
-              count={checkedCount}
-              size="sm"
-              // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
-              // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
-              // 利用者の指示で右端にそろえる
-              align="end"
-              className="relative z-10 -mt-4 -mb-4"
-              onToggle={() => setShowChecked((shown) => !shown)}
+            {hasChecked && (
+              <ShowCheckedSwitch
+                id={showCheckedSwitchId}
+                on={showChecked}
+                count={checkedCount}
+                size="sm"
+                // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
+                // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
+                // 利用者の指示で右端にそろえる
+                align="end"
+                className="relative z-10 -mt-4 -mb-4 dense:-my-2 dense:min-h-9"
+                onToggle={() => setShowChecked((shown) => !shown)}
+              />
+            )}
+            {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
+              未チェックの空リストは追加行で分かるので、案内文を出さない。 */}
+            {(items.length > 0 || groups.some((group) => group.is_checked)) &&
+              visibleItems.length === 0 &&
+              visibleGroups.length === 0 && (
+                <p>
+                  すべてチェック済みです。上の「チェック済みを表示」をオンにすると確認できます。
+                </p>
+              )}
+            <DndContext
+              id={dndId}
+              sensors={sensors}
+              collisionDetection={detectSortTarget}
+              // 表示件数が変わった未分類も、持ち物の移動先として測り直す（D-98）。
+              measuring={{
+                droppable: { strategy: MeasuringStrategy.Always },
+              }}
+              modifiers={
+                combined?.split ? SPLIT_DRAG_MODIFIERS : DRAG_MODIFIERS
+              }
+              accessibility={{
+                announcements: itemSortAnnouncements(sortableItems, groups),
+                screenReaderInstructions,
+              }}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragMove={handleDragMove}
+              onDragEnd={(event) => void handleDragEnd(event)}
+              onDragCancel={clearDragState}
+            >
+              {/* D-98・D-101：表示中のグループだけを並べ替え、未分類は最後に置く。 */}
+              <SortableContext
+                items={visibleGroups.map((group) => sectionId(group.id))}
+                strategy={verticalListSortingStrategy}
+              >
+                {visibleGroups.map((group) =>
+                  renderSection(group.id, group.name),
+                )}
+              </SortableContext>
+              {renderSection(null, "未分類")}
+              {!draggingGroup && (
+                <DragOverlay adjustScale={false}>
+                  {draggingItem && (
+                    // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
+                    // 縁取りは ring にして、元の行と高さを変えない（D-98）
+                    <div
+                      aria-hidden="true"
+                      className="flex items-center gap-2 rounded-lg bg-background pl-1.5 shadow-md ring-1 ring-line"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={draggingItem.is_checked}
+                        readOnly
+                        tabIndex={-1}
+                        className="size-5 shrink-0"
+                      />
+                      <span className="min-w-0 flex-1 wrap-break-word dense:text-sm">
+                        {draggingItem.name}
+                      </span>
+                      {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする（まとめ表示で詰めるときは詰めた大きさ、D-125） */}
+                      <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted dense:min-h-9 dense:min-w-9">
+                        …
+                      </span>
+                    </div>
+                  )}
+                </DragOverlay>
+              )}
+            </DndContext>
+          </div>
+
+          <DeletedItems
+            deletedItems={deletedItems}
+            onRestored={handleRestored}
+            // D-103：確定は画面の候補から消すだけで、APIは呼ばない（持ち物は定期処理で完全に消える、D-35）
+            onConfirm={(itemId) =>
+              setDeletedItems((current) =>
+                current.filter((deleted) => deleted.item.id !== itemId),
+              )
+            }
+            onConfirmAll={() => setDeletedItems([])}
+          />
+
+          {panelOpen && (
+            <SavedItemPanel
+              listId={list.id}
+              listCategoryId={meta.category.id}
+              categories={categories}
+              onClose={() => setPanelOpen(false)}
+              onAdded={(added) => {
+                // API-34：選んだ順に末尾へ入った。SC-08-6：成功したらパネルを閉じて SC-07 に足す
+                setItems((current) => [...current, ...added]);
+                setPanelOpen(false);
+              }}
+              onListReloaded={(latest) => {
+                // SC-08-6：409 で読み直した最新の持ち物を表示する。削除した持ち物の候補と表示切替は残す
+                setItems(latest);
+              }}
             />
           )}
-          {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
-              未チェックの空リストは追加行で分かるので、案内文を出さない。 */}
-          {(items.length > 0 || groups.some((group) => group.is_checked)) &&
-            visibleItems.length === 0 &&
-            visibleGroups.length === 0 && (
-              <p>
-                すべてチェック済みです。上の「チェック済みを表示」をオンにすると確認できます。
+
+          {/* SC-07-25・D-122：グループの見出しのボタンから開く「チェックの動き」 */}
+          {checkModeGroup && (
+            <CheckModeDialog
+              key={checkModeGroup.id}
+              listId={list.id}
+              group={checkModeGroup}
+              // D-122：繰り返し利用のグループのチェックは自動では外れないので、このダイアログからまとめて外す
+              checkedItemIds={items
+                .filter(
+                  (item) =>
+                    item.group_id === checkModeGroup.id && item.is_checked,
+                )
+                .map((item) => item.id)}
+              onCancel={() => setCheckModeGroupId(null)}
+              onSaved={(saved) => {
+                setCheckModeGroupId(null);
+                groupCheckUndo.current.delete(saved.id);
+                setGroups((current) =>
+                  current.map((group) =>
+                    group.id === saved.id
+                      ? { ...group, check_mode: saved.check_mode }
+                      : group,
+                  ),
+                );
+              }}
+              onUnchecked={(saved) => {
+                setCheckModeGroupId(null);
+                groupCheckUndo.current.delete(checkModeGroup.id);
+                for (const item of saved) cancelSink(item.id);
+                applySavedChecks(saved);
+              }}
+            />
+          )}
+
+          {savingItem && (
+            <SaveItemDialog
+              key={savingItem.id}
+              item={savingItem}
+              categories={categories}
+              defaultCategoryId={meta.category.id}
+              onClose={() => setSavingItem(null)}
+              onSaved={() => {
+                setSavingItem(null);
+                // SC-07-17・共通4：保存できたら知らせる。保存した持ち物そのものは変わらない（D-66）
+                setNotice("保存しました");
+              }}
+            />
+          )}
+        </div>
+      </FrameTag>
+
+      {footerVisible &&
+        placeFooter(
+          <div className="flex flex-col gap-2 px-5 py-3">
+            {/* D-124：まとめ表示では、どのリストの知らせかが分かるようにリスト名を添える */}
+            {combined && (
+              <p className="text-xs font-medium text-muted wrap-break-word">
+                {meta.title}
               </p>
             )}
-          <DndContext
-            id={dndId}
-            sensors={sensors}
-            collisionDetection={detectSortTarget}
-            // 表示件数が変わった未分類も、持ち物の移動先として測り直す（D-98）。
-            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-            modifiers={[restrictToVerticalAxis]}
-            accessibility={{
-              announcements: itemSortAnnouncements(sortableItems, groups),
-              screenReaderInstructions,
-            }}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragMove={handleDragMove}
-            onDragEnd={(event) => void handleDragEnd(event)}
-            onDragCancel={clearDragState}
-          >
-            {/* D-98・D-101：表示中のグループだけを並べ替え、未分類は最後に置く。 */}
-            <SortableContext
-              items={visibleGroups.map((group) => sectionId(group.id))}
-              strategy={verticalListSortingStrategy}
-            >
-              {visibleGroups.map((group) =>
-                renderSection(group.id, group.name),
-              )}
-            </SortableContext>
-            {renderSection(null, "未分類")}
-            {!draggingGroup && (
-              <DragOverlay adjustScale={false}>
-                {draggingItem && (
-                  // 浮かせた行は左端のチェック欄が縁に付いて窮屈に見えるので、左に余白をとって角を丸める（利用者の指示）。
-                  // 縁取りは ring にして、元の行と高さを変えない（D-98）
-                  <div
-                    aria-hidden="true"
-                    className="flex items-center gap-2 rounded-lg bg-background pl-1.5 shadow-md ring-1 ring-line"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={draggingItem.is_checked}
-                      readOnly
-                      tabIndex={-1}
-                      className="size-5 shrink-0"
-                    />
-                    <span className="min-w-0 flex-1 wrap-break-word">
-                      {draggingItem.name}
-                    </span>
-                    {/* 元の行と同じ寸法で動かす（D-98）ので、行の「…」と同じ大きさにする */}
-                    <span className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-muted">
-                      …
-                    </span>
-                  </div>
-                )}
-              </DragOverlay>
-            )}
-          </DndContext>
-        </div>
-
-        <DeletedItems
-          deletedItems={deletedItems}
-          onRestored={handleRestored}
-          // D-103：確定は画面の候補から消すだけで、APIは呼ばない（持ち物は定期処理で完全に消える、D-35）
-          onConfirm={(itemId) =>
-            setDeletedItems((current) =>
-              current.filter((deleted) => deleted.item.id !== itemId),
-            )
-          }
-          onConfirmAll={() => setDeletedItems([])}
-        />
-
-        {panelOpen && (
-          <SavedItemPanel
-            listId={list.id}
-            listCategoryId={meta.category.id}
-            categories={categories}
-            onClose={() => setPanelOpen(false)}
-            onAdded={(added) => {
-              // API-34：選んだ順に末尾へ入った。SC-08-6：成功したらパネルを閉じて SC-07 に足す
-              setItems((current) => [...current, ...added]);
-              setPanelOpen(false);
-            }}
-            onListReloaded={(latest) => {
-              // SC-08-6：409 で読み直した最新の持ち物を表示する。削除した持ち物の候補と表示切替は残す
-              setItems(latest);
-            }}
-          />
-        )}
-
-        {/* SC-07-25・D-122：グループの見出しのボタンから開く「チェックの動き」 */}
-        {checkModeGroup && (
-          <CheckModeDialog
-            key={checkModeGroup.id}
-            listId={list.id}
-            group={checkModeGroup}
-            // D-122：繰り返し利用のグループのチェックは自動では外れないので、このダイアログからまとめて外す
-            checkedItemIds={items
-              .filter(
-                (item) =>
-                  item.group_id === checkModeGroup.id && item.is_checked,
-              )
-              .map((item) => item.id)}
-            onCancel={() => setCheckModeGroupId(null)}
-            onSaved={(saved) => {
-              setCheckModeGroupId(null);
-              groupCheckUndo.current.delete(saved.id);
-              setGroups((current) =>
-                current.map((group) =>
-                  group.id === saved.id
-                    ? { ...group, check_mode: saved.check_mode }
-                    : group,
-                ),
-              );
-            }}
-            onUnchecked={(saved) => {
-              setCheckModeGroupId(null);
-              groupCheckUndo.current.delete(checkModeGroup.id);
-              for (const item of saved) cancelSink(item.id);
-              applySavedChecks(saved);
-            }}
-          />
-        )}
-
-        {savingItem && (
-          <SaveItemDialog
-            key={savingItem.id}
-            item={savingItem}
-            categories={categories}
-            defaultCategoryId={meta.category.id}
-            onClose={() => setSavingItem(null)}
-            onSaved={() => {
-              setSavingItem(null);
-              // SC-07-17・共通4：保存できたら知らせる。保存した持ち物そのものは変わらない（D-66）
-              setNotice("保存しました");
-            }}
-          />
-        )}
-      </div>
-
-      {footerVisible && (
-        <div className="fixed bottom-0 left-1/2 w-full max-w-[640px] -translate-x-1/2 border-t border-line bg-background sm:border-x">
-          <div className="flex flex-col gap-2 px-5 py-3">
             {notice && (
               <p role="status" className="text-sm">
                 {typeof notice === "string" ? (
@@ -1905,9 +2050,8 @@ export function ListDetail({
                 </div>
               </div>
             ) : null}
-          </div>
-        </div>
-      )}
+          </div>,
+        )}
 
       {/* SC-07-21・D-118：移し先を選ぶ。このダイアログが確認を兼ねる */}
       {transfer && (

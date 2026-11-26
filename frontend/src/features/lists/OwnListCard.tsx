@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useDismiss } from "@/components/useDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
+import { CombinedViewDialog } from "@/features/combined-views/CombinedViewDialog";
+import { combinedViewPath } from "@/features/combined-views/returnPath";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { formatDate } from "@/lib/format";
@@ -18,7 +21,7 @@ import { SwipeDeleteLayer } from "./SwipeDeleteLayer";
 import { useSwipeToDelete } from "./useSwipeToDelete";
 
 // 確認・複製のダイアログで「キャンセル」を押した後に、カーソルを戻す「…」の項目
-type MenuItemKey = "duplicate" | "delete" | "leave";
+type MenuItemKey = "duplicate" | "combine" | "delete" | "leave";
 
 // 一覧から外れた理由。gone は、ほかの画面で先に削除された・メンバーから外されていたとき
 export type RemovedReason = "deleted" | "left" | "gone";
@@ -30,6 +33,10 @@ type Props = {
   onSwipeOpenChange: (open: boolean) => void;
   onRemoved: (reason: RemovedReason) => void;
   onDuplicated: () => void;
+  // D-124：「まとめ表示を作る」で選べるリスト（自分が見られるリスト）。2件未満のときは null で、項目を出さない
+  combineChoices: PackingListSummary[] | null;
+  // まとめ表示がすでに10件あるか。ダイアログを開いた時点で案内する
+  combinedLimitReached: boolean;
 };
 
 // カードと中のリンクの角丸（globals.css の card と同じ）。左スワイプで出す赤い「削除」の角もそろえる
@@ -48,7 +55,10 @@ export function OwnListCard({
   onSwipeOpenChange,
   onRemoved,
   onDuplicated,
+  combineChoices,
+  combinedLimitReached,
 }: Props) {
+  const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -60,6 +70,8 @@ export function OwnListCard({
   // D-119：参加しているリストから抜ける確認
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  // D-124：このリストを選んだ状態で、まとめ表示を作るダイアログを出しているか
+  const [combining, setCombining] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 「…」を開き直したときにカーソルを移す項目。描画に使わないので ref に置く
@@ -74,6 +86,7 @@ export function OwnListCard({
       menuOpen ||
       confirming !== null ||
       duplicating ||
+      combining ||
       sending,
     // SC-05 は並べ替えがないので、押してから少し間をおいて引いても横に動かす
     dragOnHold: false,
@@ -252,6 +265,23 @@ export function OwnListCard({
                       <MenuLabel icon="copy">このリストを複製</MenuLabel>
                     </button>
                   </li>
+                  {/* D-124：このリストとほかのリストを、まとめ表示で1つの画面に並べる。
+                      見られるリストが2件以上のときだけ出し、まとめ表示を使わない人の「…」は今までどおりにする */}
+                  {combineChoices && (
+                    <li>
+                      <button
+                        type="button"
+                        data-menu-item="combine"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setCombining(true);
+                        }}
+                        className={MENU_ITEM}
+                      >
+                        <MenuLabel icon="combined">まとめ表示を作る</MenuLabel>
+                      </button>
+                    </li>
+                  )}
                 </MenuSection>
                 <MenuSection divided>
                   {list.is_owner ? (
@@ -342,6 +372,21 @@ export function OwnListCard({
             setDuplicating(false);
             onDuplicated();
           }}
+        />
+      )}
+
+      {/* SC-05-9・D-124：押したリストを選んだ状態で始める。作ったらそのまとめ表示（SC-20）を開く */}
+      {combining && combineChoices && (
+        <CombinedViewDialog
+          view={null}
+          initialListIds={[list.id]}
+          lists={combineChoices}
+          limitReached={combinedLimitReached}
+          onCancel={() => {
+            setCombining(false);
+            reopenMenu("combine");
+          }}
+          onSaved={(saved) => router.push(combinedViewPath(saved.id))}
         />
       )}
     </li>

@@ -2,12 +2,16 @@ import Link from "next/link";
 import { readAsUser } from "@/features/auth/requireUser";
 import { OwnListIndex } from "@/features/lists/OwnListIndex";
 import { MAX_LISTS } from "@/features/lists/validation";
-import type { PackingListSummary } from "@/types/api";
+import type { CombinedView, PackingListSummary } from "@/types/api";
 
 // SC-05 自分のリスト一覧
 export default async function ListsPage(props: PageProps<"/lists">) {
-  // D-19：メール未認証なら Laravel が403を返し、SC-04へ移動する
-  const lists = await readAsUser<PackingListSummary[]>("/lists", "/lists");
+  // D-19：メール未認証なら Laravel が403を返し、SC-04へ移動する。
+  // D-124：本人のまとめ表示（API-65）も同時に読み、1件以上あるときだけ一覧の上に出す
+  const [lists, combinedViews] = await Promise.all([
+    readAsUser<PackingListSummary[]>("/lists", "/lists"),
+    readAsUser<CombinedView[]>("/combined-views", "/lists"),
+  ]);
   const searchParams = await props.searchParams;
   // D-119：参加しているリストも並ぶが、100件の上限（D-50）は自分のリストだけで数える
   const ownCount = lists.filter((list) => list.is_owner).length;
@@ -29,7 +33,7 @@ export default async function ListsPage(props: PageProps<"/lists">) {
 
       {/* SC-05-4〜7：カードの「…」・左スワイプでの編集・複製・削除（D-120）。
           共同編集で参加しているリストも一緒に並べ、「…」から抜けられる（D-119） */}
-      <OwnListIndex lists={lists}>
+      <OwnListIndex lists={lists} combinedViews={combinedViews}>
         {/* SC-05-3（D-73）：利用者の指示で、リストの一覧の下に置く。100件のときは押せない */}
         {isFull ? (
           <div className="flex flex-col gap-1">

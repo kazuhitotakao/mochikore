@@ -111,6 +111,25 @@ export const restrictToVerticalAxis: Modifier = ({ transform }) => ({
   x: 0,
 });
 
+// D-125：まとめ表示の分割表示では、持ち上げた行を、そのリストのスクロールする範囲（一番近い入れ物）の中に留める。
+// 留めないと、もう一方のリストの上に重なって見え、範囲の外へ隠れた行が移動先になる。
+// 範囲の端に近づけたときは、dnd-kit がその範囲の中をスクロールする
+export const restrictToScrollArea: Modifier = ({
+  transform,
+  draggingNodeRect,
+  scrollableAncestorRects,
+}) => {
+  const bounds = scrollableAncestorRects[0];
+  if (!draggingNodeRect || !bounds) return transform;
+  if (draggingNodeRect.top + transform.y < bounds.top) {
+    return { ...transform, y: bounds.top - draggingNodeRect.top };
+  }
+  if (draggingNodeRect.bottom + transform.y > bounds.bottom) {
+    return { ...transform, y: bounds.bottom - draggingNodeRect.bottom };
+  }
+  return transform;
+};
+
 // 画面読み上げで伝える文。dnd-kit の既定は英語なので、日本語にする
 export const screenReaderInstructions: ScreenReaderInstructions = {
   draggable:

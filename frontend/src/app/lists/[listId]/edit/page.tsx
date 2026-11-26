@@ -6,7 +6,11 @@ import {
   isOpenedFromIndex,
 } from "@/features/lists/editReturn";
 import { ListForm } from "@/features/lists/ListForm";
-import { isShowChecked, withShowChecked } from "@/features/lists/showChecked";
+import {
+  combinedViewIdOf,
+  listPagePath,
+} from "@/features/combined-views/returnPath";
+import { isShowChecked } from "@/features/lists/showChecked";
 import { serverApi } from "@/lib/api/server";
 import type { Category, PackingListDetail } from "@/types/api";
 
@@ -42,12 +46,13 @@ export default async function EditListPage(
   if (!list.is_owner) notFound();
   // 「←」と保存の後の戻り先（SC-06-6）。一覧から開いたときは一覧へ（D-120）。
   // D-94：SC-07 でチェック済みを表示したまま来たときは、戻ったときも表示したままにする
+  // D-124：まとめ表示から開いた SC-07 から来たときは、戻った SC-07 の「←」でまとめ表示へ戻せるよう、開いた元も渡す
   const returnHref = fromIndex
     ? "/lists"
-    : withShowChecked(
-        `/lists/${list.id}`,
-        isShowChecked(searchParams.show_checked),
-      );
+    : listPagePath(`/lists/${list.id}`, {
+        showChecked: isShowChecked(searchParams.show_checked),
+        combinedViewId: combinedViewIdOf(searchParams),
+      });
 
   return (
     <main className="flex flex-col gap-6 py-8">

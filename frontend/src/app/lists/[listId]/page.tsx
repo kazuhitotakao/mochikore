@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/BackLink";
 import { readAsUser } from "@/features/auth/requireUser";
+import {
+  combinedViewIdOf,
+  combinedViewPath,
+} from "@/features/combined-views/returnPath";
 import { ListCreatedNotice } from "@/features/lists/ListCreatedNotice";
 import { serverApi } from "@/lib/api/server";
 import { realtimeConfig } from "@/lib/realtime/config";
@@ -29,6 +33,8 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
   const searchParams = await props.searchParams;
   // SC-11-6・SC-18-5 のコピーの後に開いたときだけ通知を出す
   const created = searchParams.copied === "1" ? "copied" : null;
+  // D-124：まとめ表示（SC-20）のリスト名から開いたときは、「←」でまとめ表示へ戻る
+  const combinedViewId = combinedViewIdOf(searchParams);
 
   return (
     <main className="flex flex-col py-8">
@@ -40,7 +46,16 @@ export default async function ListPage(props: PageProps<"/lists/[listId]">) {
         categories={categories}
         initialShowChecked={isShowChecked(searchParams.show_checked)}
         // SC-07-4・D-73：「…」を「←」と同じ行に置くので、「←」と通知も ListDetail の中に並べる
-        backLink={<BackLink href="/lists" />}
+        backLink={
+          <BackLink
+            href={
+              combinedViewId === null
+                ? "/lists"
+                : combinedViewPath(combinedViewId)
+            }
+          />
+        }
+        combinedViewId={combinedViewId}
         notice={created && <ListCreatedNotice key={list.id} kind={created} />}
         // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更をすぐ出す。接続先は公開してよい値だけを渡す
         realtime={realtimeConfig()}

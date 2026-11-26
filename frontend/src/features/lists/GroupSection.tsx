@@ -52,6 +52,8 @@ type Props = {
   // D-110：見出しの右端の矢印でたたむ・開く。たたんだときに出さない持ち物は、親が children から外す
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  // 見出しの階層。SC-07 はリスト名（h1）の下なので2、まとめ表示（SC-20、D-124）はリスト名（h2）の下なので3
+  headingLevel?: 2 | 3;
   children: ReactNode;
 };
 
@@ -88,8 +90,10 @@ function SortableGroupSection({
   onOpenCheckMode = () => {},
   collapsed = false,
   onToggleCollapsed = () => {},
+  headingLevel = 2,
   children,
 }: Props & { groupId: number }) {
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
   const errorId = useId();
@@ -229,7 +233,7 @@ function SortableGroupSection({
           }}
         />
         {/* 見出しだけを薄く塗り、持ち物の行と見分けられるようにする（利用者の指示）。
-            持ち物の行と同じ高さ（44px）にし、赤い「削除」の縦幅もそろえる（D-105） */}
+            持ち物の行と同じ高さ（44px。まとめ表示でリストが2件のスマホでは36pxに詰める、D-125）にし、赤い「削除」の縦幅もそろえる（D-105） */}
         <div
           {...swipe.handlers}
           style={
@@ -237,7 +241,7 @@ function SortableGroupSection({
               ? { transform: `translateX(${swipe.offset}px)` }
               : undefined
           }
-          className={`relative flex min-h-11 items-center gap-2 rounded-lg bg-brand-soft px-2 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
+          className={`relative flex min-h-11 items-center gap-2 rounded-lg bg-brand-soft px-2 dense:min-h-9 ${swipe.swiping ? "" : "transition-transform duration-200"}`}
         >
           <GroupCheckbox
             title={title}
@@ -246,11 +250,11 @@ function SortableGroupSection({
             onToggle={onToggleCheck}
           />
           {/* 見出しそのものを持ち手にする。持ち手のマークは出さない（D-03） */}
-          <h2
+          <Heading
             ref={setActivatorNodeRef}
             {...attributes}
             {...listeners}
-            aria-level={2}
+            aria-level={headingLevel}
             className={`flex min-w-0 flex-1 cursor-grab touch-pan-y touch-pinch-zoom items-center gap-1 select-none [-webkit-touch-callout:none] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${HEADING}`}
           >
             {editing ? (
@@ -280,7 +284,7 @@ function SortableGroupSection({
                 ref={nameButton}
                 type="button"
                 onClick={startEditing}
-                className="min-w-0 cursor-grab text-left font-bold wrap-break-word"
+                className="min-w-0 cursor-grab text-left font-bold wrap-break-word dense:text-sm"
               >
                 {title}
                 <span className="sr-only">（名前を変更）</span>
@@ -294,7 +298,7 @@ function SortableGroupSection({
                 （{count}件）
               </span>
             )}
-          </h2>
+          </Heading>
           {/* D-122（利用者の指示）：たたむ矢印の左に、チェックの動きを変えるボタンを置く。
               通常のグループは「…」、繰り返し利用のグループは、くり返しの矢印を白い丸に入れた印にする
               （色だけでなく形でも見分けられる）。押すと「チェックの動き」のダイアログ（SC-07-25）を開く */}
@@ -302,10 +306,10 @@ function SortableGroupSection({
             type="button"
             aria-label={`${title}のチェックの動きを変える（今は${checkMode === "repeat" ? "繰り返し利用" : "通常"}）`}
             onClick={onOpenCheckMode}
-            className="-mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="-mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dense:min-h-9 dense:min-w-9"
           >
             {checkMode === "repeat" ? (
-              <span className="flex size-8 items-center justify-center rounded-full bg-background text-brand-deep ring-1 ring-line-soft">
+              <span className="flex size-8 items-center justify-center rounded-full bg-background text-brand-deep ring-1 ring-line-soft dense:size-7">
                 <Icon name="repeat" className="size-4.5" />
               </span>
             ) : (
@@ -320,7 +324,7 @@ function SortableGroupSection({
             aria-controls={contentId}
             aria-label={collapsed ? `${title}を開く` : `${title}をたたむ`}
             onClick={onToggleCollapsed}
-            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-brand hover:bg-background/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-brand hover:bg-background/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dense:min-h-9 dense:min-w-9"
           >
             <Icon
               name="chevron"
@@ -352,7 +356,7 @@ function UngroupedSection({ children }: Pick<Props, "children">) {
     <section
       ref={setNodeRef}
       aria-label="グループに入っていない持ち物"
-      className="-mt-3 flex flex-col gap-1 rounded pt-3"
+      className="-mt-3 flex flex-col gap-1 rounded pt-3 dense:-mt-2 dense:pt-2"
     >
       {children}
     </section>

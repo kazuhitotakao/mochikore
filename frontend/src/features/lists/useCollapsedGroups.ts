@@ -1,44 +1,20 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { readStored, subscribeStored, writeStored } from "@/lib/deviceMemory";
 
 // D-110：SC-07 でたたんだグループを、この端末のブラウザにリストごとに覚える（利用者の指示）。
-// 覚えるのはグループのIDだけで、名前などリストの中身は入れない。別の端末とは共有しない
+// 覚えるのはグループのIDだけで、名前などリストの中身は入れない。別の端末とは共有しない。
+// D-124：まとめ表示（SC-20）でたたんだリストも、同じ仕組みでまとめ表示ごとにリストのIDを覚える
 const KEY_PREFIX = "mochikore:collapsed-groups:";
+const COMBINED_KEY_PREFIX = "mochikore:collapsed-lists:";
 const NONE: readonly number[] = [];
 
-const listeners = new Set<() => void>();
 // useSyncExternalStore は同じ値なら同じ配列を求めるので、読んだ文字列ごとに控える
 const parsed = new Map<
   string,
   { raw: string | null; ids: readonly number[] }
 >();
-// プライベートブラウズ・容量不足などで保存できなかったときは、ページを開いている間だけここで覚える
-const unsaved = new Map<string, string | null>();
-
-function storageKey(listId: number): string {
-  return `${KEY_PREFIX}${listId}`;
-}
-
-function readRaw(key: string): string | null {
-  if (unsaved.has(key)) return unsaved.get(key) ?? null;
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeRaw(key: string, raw: string | null) {
-  try {
-    if (raw === null) window.localStorage.removeItem(key);
-    else window.localStorage.setItem(key, raw);
-    unsaved.delete(key);
-  } catch {
-    unsaved.set(key, raw);
-  }
-  for (const listener of listeners) listener();
-}
 
 // 書き換えられた値でも画面が壊れないよう、1以上の整数だけを使う
 function parseIds(raw: string | null): readonly number[] {
@@ -55,22 +31,12 @@ function parseIds(raw: string | null): readonly number[] {
 }
 
 function readIds(key: string): readonly number[] {
-  const raw = readRaw(key);
+  const raw = readStored(key);
   const cached = parsed.get(key);
   if (cached && cached.raw === raw) return cached.ids;
   const ids = parseIds(raw);
   parsed.set(key, { raw, ids });
   return ids;
-}
-
-function subscribe(onChange: () => void) {
-  listeners.add(onChange);
-  // 同じリストを別のタブでたたんだ・開いたときも合わせる
-  window.addEventListener("storage", onChange);
-  return () => {
-    listeners.delete(onChange);
-    window.removeEventListener("storage", onChange);
-  };
 }
 
 /**
@@ -82,20 +48,42 @@ export function useCollapsedGroups(
   listId: number,
   groupIds: readonly number[],
 ) {
-  const key = storageKey(listId);
+  return useCollapsedIds(`${KEY_PREFIX}${listId}`, groupIds);
+}
+
+/**
+ * D-124：まとめ表示（SC-20）でたたんだリストのIDと、たたむ・開く操作。グループ（D-110）と同じ覚え方。
+ * まとめ表示から外したリストのIDは使わず、次にたたむ・開くときに消す。
+ */
+export function useCollapsedLists(viewId: number, listIds: readonly number[]) {
+  return useCollapsedIds(`${COMBINED_KEY_PREFIX}${viewId}`, listIds);
+}
+
+function useCollapsedIds(key: string, currentIds: readonly number[]) {
   const stored = useSyncExternalStore(
-    subscribe,
+    subscribeStored,
     () => readIds(key),
     () => NONE,
   );
-  const collapsed = new Set(stored.filter((id) => groupIds.includes(id)));
+  const collapsed = new Set(stored.filter((id) => currentIds.includes(id)));
 
-  function toggle(groupId: number) {
-    const next = collapsed.has(groupId)
-      ? [...collapsed].filter((id) => id !== groupId)
-      : [...collapsed, groupId];
-    writeRaw(key, next.length > 0 ? JSON.stringify(next) : null);
+  // D-125：描いたときの値ではなく、今覚えている値から作る。まとめ表示では、描き直していないリストの部品
+  // （CombinedPane）からも呼び、分割表示の境界線のドラッグでは描き直しを待たずに続けて呼ぶため
+  function toggle(id: number) {
+    set(id, !readIds(key).includes(id));
   }
 
-  return { collapsed, toggle };
+  // D-125：たたむ・開くを決めて書く
+  function set(id: number, value: boolean) {
+    const current = readIds(key).filter((existing) =>
+      currentIds.includes(existing),
+    );
+    if (current.includes(id) === value) return;
+    const next = value
+      ? [...current, id]
+      : current.filter((existing) => existing !== id);
+    writeStored(key, next.length > 0 ? JSON.stringify(next) : null);
+  }
+
+  return { collapsed, toggle, set };
 }
