@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
 import { Icon } from "@/components/Icon";
+import { CompactDisplaySetting } from "@/features/auth/CompactDisplaySetting";
 import { DeleteAccountDialog } from "@/features/auth/DeleteAccountDialog";
 import { DisplayNameSetting } from "@/features/auth/DisplayNameSetting";
 import { LogoutButton } from "@/features/auth/LogoutButton";
@@ -61,7 +62,8 @@ export default async function AccountPage(props: PageProps<"/account">) {
           <DisplayNameSetting displayName={user.display_name} />
         )}
 
-        {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える */}
+        {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える。
+            説明の文は置かない（「変更」で開く再設定メールの画面（SC-14）で分かるため、利用者の指示） */}
         <SettingRow
           title="パスワード"
           action={
@@ -73,10 +75,16 @@ export default async function AccountPage(props: PageProps<"/account">) {
               変更
             </Link>
           }
-        >
-          <p className="text-sm text-muted">再設定メールを送って変更します。</p>
-        </SettingRow>
+        />
       </div>
+
+      {/* SC-12-11・D-126：持ち物の行を詰める表示。リストを使えるメール認証済みの人にだけ出す。
+          アカウントではなく、この端末のブラウザに覚える */}
+      {user.email_verified_at && (
+        <div className="card">
+          <CompactDisplaySetting />
+        </div>
+      )}
 
       <Link
         href={withFrom("/privacy", currentPath)}

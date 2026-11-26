@@ -1760,7 +1760,9 @@ export function ListDetail({
           )}
 
           {/* 空のリストや選ぶ表示へ変わっても同じ入力行を残し、下書きと連続入力のカーソルを保つ。 */}
-          <div className={selecting ? "hidden" : "flex flex-col gap-3"}>
+          <div
+            className={selecting ? "hidden" : "flex flex-col gap-3 dense:gap-2"}
+          >
             {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、チェック済みのものがあるときだけ出す
               （チェック済みの空グループだけを隠しているときも出し直せるように、空グループのチェックも数える）。
               画面の表示だけを変え、通信しない。
