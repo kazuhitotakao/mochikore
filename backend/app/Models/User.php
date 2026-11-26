@@ -75,4 +75,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(PackingListMember::class);
     }
+
+    /**
+     * 本人だけのまとめ表示（D-124）。
+     *
+     * @return HasMany<CombinedView, $this>
+     */
+    public function combinedViews(): HasMany
+    {
+        return $this->hasMany(CombinedView::class);
+    }
 }

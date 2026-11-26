@@ -33,7 +33,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 
 ## エラー
 
-- エラーは必ず `message` と `code` を返す。21種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
+- エラーは必ず `message` と `code` を返す。22種類のコードは `App\Enums\ApiErrorCode` にまとめ、`App\Exceptions\ApiException` で返す。
 - 標準の例外は `bootstrap/app.php` で変換する：入力エラー 422 `validation_error`、未ログイン 401 `unauthenticated`、回数制限 429 `too_many_requests` と `retry_after`、署名付きリンクの403 は 422 `link_invalid`、想定外 500 `server_error`（詳細は返さない）。
 - メール未認証の403は、標準の `verified` ではなく ApiException を投げる自作ミドルウェアで返す。
 
@@ -44,6 +44,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 共同編集（D-119）：中身（持ち物・グループ）の操作は `editContents`、内容を見る・複製するのは `view` で、所有者とメンバーに許す。リストそのものの操作（API-08・公開・リンクで共有・招待・メンバーを外す）は `update`、削除は `delete` で、所有者だけに許す。メンバーが所有者だけの操作を呼んだときも 404。
 - 共同編集中（メンバーがいる・有効な招待リンクがある）のリストは公開・リンクで共有させず、公開中・リンクで共有中のリストは招待させない。どちらも親リストをロックしてから確かめる（D-119）。
 - 持ち物を足す回数（D-97）は、`$list->user_id` ではなく操作した本人で数える（D-119）。
+- まとめ表示（`combined_views`、D-124）は本人だけのもの。API-65〜69 は `CombinedViewPolicy` の `manage` で本人に限り、ほかの人（同じリストのメンバー・所有者を含む）は 404。入れられるのは本人が見られるリスト（所有者かメンバー）だけで、見られないリストは存在を区別しない同じ 422 にする。中身の操作は今までのリストのAPIとリストごとの権限で行い、まとめ表示用の持ち物のAPIは作らない。共同編集から外された・抜けたとき（API-59・60）は `CombinedViewService::forgetList` で本人のまとめ表示から外し、読むときも `accessibleBy` で絞る。リストのAPI・配信にまとめ表示の情報を入れず、まとめ表示のルートに `NotifyListChange` を付けない。
 
 ## 共同編集の配信（F-35・D-119）
 

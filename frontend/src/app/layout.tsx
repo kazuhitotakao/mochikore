@@ -32,8 +32,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ja" className={`${notoSansJp.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         {/* D-73：スマホ幅を基準に1列で並べ、パソコンでは中央に最大640pxで表示する。
-            パソコンでは左右に生成り色の地を見せ、画面の地（少し明るい色）と線で分ける */}
-        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col bg-background px-5 sm:border-x sm:border-line">
+            パソコンでは左右に生成り色の地を見せ、画面の地（少し明るい色）と線で分ける。
+            D-124：まとめ表示（SC-20、data-wide-page）だけは、幅1024px以上でリストを横に並べるため最大1280pxにする */}
+        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col bg-background px-5 sm:border-x sm:border-line lg:has-[[data-wide-page]]:max-w-7xl">
           {children}
         </div>
       </body>

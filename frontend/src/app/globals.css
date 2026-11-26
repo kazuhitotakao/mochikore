@@ -7,9 +7,41 @@
 */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+  D-125：まとめ表示（SC-20）の分割表示。スマホ幅（1024px未満）で、画面の高さが足りる（480px以上）ときだけ使う。
+  can-split: はその大きさの画面、split: はそのうえで分割表示を選んでいるとき（data-split の中）に効く。
+  開いたときから分割表示で描けるよう、画面の大きさはブラウザに判定させる。条件は JS の SPLIT_MEDIA と同じにする
+*/
+@custom-variant can-split (@media (width < 64rem) and (height >= 30rem));
+/*
+  D-125：まとめ表示でリストが2件のスマホ（分割のアイコンを出すとき、data-dense の中）。分割表示・通常表示のどちらでも、
+  見える量を増やすため持ち物の行・見出し・余白を詰める（利用者の指示）。split: より前に置き、同じ指定は split: を優先する
+*/
+@custom-variant dense {
+  @media (width < 64rem) and (height >= 30rem) {
+    &:where([data-dense], [data-dense] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant split {
+  @media (width < 64rem) and (height >= 30rem) {
+    &:where([data-split], [data-split] *) {
+      @slot;
+    }
+  }
+}
+
 :root {
   /* 入力欄・スクロールバーなどブラウザが描く部品も明るい表示にそろえる */
   color-scheme: light;
+}
+
+/* D-125：分割表示の間は画面全体を動かさない（端で引っぱったときのはね返りと、引っぱって読み直す動きを止める） */
+@media (width < 64rem) and (height >= 30rem) {
+  html:has([data-split]) {
+    overscroll-behavior: none;
+  }
 }
 
 /*

@@ -234,7 +234,16 @@ export type InvitationJoinResult = {
   list: { id: number; title: string };
 };
 
-// 06_API一覧「エラーコード一覧」のうち Laravel が返す21種類と、Next.js の窓口だけが返す origin_not_allowed
+// API-65〜68 まとめ表示（D-124）。本人だけのもの。lists は今見られるリストだけが選んだ順で届く。
+// リストの中身は API-07 でリストごとに読む
+export type CombinedView = {
+  id: number;
+  name: string;
+  lists: { id: number; title: string }[];
+  updated_at: string;
+};
+
+// 06_API一覧「エラーコード一覧」のうち Laravel が返す22種類と、Next.js の窓口だけが返す origin_not_allowed
 export type ApiErrorCode =
   | "validation_error"
   | "email_already_registered"
@@ -249,6 +258,7 @@ export type ApiErrorCode =
   | "list_not_private"
   | "member_limit_reached"
   | "joined_list_limit_reached"
+  | "combined_view_limit_reached"
   | "link_invalid"
   | "unauthenticated"
   | "email_not_verified"

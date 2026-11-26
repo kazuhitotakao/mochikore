@@ -4,6 +4,7 @@ use App\Http\Controllers\BulkAddItemsController;
 use App\Http\Controllers\BulkCheckItemsController;
 use App\Http\Controllers\BulkDeleteItemsController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CombinedViewController;
 use App\Http\Controllers\CopyPublicPackingListController;
 use App\Http\Controllers\CreateGroupFromItemController;
 use App\Http\Controllers\DuplicatePackingListController;
@@ -144,6 +145,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/saved-groups', [SavedGroupController::class, 'index']);
         Route::post('/saved-groups', [SavedGroupController::class, 'store']);
         Route::delete('/saved-groups/{savedGroup}', [SavedGroupController::class, 'destroy']);
+
+        // API-65〜69・D-124：本人だけのまとめ表示。ほかのメンバーに知らせないので NotifyListChange は付けない。
+        // 中身の表示・操作は今までのリストのAPI（API-07 など）で、リストごとの権限で行う
+        Route::get('/combined-views', [CombinedViewController::class, 'index']);
+        Route::post('/combined-views', [CombinedViewController::class, 'store']);
+        Route::get('/combined-views/{combinedView}', [CombinedViewController::class, 'show']);
+        Route::patch('/combined-views/{combinedView}', [CombinedViewController::class, 'update']);
+        Route::delete('/combined-views/{combinedView}', [CombinedViewController::class, 'destroy']);
     });
 });
 

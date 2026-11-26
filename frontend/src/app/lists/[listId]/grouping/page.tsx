@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { readAsUser } from "@/features/auth/requireUser";
+import { combinedViewIdOf } from "@/features/combined-views/returnPath";
 import { GroupingEditor } from "@/features/grouping/GroupingEditor";
 import { realtimeConfig } from "@/lib/realtime/config";
 import type { GroupingState } from "@/types/api";
@@ -32,6 +33,8 @@ export default async function GroupingPage(
         includeChecked={includeChecked}
         // F-35・D-119：共同編集のリストでは、ほかのメンバーの変更を下書きへ取り込む
         realtime={realtimeConfig()}
+        // D-124：まとめ表示から開いた SC-07 から来たときは、戻った SC-07 の「←」でまとめ表示へ戻す
+        combinedViewId={combinedViewIdOf(searchParams)}
       />
     </main>
   );

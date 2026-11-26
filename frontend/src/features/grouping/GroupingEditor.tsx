@@ -68,7 +68,7 @@ import {
 import { SelectMark } from "@/features/lists/SelectionList";
 import { ShowCheckedSwitch } from "@/features/lists/ShowCheckedSwitch";
 import { RepeatBadge } from "@/features/lists/RepeatBadge";
-import { withShowChecked } from "@/features/lists/showChecked";
+import { listPagePath } from "@/features/combined-views/returnPath";
 import { useRemoteListSync } from "@/features/lists/useRemoteListSync";
 import type { RealtimeConfig } from "@/lib/realtime/types";
 import { MAX_GROUPS } from "./validation";
@@ -241,6 +241,8 @@ type Props = {
   includeChecked: boolean;
   // F-35・D-119：共同編集の配信の接続先。設定がなければ null
   realtime: RealtimeConfig | null;
+  // D-124：まとめ表示から開いた SC-07 から来たときの、そのまとめ表示のID。戻った SC-07 の「←」で使う
+  combinedViewId: number | null;
 };
 
 // SC-09 グループ整理（F-19）。分類・順番は下書きで、「←」やブラウザの戻るで画面を離れるときにまとめて保存する（D-59・D-113）。
@@ -250,6 +252,7 @@ export function GroupingEditor({
   initialState,
   includeChecked,
   realtime,
+  combinedViewId,
 }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
@@ -749,7 +752,9 @@ export function GroupingEditor({
   function backToList() {
     leaving.current = true;
     // D-94（利用者の指示）：戻った SC-07 は、この画面で最後に選んだ表示で始める
-    router.replace(withShowChecked(`/lists/${listId}`, showChecked));
+    router.replace(
+      listPagePath(`/lists/${listId}`, { showChecked, combinedViewId }),
+    );
   }
 
   // 足した履歴が残っていれば先に戻し（戻り終わったら SC-07 へ）、なければそのまま SC-07 へ移る。

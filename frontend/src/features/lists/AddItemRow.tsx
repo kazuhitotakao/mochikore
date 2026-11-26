@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
@@ -20,6 +20,10 @@ type Props = {
 export function AddItemRow({ listId, onAdded }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
+  // D-124：まとめ表示（SC-20）では同じ画面に追加欄が複数並ぶので、ラベル・説明のIDを部品ごとに分ける
+  const nameId = useId();
+  const hintId = useId();
+  const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const draftRef = useRef("");
   const inFlight = useRef(false);
@@ -151,14 +155,16 @@ export function AddItemRow({ listId, onAdded }: Props) {
       role="group"
       aria-label="持ち物の追加"
     >
-      <label htmlFor="new-item-name" className="sr-only">
+      <label htmlFor={nameId} className="sr-only">
         持ち物名
       </label>
-      <p id="new-item-hint" className="sr-only">
+      <p id={hintId} className="sr-only">
         Enter、または入力欄の外を押すと保存します。
       </p>
       {/* SC-07-13（利用者の指示）：入力前も、ほかの持ち物の行と同じ高さ（「…」ボタンと同じ44px）にする */}
-      <div className="flex min-h-11 items-center gap-2">
+      {/* D-125：まとめ表示でリストが2件のスマホでは（dense:）、持ち物の行と同じく36pxに詰める。入力欄の文字は、iPhone で
+          拡大されないよう16pxのまま（入力前の案内の文字だけ14px） */}
+      <div className="flex min-h-11 items-center gap-2 dense:min-h-9">
         <input
           type="checkbox"
           disabled
@@ -168,14 +174,14 @@ export function AddItemRow({ listId, onAdded }: Props) {
         />
         <input
           ref={inputRef}
-          id="new-item-name"
+          id={nameId}
           type="text"
           value={name}
           placeholder="持ち物を追加…"
           enterKeyHint="enter"
           aria-invalid={Boolean(error)}
           aria-busy={submitting}
-          aria-describedby={`new-item-hint${error ? " new-item-error" : ""}`}
+          aria-describedby={`${hintId}${error ? ` ${errorId}` : ""}`}
           onChange={(event) => {
             draftRef.current = event.target.value;
             setName(event.target.value);
@@ -206,15 +212,11 @@ export function AddItemRow({ listId, onAdded }: Props) {
           // SC-07-13（利用者の指示）：入力している間だけ、名前を直すときと同じ入力欄（白地と枠）にする。
           // ふだんは下線だけで、ほかの行と列をそろえる。エラーのときは赤い枠（aria-invalid）。
           // 入力前は行の高さいっぱいを押せるようにする。枠（36px）は行（44px）に収まるので、押しても行の高さは変わらない
-          className={`scroll-mb-24 text-base ${focused ? ITEM_NAME_FIELD : "min-h-11 min-w-0 flex-1 bg-transparent pr-2 outline-none placeholder:text-faint"}`}
+          className={`scroll-mb-24 text-base ${focused ? ITEM_NAME_FIELD : "min-h-11 min-w-0 flex-1 bg-transparent pr-2 outline-none placeholder:text-faint dense:min-h-9 dense:placeholder:text-sm"}`}
         />
       </div>
       {error && (
-        <p
-          id="new-item-error"
-          role="alert"
-          className="pl-7 text-sm text-danger"
-        >
+        <p id={errorId} role="alert" className="pl-7 text-sm text-danger">
           {error}
         </p>
       )}

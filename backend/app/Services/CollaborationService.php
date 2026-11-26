@@ -17,6 +17,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CollaborationService
 {
+    public function __construct(private CombinedViewService $combinedViews) {}
+
     /**
      * API-56 招待リンクを作る。有効なリンクがあれば同じものを返し、期限も延ばさない。
      * 止めた後・期限切れの後は、別のリンクを新しく作る。
@@ -105,10 +107,14 @@ class CollaborationService
     /**
      * API-59 所有者がメンバーを外す・API-60 メンバーが自分で抜ける。
      * 足した持ち物は残り、リストの更新日時も変えない。
+     * D-124：見られなくなったリストを、その人のまとめ表示からも同じトランザクションで外す。
      */
     public function remove(PackingListMember $member): void
     {
-        $member->delete();
+        DB::transaction(function () use ($member) {
+            $member->delete();
+            $this->combinedViews->forgetList($member->user_id, $member->packing_list_id);
+        });
     }
 
     /**

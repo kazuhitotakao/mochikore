@@ -98,6 +98,12 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "GET", path: /^\/saved-groups$/ },
   { method: "POST", path: /^\/saved-groups$/ },
   { method: "DELETE", path: /^\/saved-groups\/\d+$/ },
+  // API-65〜69：まとめ表示（D-124）。本人だけのもので、中身は API-07 などリストのAPIで扱う
+  { method: "GET", path: /^\/combined-views$/ },
+  { method: "POST", path: /^\/combined-views$/ },
+  { method: "GET", path: /^\/combined-views\/\d+$/ },
+  { method: "PATCH", path: /^\/combined-views\/\d+$/ },
+  { method: "DELETE", path: /^\/combined-views\/\d+$/ },
   // API-25
   { method: "POST", path: /^\/items\/\d+\/restore$/ },
   // API-45：持ち物を重ねてグループにする（D-111）
