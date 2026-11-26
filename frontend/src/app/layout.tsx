@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP } from "next/font/google";
+import { CompactDisplaySync } from "@/components/CompactDisplaySync";
+import { COMPACT_DISPLAY_SCRIPT } from "@/lib/compactDisplay";
 import "./globals.css";
 
 // D-73：端末ごとに書体が変わらないよう、画面の絵と同じ Noto Sans JP にそろえる（利用者の指示）。
@@ -29,8 +31,18 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ja" className={`${notoSansJp.variable} h-full antialiased`}>
+    // D-126：<head> の文が、描く前に <html> へコンパクト表示の印（data-compact）を付ける。
+    // サーバーで描いた内容と違ってよい属性なので、食い違いの警告を止める（Next.js の手引きのとおり）
+    <html
+      lang="ja"
+      className={`${notoSansJp.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: COMPACT_DISPLAY_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
+        <CompactDisplaySync />
         {/* D-73：スマホ幅を基準に1列で並べ、パソコンでは中央に最大640pxで表示する。
             パソコンでは左右に生成り色の地を見せ、画面の地（少し明るい色）と線で分ける。
             D-124：まとめ表示（SC-20、data-wide-page）だけは、幅1024px以上でリストを横に並べるため最大1280pxにする */}

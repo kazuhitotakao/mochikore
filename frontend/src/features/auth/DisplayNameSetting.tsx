@@ -98,7 +98,7 @@ export function DisplayNameSetting({ displayName }: Props) {
         }
       >
         <p className="text-sm text-muted">
-          共同編集のメンバーに見える名前です。公開リストには出ません。
+          共同編集のメンバーに見える名前です。
         </p>
         {saved && (
           <p role="status" className="text-sm">
@@ -118,7 +118,7 @@ export function DisplayNameSetting({ displayName }: Props) {
           value={name}
           error={nameError}
           disabled={sending}
-          hint="共同編集のメンバーに見える名前です。公開リストには出ません。"
+          hint="共同編集のメンバーに見える名前です。"
           labelledBy={titleId}
           autoFocus
           onChange={(value) => {

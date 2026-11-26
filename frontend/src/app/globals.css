@@ -14,10 +14,14 @@
 */
 @custom-variant can-split (@media (width < 64rem) and (height >= 30rem));
 /*
-  D-125：まとめ表示でリストが2件のスマホ（分割のアイコンを出すとき、data-dense の中）。分割表示・通常表示のどちらでも、
-  見える量を増やすため持ち物の行・見出し・余白を詰める（利用者の指示）。split: より前に置き、同じ指定は split: を優先する
+  持ち物の行・見出し・余白を詰める表示。次のどちらかのときに効く。split: より前に置き、同じ指定は split: を優先する
+  ・D-126：コンパクト表示を選んでいるとき（<html> の data-compact）。画面の幅に関係なく効く
+  ・D-125：まとめ表示でリストが2件のスマホ（分割のアイコンを出すとき、data-dense の中）。分割表示・通常表示とも
 */
 @custom-variant dense {
+  &:where([data-compact], [data-compact] *) {
+    @slot;
+  }
   @media (width < 64rem) and (height >= 30rem) {
     &:where([data-dense], [data-dense] *) {
       @slot;

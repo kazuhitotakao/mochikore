@@ -45,10 +45,11 @@ export function SelectionList({
                 aria-pressed={selected}
                 disabled={disabled || byGroup}
                 onClick={() => onToggleItem(item.id)}
-                className="flex min-h-11 w-full items-center gap-2 text-left disabled:cursor-default"
+                // D-126：コンパクト表示では、選ぶ前の行（ItemRow）と同じ高さ・文字に詰める
+                className="flex min-h-11 w-full items-center gap-2 text-left disabled:cursor-default dense:min-h-9"
               >
                 <SelectMark selected={selected} />
-                <span className="min-w-0 flex-1 wrap-break-word">
+                <span className="min-w-0 flex-1 wrap-break-word dense:text-sm">
                   {item.name}
                 </span>
               </button>
@@ -85,10 +86,10 @@ export function SelectionList({
                   aria-label={`${group.name}（グループごと選ぶ）`}
                   disabled={disabled}
                   onClick={() => onToggleGroup(group.id)}
-                  className="flex min-h-11 w-full items-center gap-2 px-2 text-left"
+                  className="flex min-h-11 w-full items-center gap-2 px-2 text-left dense:min-h-9"
                 >
                   <SelectMark selected={selected} />
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-0 flex-1 dense:text-sm">
                     {group.name}
                     <span className="text-sm font-normal whitespace-nowrap text-muted">
                       （{rows.length}件）
