@@ -1763,24 +1763,25 @@ export function ListDetail({
           <div
             className={selecting ? "hidden" : "flex flex-col gap-3 dense:gap-2"}
           >
-            {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、チェック済みのものがあるときだけ出す
+            {/* SC-07-20・D-94（利用者の指示）：一覧のすぐ上に置き、チェック済みのものがあるときだけ見せる
               （チェック済みの空グループだけを隠しているときも出し直せるように、空グループのチェックも数える）。
+              0件のときも場所は残して見えなくするだけにし、出る・消えるときに下の行をずらさない（利用者の指示）。
+              見えない間は読み上げ・Tab・押す操作の対象にもならない（visibility: hidden）。
               画面の表示だけを変え、通信しない。
               「選んで削除」の間は、選ぶ対象が変わらないよう、この入れ物ごと出さない（D-100） */}
-            {hasChecked && (
-              <ShowCheckedSwitch
-                id={showCheckedSwitchId}
-                on={showChecked}
-                count={checkedCount}
-                size="sm"
-                // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
-                // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
-                // 利用者の指示で右端にそろえる
-                align="end"
-                className="relative z-10 -mt-4 -mb-4 dense:-my-2 dense:min-h-9"
-                onToggle={() => setShowChecked((shown) => !shown)}
-              />
-            )}
+            <ShowCheckedSwitch
+              id={showCheckedSwitchId}
+              on={showChecked}
+              count={checkedCount}
+              disabled={!hasChecked}
+              size="sm"
+              // 利用者の指示で上下の余白を詰める：文字の上は12px・下は8pxにし、押せる範囲（44px）は余白に重ねる。
+              // 下の未分類の欄（移動先の範囲を上へ広げている）に押す操作を取られないよう、前面に出す
+              // 利用者の指示で右端にそろえる
+              align="end"
+              className={`relative z-10 -mt-4 -mb-4 dense:-my-2 dense:min-h-9 ${hasChecked ? "" : "invisible"}`}
+              onToggle={() => setShowChecked((shown) => !shown)}
+            />
             {/* SC-07-11・D-106：持ち物やチェック済みの空グループがすべて隠れた場合に案内する。
               未チェックの空リストは追加行で分かるので、案内文を出さない。 */}
             {(items.length > 0 || groups.some((group) => group.is_checked)) &&
