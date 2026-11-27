@@ -96,6 +96,7 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 ## Migration
 
 - `users` に `name` はない（D-32）。登録・Factory・Seeder・Resource で名前を扱わない。共同編集の表示名は `display_name`（D-119）で、会員登録（API-01）で必ず受け取る（NOT NULL、D-127）。招待・参加（API-56・62）では受け取らない。
+- 写真（D-128）は `user_avatars`（`user_id` が主キー、`image` は BLOB）に持ち、`users` に入れない（ログインのたびに読むため）。画像は作り直さず、中身が256px四方のJPEG・60KBまでかだけを確かめる（V-32）。PHP の GD などの画像の拡張は入れていない。
 - アプリの時刻は `Asia/Tokyo`。MySQL は UTC のままなので、日時は Laravel の `now()` で入れる。`useCurrent()`・`CURRENT_TIMESTAMP`・SQL の `NOW()` を使わない（時刻が9時間ずれる）。
 - API の日時は UTC（末尾 `Z`）で返す（D-55）。Laravel の標準の JSON 変換に任せ、日本時間の文字列に直さない。
 - 適用済みのファイルを書き換えず、新しいファイルを足す。

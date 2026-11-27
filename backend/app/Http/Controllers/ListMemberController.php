@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Gate;
 class ListMemberController extends Controller
 {
     /**
-     * API-58 所有者とメンバーの一覧。見せるのは表示名だけで、メールアドレス・利用者のIDは返さない。
+     * API-58 所有者とメンバーの一覧。見せるのは表示名と写真（D-128）だけで、メールアドレス・利用者のIDは返さない。
      */
     public function index(Request $request, PackingList $list): JsonResource
     {
@@ -25,17 +25,19 @@ class ListMemberController extends Controller
 
         $userId = $request->user()->id;
         // 参加した順。同じ日時なら先に入った順
-        $list->load(['user', 'members' => fn ($query) => $query->with('user')->orderBy('created_at')->orderBy('id')]);
+        $list->load(['user.avatar', 'members' => fn ($query) => $query->with('user.avatar')->orderBy('created_at')->orderBy('id')]);
 
         return new JsonResource([
             'owner' => [
                 'display_name' => $list->user->display_name,
+                'avatar' => $list->user->avatarDataUrl(),
                 'is_me' => $list->user_id === $userId,
             ],
             'members' => $list->members->map(fn (PackingListMember $member) => [
                 // 外すときに使う番号。利用者のIDは出さない
                 'id' => $member->id,
                 'display_name' => $member->user->display_name,
+                'avatar' => $member->user->avatarDataUrl(),
                 'joined_at' => $member->created_at,
                 'is_me' => $member->user_id === $userId,
             ]),

@@ -1,16 +1,19 @@
 import Link from "next/link";
+import { Avatar } from "@/components/Avatar";
 import { readAsUser } from "@/features/auth/requireUser";
 import { OwnListIndex } from "@/features/lists/OwnListIndex";
 import { MAX_LISTS } from "@/features/lists/validation";
-import type { CombinedView, PackingListSummary } from "@/types/api";
+import type { CombinedView, MyAvatar, PackingListSummary } from "@/types/api";
 
 // SC-05 自分のリスト一覧
 export default async function ListsPage(props: PageProps<"/lists">) {
   // D-19：メール未認証なら Laravel が403を返し、SC-04へ移動する。
-  // D-124：本人のまとめ表示（API-65）も同時に読み、1件以上あるときだけ一覧の上に出す
-  const [lists, combinedViews] = await Promise.all([
+  // D-124：本人のまとめ表示（API-65）も同時に読み、1件以上あるときだけ一覧の上に出す。
+  // D-128：右上のアカウント設定の入口に出す写真（API-70）も同時に読む
+  const [lists, combinedViews, { avatar }] = await Promise.all([
     readAsUser<PackingListSummary[]>("/lists", "/lists"),
     readAsUser<CombinedView[]>("/combined-views", "/lists"),
+    readAsUser<MyAvatar>("/me/avatar", "/lists"),
   ]);
   const searchParams = await props.searchParams;
   // D-119：参加しているリストも並ぶが、100件の上限（D-50）は自分のリストだけで数える
@@ -19,11 +22,17 @@ export default async function ListsPage(props: PageProps<"/lists">) {
 
   return (
     <main className="flex flex-col gap-6 py-8">
-      <div className="flex items-baseline justify-between">
+      {/* SC-05-2・D-128：件数は出さず、右上に写真（なければ人型）を置いて、アカウント設定（SC-12）への入口にする */}
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-medium">自分のリスト</h1>
-        <p className="text-sm text-muted">
-          {ownCount}/{MAX_LISTS}件
-        </p>
+        <Link
+          href="/account"
+          prefetch={false}
+          aria-label="アカウント設定"
+          className="tap-target shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          <Avatar src={avatar} size="md" />
+        </Link>
       </div>
 
       {/* 02_画面配置 SC-04-6：確認メールのリンクで認証が済んだ後 */}
@@ -64,13 +73,6 @@ export default async function ListsPage(props: PageProps<"/lists">) {
           className="self-start text-link tap-target"
         >
           公開リストを見る
-        </Link>
-        <Link
-          href="/account"
-          prefetch={false}
-          className="self-start text-link tap-target"
-        >
-          アカウント設定
         </Link>
       </OwnListIndex>
     </main>

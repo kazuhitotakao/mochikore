@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\BulkAddItemsController;
 use App\Http\Controllers\BulkCheckItemsController;
 use App\Http\Controllers\BulkDeleteItemsController;
@@ -71,6 +72,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/realtime/auth', RealtimeAuthController::class);
         // API-55・D-119：共同編集のメンバーに見せる表示名を変える
         Route::patch('/me', [UserController::class, 'update']);
+        // API-70〜72・D-128：本人の写真。共同編集のメンバーに見せるのは API-58 で行う
+        Route::get('/me/avatar', [AvatarController::class, 'show']);
+        Route::put('/me/avatar', [AvatarController::class, 'update']);
+        Route::delete('/me/avatar', [AvatarController::class, 'destroy']);
         Route::post('/me/email-change', [EmailChangeController::class, 'store'])->middleware('throttle:email-change');
         // API-43・D-107：確認中の変更を取り消す。メールを送らないので、回数制限は付けない
         Route::delete('/me/email-change', [EmailChangeController::class, 'destroy']);

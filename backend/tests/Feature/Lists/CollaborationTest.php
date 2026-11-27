@@ -290,7 +290,7 @@ class CollaborationTest extends ListApiTestCase
 
     // ---- API-58〜60 メンバーの一覧・外す・抜ける ----
 
-    public function test_メンバーの一覧は表示名だけを参加した順に返し、所有者とメンバーが見られる(): void
+    public function test_メンバーの一覧は表示名と写真だけを参加した順に返し、所有者とメンバーが見られる(): void
     {
         $this->freezeSecond();
         $first = $this->addMember($this->member);
@@ -300,10 +300,10 @@ class CollaborationTest extends ListApiTestCase
         $this->actingAsUser($this->member)->getJson("/api/lists/{$this->list->id}/members")
             ->assertOk()
             ->assertExactJson(['data' => [
-                'owner' => ['display_name' => 'おかあさん', 'is_me' => false],
+                'owner' => ['display_name' => 'おかあさん', 'avatar' => null, 'is_me' => false],
                 'members' => [
-                    ['id' => $first->id, 'display_name' => 'たろう', 'joined_at' => $first->created_at->toJSON(), 'is_me' => true],
-                    ['id' => $second->id, 'display_name' => 'しらない人', 'joined_at' => $second->created_at->toJSON(), 'is_me' => false],
+                    ['id' => $first->id, 'display_name' => 'たろう', 'avatar' => null, 'joined_at' => $first->created_at->toJSON(), 'is_me' => true],
+                    ['id' => $second->id, 'display_name' => 'しらない人', 'avatar' => null, 'joined_at' => $second->created_at->toJSON(), 'is_me' => false],
                 ],
             ]]);
         $this->actingAsUser($this->owner)->getJson("/api/lists/{$this->list->id}/members")

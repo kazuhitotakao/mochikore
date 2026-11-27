@@ -27,7 +27,7 @@ type Props = {
 /**
  * SC-05 自分のリストのカードの並びと、削除・複製・共同編集から抜けた結果の通知（D-120・D-119）。
  * まとめ表示（D-124）が1件以上あるときだけ、リストの上に「まとめ表示」、リストの上に「リスト」の見出しを出す。
- * 件数（○/100件）と「新しいリスト」は Server Component が出すので、削除・複製の後は読み直す。
+ * 「新しいリスト」（100件のときは押せない）は Server Component が出すので、削除・複製の後は読み直す。
  */
 export function OwnListIndex({ lists, combinedViews, children }: Props) {
   const router = useRouter();

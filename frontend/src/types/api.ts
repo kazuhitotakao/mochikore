@@ -209,13 +209,17 @@ export type InviteLink = {
   invite_expires_at: string;
 };
 
-// API-58 共同編集の所有者とメンバー（D-119）。見せるのは表示名だけで、メールアドレスは返らない
+// API-70・71 本人の写真（D-128）。256px四方の JPEG の data URL。載せていなければ null
+export type MyAvatar = { avatar: string | null };
+
+// API-58 共同編集の所有者とメンバー（D-119）。見せるのは表示名と写真（D-128）だけで、メールアドレスは返らない
 export type ListMembers = {
-  owner: { display_name: string; is_me: boolean };
+  owner: { display_name: string; avatar: string | null; is_me: boolean };
   members: {
     // メンバーを外すとき（API-59）に使う番号
     id: number;
     display_name: string;
+    avatar: string | null;
     joined_at: string;
     is_me: boolean;
   }[];

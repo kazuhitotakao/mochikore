@@ -44,6 +44,9 @@ export const ALLOWED_ROUTES: readonly AllowedRoute[] = [
   { method: "DELETE", path: /^\/lists\/\d+\/share-link$/ },
   // API-55：共同編集のメンバーに見せる表示名を変える（D-119）
   { method: "PATCH", path: /^\/me$/ },
+  // API-71・72・D-128：写真を載せる・削除する。読むとき（API-70）は Server Component から
+  { method: "PUT", path: /^\/me\/avatar$/ },
+  { method: "DELETE", path: /^\/me\/avatar$/ },
   // API-56・57：共同編集の招待リンクを作る・止める（D-119）
   { method: "POST", path: /^\/lists\/\d+\/invite-link$/ },
   { method: "DELETE", path: /^\/lists\/\d+\/invite-link$/ },
