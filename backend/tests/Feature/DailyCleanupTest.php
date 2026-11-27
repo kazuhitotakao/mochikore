@@ -59,7 +59,7 @@ class DailyCleanupTest extends TestCase
         $this->assertModelMissing($older);
         $this->assertModelExists($recent);
         $this->assertModelExists($verified);
-        $this->postJson('/api/register', ['email' => $expired->email, 'password' => 'Password1!'])->assertCreated();
+        $this->postJson('/api/register', ['email' => $expired->email, 'password' => 'Password1!', 'display_name' => 'たろう'])->assertCreated();
     }
 
     public function test_未認証の本人データと認証情報は消し他人と変更先アドレスの再設定情報を残す(): void

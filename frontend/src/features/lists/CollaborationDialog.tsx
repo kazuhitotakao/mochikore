@@ -4,13 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
-import { trimLikeLaravel } from "@/features/auth/validation";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { formatDate } from "@/lib/format";
 import type { InviteLink, ListMembers } from "@/types/api";
-import { DisplayNameField } from "./DisplayNameField";
-import { MAX_PEOPLE, validateDisplayName } from "./validation";
+import { MAX_PEOPLE } from "./validation";
 
 type Props = {
   listId: number;
@@ -46,14 +44,11 @@ export function CollaborationDialog({
   const urlRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const urlId = useId();
-  const nameId = useId();
   const [members, setMembers] = useState<ListMembers | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState("");
-  const [nameError, setNameError] = useState<string | undefined>();
   // 外す前に確かめているメンバー（API-58 の id）
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
@@ -97,9 +92,6 @@ export function CollaborationDialog({
   const url = invite
     ? `${window.location.origin}/invite/${invite.invite_token}`
     : null;
-  // V-27：まだ表示名がない所有者は、初めて招待リンクを作るときに入れる
-  const needsDisplayName =
-    isOwner && members !== null && members.owner.display_name === null;
   const peopleCount = members === null ? null : members.members.length + 1;
 
   function handleFailure(failure: unknown) {
@@ -107,13 +99,6 @@ export function CollaborationDialog({
     if (failure instanceof ApiError && failure.code === "not_found") {
       router.refresh();
       return;
-    }
-    if (failure instanceof ApiError && failure.code === "validation_error") {
-      const message = failure.errors.display_name?.[0];
-      if (message) {
-        setNameError(message);
-        return;
-      }
     }
     // 開いた後に別の画面で公開・リンクで共有した・運営が非公開にしたときは、Laravel の理由をそのまま出す
     setError(
@@ -129,36 +114,14 @@ export function CollaborationDialog({
     if (sending) return;
     setError(null);
     setCopied(null);
-    if (needsDisplayName) {
-      // C-04：送る前に確かめる。最終的な判定は Laravel が行う（V-27）
-      const invalid = validateDisplayName(displayName);
-      setNameError(invalid);
-      if (invalid) return;
-    }
 
     setSending(true);
     try {
-      // API-56：有効なリンクがあれば同じリンクが返る。前後空白の削除は Laravel が行う（D-92）
+      // API-56：有効なリンクがあれば同じリンクが返る。本文は送らない（表示名は会員登録で入れてある、D-127）
       const result = await clientApi<InviteLink>(
         `/lists/${listId}/invite-link`,
-        {
-          method: "POST",
-          body: needsDisplayName ? { display_name: displayName } : undefined,
-        },
+        { method: "POST" },
       );
-      if (needsDisplayName) {
-        setMembers(
-          (current) =>
-            current && {
-              ...current,
-              // Laravel が保存する形（前後の空白を削ったもの）で見せる
-              owner: {
-                ...current.owner,
-                display_name: trimLikeLaravel(displayName),
-              },
-            },
-        );
-      }
       onInviteChange(result);
     } catch (failure) {
       handleFailure(failure);
@@ -263,7 +226,7 @@ export function CollaborationDialog({
             <ul className="flex flex-col divide-y divide-line-soft">
               <li className="flex min-h-11 items-center gap-2 py-1">
                 <span className="min-w-0 flex-1 wrap-break-word">
-                  {members.owner.display_name ?? "（表示名なし）"}
+                  {members.owner.display_name}
                   {members.owner.is_me && "（あなた）"}
                 </span>
                 <span className="tag shrink-0">所有者</span>
@@ -277,7 +240,7 @@ export function CollaborationDialog({
                     // 確かめている間は、名前と確認が1行に並びきらなければ、名前を細く折り返さずに確認を次の行へ送る
                     className={`min-w-0 wrap-break-word ${confirmingId === member.id ? "flex-auto" : "flex-1"}`}
                   >
-                    {member.display_name ?? "（表示名なし）"}
+                    {member.display_name}
                     {member.is_me && "（あなた）"}
                   </span>
                   {isOwner &&
@@ -306,7 +269,7 @@ export function CollaborationDialog({
                       <button
                         type="button"
                         disabled={sending}
-                        aria-label={`${member.display_name ?? "メンバー"}を外す`}
+                        aria-label={`${member.display_name}を外す`}
                         onClick={() => {
                           setError(null);
                           setConfirmingId(member.id);
@@ -355,26 +318,12 @@ export function CollaborationDialog({
             ) : inviteBlockedReason !== null ? (
               <p className="text-sm">{inviteBlockedReason}</p>
             ) : (
-              <>
-                <p className="text-sm text-muted">
-                  リンクを送った相手は、ログインするとメンバーになれます。リンクは7日で切れ、いつでも止められます。
-                  {peopleCount !== null &&
-                    peopleCount >= MAX_PEOPLE &&
-                    `メンバーは${MAX_PEOPLE}人までです。`}
-                </p>
-                {needsDisplayName && (
-                  <DisplayNameField
-                    id={nameId}
-                    value={displayName}
-                    error={nameError}
-                    disabled={sending}
-                    onChange={(value) => {
-                      setDisplayName(value);
-                      setNameError(undefined);
-                    }}
-                  />
-                )}
-              </>
+              <p className="text-sm text-muted">
+                リンクを送った相手は、ログインするとメンバーになれます。リンクは7日で切れ、いつでも止められます。
+                {peopleCount !== null &&
+                  peopleCount >= MAX_PEOPLE &&
+                  `メンバーは${MAX_PEOPLE}人までです。`}
+              </p>
             )}
           </section>
         )}
@@ -430,8 +379,7 @@ export function CollaborationDialog({
               <button
                 type="button"
                 onClick={() => void createLink()}
-                // 表示名が要るかは、メンバーを読んでから分かる
-                disabled={sending || members === null}
+                disabled={sending}
                 className="btn-primary"
               >
                 招待リンクを作る

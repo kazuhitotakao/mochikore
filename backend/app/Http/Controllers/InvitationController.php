@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\InvitationRequest;
+use App\Http\Requests\NoBodyRequest;
 use App\Models\PackingList;
 use App\Services\CollaborationService;
 use App\Services\ListChangeNotifier;
@@ -39,10 +39,11 @@ class InvitationController extends Controller
 
     /**
      * API-62 参加する。所有者・参加済みの人が送っても、何も変えずに同じ応答を返す。
+     * 表示名は会員登録で入れてあるので、ここでは受け取らない（D-127）。
      */
-    public function join(InvitationRequest $request, string $token, CollaborationService $service, ListChangeNotifier $notifier): JsonResource
+    public function join(NoBodyRequest $request, string $token, CollaborationService $service, ListChangeNotifier $notifier): JsonResource
     {
-        $list = $service->join($request->user(), $token, $request->validated('display_name'));
+        $list = $service->join($request->user(), $token);
         // F-35：開いている所有者・メンバーの画面で、人数をすぐ変える
         $notifier->notify($list->id, $request->header('X-Socket-ID'));
 

@@ -11,23 +11,27 @@ class RegisterTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_メールアドレスとパスワードだけで登録でき、トークンと本人情報が返る(): void
+    public function test_メールアドレス・パスワード・表示名で登録でき、トークンと本人情報が返る(): void
     {
         $this->freezeTime();
 
         $response = $this->postJson('/api/register', [
             'email' => 'new@example.com',
             'password' => 'password1!',
+            // V-27・C-01：前後の空白は標準どおり削ってから保存する
+            'display_name' => "\u{3000} たろう\t",
         ]);
 
         $response->assertCreated()
-            ->assertJsonStructure(['data' => ['token', 'user' => ['id', 'email', 'email_verified_at', 'pending_email']]])
+            ->assertJsonStructure(['data' => ['token', 'user' => ['id', 'email', 'email_verified_at', 'display_name', 'pending_email']]])
             ->assertJsonMissingPath('data.user.name')
             ->assertJsonPath('data.user.email', 'new@example.com')
             ->assertJsonPath('data.user.email_verified_at', null)
+            ->assertJsonPath('data.user.display_name', 'たろう')
             ->assertJsonPath('data.user.pending_email', null);
 
         $user = User::where('email', 'new@example.com')->firstOrFail();
+        $this->assertSame('たろう', $user->display_name);
 
         // D-78：登録でもトークンを発行し、期限判定用の2つの日時を同時に記録する
         $this->assertDatabaseHas('personal_access_tokens', [
@@ -51,14 +55,15 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => 'invited@example.com',
             'password' => 'Test123!',
+            'display_name' => 'たろう',
             'invite_token' => $token,
         ])->assertCreated()->assertJsonMissingPath('data.user.pending_invite_token');
 
         $this->assertSame($token, User::where('email', 'invited@example.com')->sole()->pending_invite_token);
 
         // 付けない・null のときは覚えない
-        $this->postJson('/api/register', ['email' => 'plain@example.com', 'password' => 'Test123!'])->assertCreated();
-        $this->postJson('/api/register', ['email' => 'null@example.com', 'password' => 'Test123!', 'invite_token' => null])->assertCreated();
+        $this->postJson('/api/register', ['email' => 'plain@example.com', 'password' => 'Test123!', 'display_name' => 'たろう'])->assertCreated();
+        $this->postJson('/api/register', ['email' => 'null@example.com', 'password' => 'Test123!', 'invite_token' => null, 'display_name' => 'たろう'])->assertCreated();
         $this->assertNull(User::where('email', 'plain@example.com')->sole()->pending_invite_token);
         $this->assertNull(User::where('email', 'null@example.com')->sole()->pending_invite_token);
     }
@@ -69,6 +74,7 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => 'invited@example.com',
             'password' => 'Test123!',
+            'display_name' => 'たろう',
             'invite_token' => $inviteToken,
         ])->assertUnprocessable()
             ->assertJsonPath('code', 'validation_error')
@@ -98,6 +104,7 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => 'taken@example.com',
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ])
             ->assertUnprocessable()
             ->assertExactJson([
@@ -114,6 +121,7 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => "\u{200B}\u{00A0}\u{3000} User@Example.COM\t\r\n\u{FEFF}",
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ])
             ->assertCreated()
             ->assertJsonPath('data.user.email', 'user@example.com');
@@ -128,6 +136,7 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => 'USER@example.com',
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ])
             ->assertUnprocessable()
             ->assertJsonPath('code', 'email_already_registered');
@@ -141,6 +150,7 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => $email,
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ])
             ->assertUnprocessable()
             ->assertJsonPath('code', 'validation_error')
@@ -173,6 +183,7 @@ class RegisterTest extends TestCase
         $this->postJson('/api/register', [
             'email' => 'new@example.com',
             'password' => $password,
+            'display_name' => 'たろう',
         ])
             ->assertUnprocessable()
             ->assertJsonPath('code', 'validation_error')
@@ -209,13 +220,71 @@ class RegisterTest extends TestCase
         ];
     }
 
+    #[DataProvider('invalidDisplayNames')]
+    public function test_条件に合わない表示名は1項目1文の入力エラーになる(mixed $displayName, string $message): void
+    {
+        $this->postJson('/api/register', [
+            'email' => 'new@example.com',
+            'password' => 'password1!',
+            'display_name' => $displayName,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'validation_error')
+            ->assertJsonPath('errors.display_name', [$message]);
+
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    public function test_表示名を送らなければ登録しない(): void
+    {
+        // D-127：表示名は会員登録で必ず入れる
+        $this->postJson('/api/register', ['email' => 'new@example.com', 'password' => 'password1!'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.display_name', ['表示名を入力してください。']);
+
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    /**
+     * V-27・C-04の確認例
+     *
+     * @return array<string, array{mixed, string}>
+     */
+    public static function invalidDisplayNames(): array
+    {
+        return [
+            '空欄' => ['', '表示名を入力してください。'],
+            '空白だけ' => [" \u{3000}\t", '表示名を入力してください。'],
+            'null' => [null, '表示名を入力してください。'],
+            '21文字' => [str_repeat('あ', 21), '表示名は20文字以内で入力してください。'],
+            '途中の改行' => ["たろ\nう", '表示名は改行せずに入力してください。'],
+            '途中のタブ' => ["たろ\tう", '表示名は改行せずに入力してください。'],
+            '数値' => [123, '表示名を文字で入力してください。'],
+            '配列' => [['たろう'], '表示名を文字で入力してください。'],
+        ];
+    }
+
+    public function test_表示名は20文字・絵文字・ほかの人と同じ名前でも登録できる(): void
+    {
+        // V-27：同じ名前を許す。本名でなくニックネームでよいので、だれかと重なっても断らない
+        User::factory()->create(['display_name' => 'おかあさん']);
+        $names = [str_repeat('あ', 20), 'たろう🍙', 'おかあさん'];
+
+        foreach ($names as $i => $name) {
+            $this->postJson('/api/register', ['email' => "user{$i}@example.com", 'password' => 'password1!', 'display_name' => $name])
+                ->assertCreated()
+                ->assertJsonPath('data.user.display_name', $name);
+        }
+        $this->assertSame(2, User::where('display_name', 'おかあさん')->count());
+    }
+
     public function test_パスワードは8文字と72文字ちょうど・英字だけ・数字だけ・記号だけでも登録できる(): void
     {
         // V-02：文字種の組み合わせは求めない
         $passwords = ['Abc123!?', str_repeat('a', 72), 'abcdefgh', '12345678', '!@#$%^&*'];
 
         foreach ($passwords as $i => $password) {
-            $this->postJson('/api/register', ['email' => "user{$i}@example.com", 'password' => $password])
+            $this->postJson('/api/register', ['email' => "user{$i}@example.com", 'password' => $password, 'display_name' => 'たろう'])
                 ->assertCreated();
         }
     }
@@ -226,12 +295,14 @@ class RegisterTest extends TestCase
             $this->postJson('/api/register', [
                 'email' => "user{$i}@example.com",
                 'password' => 'password1!',
+                'display_name' => 'たろう',
             ])->assertCreated();
         }
 
         $response = $this->postJson('/api/register', [
             'email' => 'user11@example.com',
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ]);
 
         $response->assertTooManyRequests()

@@ -9,6 +9,9 @@ use Illuminate\Foundation\Http\FormRequest;
 class RegisterUserRequest extends FormRequest
 {
     use NormalizesEmail;
+    use ValidatesDisplayName {
+        messages as displayNameMessages;
+    }
 
     /**
      * Determine if the user is authorized to make this request.
@@ -37,6 +40,8 @@ class RegisterUserRequest extends FormRequest
             'email' => ['bail', 'required', 'string', 'max:255', 'email:rfc'],
             // V-02：空白を含めず、ASCIIの0x21〜0x7Eで8〜72文字。入力は変換しない。72はbcryptが扱える上限
             'password' => ['bail', 'required', 'string', 'regex:/\A[!-~]{8,72}\z/'],
+            // V-27・D-127：共同編集のメンバーに見せる表示名（ニックネーム）。アカウント設定と同じ条件
+            'display_name' => $this->displayNameRules(),
             // V-28・D-121：共同編集の招待リンクから登録するときだけ、画面が付ける。招待が今も使えるかは、
             // メール認証が済んだとき（API-23）に確かめるので、ここでは形だけを見る（登録を止めない）
             'invite_token' => ['bail', 'nullable', 'string', 'regex:/\A[A-Za-z0-9]{'.PackingList::INVITE_TOKEN_LENGTH.'}\z/'],
@@ -49,6 +54,7 @@ class RegisterUserRequest extends FormRequest
     public function messages(): array
     {
         return [
+            ...$this->displayNameMessages(),
             'invite_token.*' => __('validation.invite_token'),
         ];
     }

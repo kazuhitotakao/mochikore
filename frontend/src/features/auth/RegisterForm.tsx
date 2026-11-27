@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
+import { DisplayNameField } from "@/features/lists/DisplayNameField";
+import { validateDisplayName } from "@/features/lists/validation";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { withFrom } from "@/lib/backPath";
@@ -11,8 +13,8 @@ import { PasswordInput } from "./PasswordInput";
 import { useFieldErrors } from "./useFieldErrors";
 import { firstErrors, validateEmail, validatePassword } from "./validation";
 
-// 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う
-const FIELDS = ["email", "password"] as const;
+// 画面の上からの並び。C-04 で最初のエラーへカーソルを移すのに使う（欄のIDと同じ名前）
+const FIELDS = ["email", "password", "display_name"] as const;
 
 type Props = {
   // SC-02・SC-14の「←」でこの画面へ戻すためのパス（共通2）
@@ -29,6 +31,8 @@ export function RegisterForm({ currentPath, loginHref, inviteToken }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const fieldErrors = useFieldErrors(FIELDS);
   const [formError, setFormError] = useState<Error | null>(null);
+  // D-127：共同編集のメンバーに見せる表示名。入力欄の部品（DisplayNameField）が値を持たないので、ここで持つ
+  const [displayName, setDisplayName] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,6 +45,7 @@ export function RegisterForm({ currentPath, loginHref, inviteToken }: Props) {
     const errors = {
       email: validateEmail(email),
       password: validatePassword(password),
+      display_name: validateDisplayName(displayName),
     };
     if (fieldErrors.hasAny(errors)) {
       fieldErrors.show(errors);
@@ -52,12 +57,11 @@ export function RegisterForm({ currentPath, loginHref, inviteToken }: Props) {
 
     try {
       // 空白の削除と小文字化は Laravel が行うので、入力のまま送る
+      const body = { email, password, display_name: displayName };
       await clientApi("/register", {
         method: "POST",
         // D-121：招待リンクから来た人だけ、招待リンクの文字を添える（Laravel が覚え、メール認証の後に返す）
-        body: inviteToken
-          ? { email, password, invite_token: inviteToken }
-          : { email, password },
+        body: inviteToken ? { ...body, invite_token: inviteToken } : body,
       });
       // 移動が終わるまで送信中のままにして、二重送信を防ぐ。
       // 招待リンクから来た人には、認証の後に招待されたリストへ進むことを案内する（SC-04）
@@ -123,6 +127,21 @@ export function RegisterForm({ currentPath, loginHref, inviteToken }: Props) {
         />
         <FieldError id="password-error" message={fieldErrors.errors.password} />
       </div>
+
+      {/* SC-03・D-127：共同編集の招待・参加で入れ直さなくて済むよう、登録のときに入れてもらう。
+          初めて見る人にも何を入れるか分かるよう、ここだけ「表示名（ニックネーム）」と呼ぶ */}
+      <DisplayNameField
+        id="display_name"
+        label="表示名（ニックネーム）"
+        hint="本名でなくてもかまいません。共同編集のメンバーにだけ見え、公開リストには出ません。"
+        value={displayName}
+        onChange={(value) => {
+          setDisplayName(value);
+          fieldErrors.clear("display_name");
+        }}
+        error={fieldErrors.errors.display_name}
+        disabled={false}
+      />
 
       <button type="submit" disabled={submitting} className="btn-primary">
         登録する

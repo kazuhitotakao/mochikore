@@ -17,6 +17,7 @@ class RegisterController extends Controller
         $result = $auth->register(
             $request->validated('email'),
             $request->validated('password'),
+            $request->validated('display_name'),
             // D-121：招待リンクから登録した人は、メール認証の後に招待の画面へ進める
             $request->validated('invite_token'),
         );

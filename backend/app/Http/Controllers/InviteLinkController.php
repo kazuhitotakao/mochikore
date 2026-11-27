@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\InvitationRequest;
 use App\Http\Requests\NoBodyRequest;
 use App\Models\PackingList;
 use App\Services\CollaborationService;
@@ -17,12 +16,13 @@ class InviteLinkController extends Controller
 {
     /**
      * API-56 招待リンクを作る。有効なリンクがあれば同じものを返す。
+     * 表示名は会員登録で入れてあるので、ここでは受け取らない（D-127）。
      */
-    public function store(InvitationRequest $request, PackingList $list, CollaborationService $service): JsonResource
+    public function store(NoBodyRequest $request, PackingList $list, CollaborationService $service): JsonResource
     {
         Gate::authorize('update', $list);
 
-        $list = $service->createInviteLink($request->user(), $list, $request->validated('display_name'));
+        $list = $service->createInviteLink($list);
 
         return new JsonResource([
             'invite_token' => $list->invite_token,

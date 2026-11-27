@@ -7,6 +7,8 @@ type Props = {
   onChange: (value: string) => void;
   error: string | undefined;
   disabled: boolean;
+  // 入力欄の上の見出し。初めて入れる会員登録（SC-03）だけ「表示名（ニックネーム）」にする（D-127）
+  label?: string;
   // 入力欄の下に出す説明。だれに見えるかを伝える
   hint?: string;
   // すぐ上に「表示名」の見出しがある画面（SC-12）では、その見出しのIDを渡す。
@@ -18,7 +20,7 @@ type Props = {
 
 /**
  * D-119・V-27：共同編集のメンバーに見せる表示名の入力欄。
- * 招待リンクを作るとき（SC-07-23）・参加するとき（SC-19）・アカウント設定（SC-12）で同じ形にする。
+ * 会員登録（SC-03）とアカウント設定（SC-12）で同じ形にする（D-127）。
  */
 export function DisplayNameField({
   id,
@@ -26,6 +28,7 @@ export function DisplayNameField({
   onChange,
   error,
   disabled,
+  label = "表示名",
   hint = "同じリストのメンバーに見える名前です。メールアドレスは見えません。",
   labelledBy,
   autoFocus,
@@ -37,7 +40,7 @@ export function DisplayNameField({
     <div>
       {!labelledBy && (
         <label htmlFor={id} className="mb-1 block font-bold">
-          表示名
+          {label}
         </label>
       )}
       <input
@@ -56,7 +59,11 @@ export function DisplayNameField({
       />
       <FieldError id={errorId} message={error} />
       <p id={hintId} className="mt-1 text-sm text-muted">
-        {hint}（{DISPLAY_NAME_MAX_LENGTH}文字まで）
+        {hint}
+        {/* 「（20」と「文字まで）」に分かれないよう、途中で改行しない */}
+        <span className="whitespace-nowrap">
+          （{DISPLAY_NAME_MAX_LENGTH}文字まで）
+        </span>
       </p>
     </div>
   );

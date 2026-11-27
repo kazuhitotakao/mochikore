@@ -9,7 +9,6 @@ use App\Models\PackingListMember;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 /**
  * 共同編集の招待リンクとメンバー（F-34、D-119）。
@@ -23,10 +22,9 @@ class CollaborationService
      * API-56 招待リンクを作る。有効なリンクがあれば同じものを返し、期限も延ばさない。
      * 止めた後・期限切れの後は、別のリンクを新しく作る。
      */
-    public function createInviteLink(User $owner, PackingList $list, ?string $displayName): PackingList
+    public function createInviteLink(PackingList $list): PackingList
     {
-        return DB::transaction(function () use ($owner, $list, $displayName) {
-            $account = User::whereKey($owner->id)->lockForUpdate()->firstOrFail();
+        return DB::transaction(function () use ($list) {
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->moderated_at !== null) {
@@ -36,7 +34,6 @@ class CollaborationService
             if ($locked->is_public || $locked->share_token !== null) {
                 throw new ApiException(ApiErrorCode::ListNotPrivate, '公開中・リンクで共有中のリストは、共同編集にできません。');
             }
-            $this->saveDisplayName($account, $displayName);
 
             if (! $locked->hasValidInvite()) {
                 $locked->invite_token = Str::random(PackingList::INVITE_TOKEN_LENGTH);
@@ -75,9 +72,10 @@ class CollaborationService
     /**
      * API-62 招待リンクから参加する。所有者・参加済みの人は、何も変えずに成功にする（送り直しても同じ）。
      */
-    public function join(User $user, string $token, ?string $displayName): PackingList
+    public function join(User $user, string $token): PackingList
     {
-        return DB::transaction(function () use ($user, $token, $displayName) {
+        return DB::transaction(function () use ($user, $token) {
+            // 同じ人が別々のリストへ同時に参加しても、参加できる数（100件）を超えないよう、本人→リストの順にロックする
             $account = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             // 止める操作・ほかの人の参加と同時でも、止めたリンクでの参加や10人を超える参加をさせない
             $list = PackingList::where('invite_token', $token)->lockForUpdate()->first();
@@ -88,7 +86,6 @@ class CollaborationService
             if ($list->isAccessibleBy($account)) {
                 return $list;
             }
-            $this->saveDisplayName($account, $displayName);
 
             // 所有者を入れて10人まで。メンバーの表には所有者がいないので1を足して数える
             if ($list->members()->count() + 1 >= PackingList::MAX_PEOPLE) {
@@ -115,25 +112,5 @@ class CollaborationService
             $member->delete();
             $this->combinedViews->forgetList($member->user_id, $member->packing_list_id);
         });
-    }
-
-    /**
-     * V-27：表示名は、初めて招待する・参加するときに入れる。送られたら保存し、
-     * まだなくて送られていないときは入力エラーにする。
-     */
-    private function saveDisplayName(User $account, ?string $displayName): void
-    {
-        if ($displayName === null) {
-            if ($account->display_name === null) {
-                throw ValidationException::withMessages([
-                    'display_name' => [__('validation.display_name.required')],
-                ]);
-            }
-
-            return;
-        }
-
-        $account->display_name = $displayName;
-        $account->save();
     }
 }

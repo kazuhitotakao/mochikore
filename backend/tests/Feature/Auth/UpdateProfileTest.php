@@ -80,10 +80,10 @@ class UpdateProfileTest extends TestCase
     {
         $this->patchJson('/api/me', ['display_name' => 'たろう'])->assertUnauthorized();
 
-        $unverified = User::factory()->unverified()->create();
+        $unverified = User::factory()->unverified()->create(['display_name' => 'もとの名前']);
         $this->actingAsUser($unverified)->patchJson('/api/me', ['display_name' => 'たろう'])
             ->assertForbidden()
             ->assertJsonPath('code', 'email_not_verified');
-        $this->assertNull($unverified->fresh()->display_name);
+        $this->assertSame('もとの名前', $unverified->fresh()->display_name);
     }
 }
