@@ -32,7 +32,7 @@ class PackingListItemController extends Controller
         // D-43・D-119：持ち物が入っているリストの所有者・メンバーでなければ、存在しない持ち物と同じ404
         Gate::authorize('editContents', $item->packingList);
 
-        return new PackingListItemResource($service->update($item, $request->validated()));
+        return new PackingListItemResource($service->update($request->user(), $item, $request->validated()));
     }
 
     /**

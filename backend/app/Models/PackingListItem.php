@@ -45,6 +45,8 @@ class PackingListItem extends Model
             // D-122：最後にチェックを付けた日時と、その1つ前。Fillable には入れず、チェックの処理だけが変える
             'last_checked_at' => 'datetime',
             'previous_checked_at' => 'datetime',
+            // D-130：チェックを付けた人。Fillable には入れず、チェックの処理だけが変える
+            'checked_by' => 'integer',
             'sort_order' => 'integer',
         ];
     }

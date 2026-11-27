@@ -106,13 +106,25 @@ export type PackingListItem = {
   // D-122：最後にチェックを付けた日時（UTC）。チェックしたことがなければ null。
   // 繰り返し利用のグループで「前回」として出す
   last_checked_at: string | null;
+  // D-130：チェックした人。API-07 だけが返し、ほかの応答にはない。
+  // メンバーがいる共同編集のリストで、今の所有者・メンバーがチェックしている持ち物だけ。それ以外は null
+  checked_by?: ItemChecker | null;
+};
+
+// D-130：チェックした人の表示名と、自分かどうか（自分の分は画面に出さない）。利用者のIDは返さない（D-119）
+export type ItemChecker = {
+  display_name: string;
+  is_me: boolean;
 };
 
 // API-16：チェック状態と前回チェックした日を型にも含めず、公開画面から編集操作へ渡さない。
 // グループの check_mode は「繰り返し利用」の印を出すために含む（D-122）
 export type PublicPackingListDetail = PublicPackingListSummary & {
   groups: PackingListGroup[];
-  items: Omit<PackingListItem, "is_checked" | "last_checked_at">[];
+  items: Omit<
+    PackingListItem,
+    "is_checked" | "last_checked_at" | "checked_by"
+  >[];
 };
 
 // よく使う項目1件。API-31・32 で同じ形（D-66・D-72）

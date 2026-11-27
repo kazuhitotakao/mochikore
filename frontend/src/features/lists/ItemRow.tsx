@@ -95,6 +95,12 @@ export function ItemRow({
   const menuId = useId();
   const errorId = useId();
   const lastCheckedId = useId();
+  const checkerId = useId();
+  // D-130：共同編集のリストで、ほかの人がチェックした持ち物だけ、チェックした人の表示名を出す（自分の分は出さない）
+  const checker =
+    item.is_checked && item.checked_by && !item.checked_by.is_me
+      ? item.checked_by.display_name
+      : null;
   const [draft, setDraft] = useState(item.name);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -275,9 +281,13 @@ export function ItemRow({
               disabled={busy}
               aria-label={item.name}
               // 前回チェックした日も、チェック欄の説明として読み上げる（D-122）
-              aria-describedby={
-                lastChecked ? `${lastCheckedId} ${errorId}` : errorId
-              }
+              aria-describedby={[
+                lastChecked && lastCheckedId,
+                checker && checkerId,
+                errorId,
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onChange={() => void toggleChecked()}
               className="size-5 shrink-0"
             />
@@ -331,6 +341,19 @@ export function ItemRow({
                     {lastChecked.ago}
                   </span>
                 )}
+              </span>
+            )}
+
+            {/* D-130：チェックした人の表示名。持ち物名の幅を優先し、長い名前は「…」で省く（全体は title で見られる）。
+                スマホ・PC で同じ出し方。名前を入力している間は出さない */}
+            {checker && !editing && (
+              <span
+                id={checkerId}
+                title={checker}
+                className="max-w-20 min-w-0 truncate text-xs text-muted"
+              >
+                <span className="sr-only">チェックした人：</span>
+                {checker}
               </span>
             )}
 
