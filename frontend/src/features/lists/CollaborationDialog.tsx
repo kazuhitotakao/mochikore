@@ -9,10 +9,17 @@ import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import { formatDate } from "@/lib/format";
 import type { InviteLink, ListMembers } from "@/types/api";
+import {
+  SHARE_FAILED_MESSAGE,
+  openShareSheet,
+  useCanShare,
+} from "./shareSheet";
 import { MAX_PEOPLE } from "./validation";
 
 type Props = {
   listId: number;
+  // D-129：「送る」で招待リンクと一緒に送る文に入れる
+  listTitle: string;
   // D-119：招待リンクを作る・止める、メンバーを外すのは所有者だけ。メンバーにはメンバーの一覧だけを見せる
   isOwner: boolean;
   // 作ってある招待リンク（なければ null）。作る・止めるの結果は画面の状態として親が持つ
@@ -28,10 +35,12 @@ type Props = {
 /**
  * SC-07-23「共同編集」（F-34、D-119）。開いたときだけ置き、閉じたら親が外す。
  * メンバーの一覧（表示名だけ）と、所有者には招待リンクを作る・コピーする・止める操作を出す。
+ * スマホでは「送る」も出し、LINE などへそのまま送れるようにする（D-129）。
  * Esc・外枠を押すと閉じる。送信中は閉じない（02_画面配置 共通5）。
  */
 export function CollaborationDialog({
   listId,
+  listTitle,
   isOwner,
   invite,
   onInviteChange,
@@ -50,6 +59,9 @@ export function CollaborationDialog({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const canShare = useCanShare();
+  // 共有画面を開いている間は、もう一度開かない
+  const [sharing, setSharing] = useState(false);
   // 外す前に確かめているメンバー（API-58 の id）
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
@@ -187,6 +199,20 @@ export function CollaborationDialog({
       urlRef.current?.select();
       setCopied("リンクを選びました。コピーして送ってください。");
     }
+  }
+
+  async function shareToApps() {
+    if (!url || sharing) return;
+    setError(null);
+    setCopied(null);
+    setSharing(true);
+    const result = await openShareSheet(
+      `「${listTitle}」を一緒に使いませんか？`,
+      url,
+    );
+    setSharing(false);
+    // 共有画面を閉じた（送らなかった）ときは何も出さない
+    if (result === "failed") setError(SHARE_FAILED_MESSAGE);
   }
 
   return (
@@ -363,10 +389,21 @@ export function CollaborationDialog({
                 type="button"
                 onClick={() => void copy()}
                 disabled={sending}
-                className="btn-primary"
+                // D-129：「送る」を出すときは「送る」を主なボタンにし、「コピー」は枠のボタンで残す
+                className={canShare ? "btn-outline" : "btn-primary"}
               >
                 コピー
               </button>
+              {canShare && (
+                <button
+                  type="button"
+                  onClick={() => void shareToApps()}
+                  disabled={sending || sharing}
+                  className="btn-primary"
+                >
+                  送る
+                </button>
+              )}
             </div>
           </div>
         ) : (
