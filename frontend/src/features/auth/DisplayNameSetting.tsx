@@ -11,12 +11,12 @@ import { SETTING_ACTION, SettingRow } from "./SettingRow";
 import { useAuthErrorRedirect } from "./useAuthErrorRedirect";
 
 type Props = {
-  // 今の表示名。まだ入れていなければ null
-  displayName: string | null;
+  // 今の表示名。会員登録で入れてある（D-127）
+  displayName: string;
 };
 
 /**
- * SC-12-10 表示名（F-34、D-119）。共同編集のメンバーに見せる名前を入れる・変える（API-55）。
+ * SC-12-10 表示名（F-34、D-119）。共同編集のメンバーに見せる名前を変える（API-55）。会員登録で入れてある（D-127）。
  * ふだんは今の名前と「変更」だけを出し、押したときに同じ行の中で入力欄を開く。
  */
 export function DisplayNameSetting({ displayName }: Props) {
@@ -25,7 +25,7 @@ export function DisplayNameSetting({ displayName }: Props) {
   const fieldId = useId();
   const titleId = useId();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(displayName ?? "");
+  const [name, setName] = useState(displayName);
   const [nameError, setNameError] = useState<string | undefined>();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export function DisplayNameSetting({ displayName }: Props) {
         method: "PATCH",
         body: { display_name: name },
       });
-      setName(user.display_name ?? "");
+      setName(user.display_name);
       setEditing(false);
       setSaved(true);
       // 保存できた名前で画面を読み直す
@@ -70,22 +70,14 @@ export function DisplayNameSetting({ displayName }: Props) {
       <SettingRow
         title="表示名"
         titleId={titleId}
-        value={
-          displayName === null ? (
-            <p className="text-muted">まだ入れていません</p>
-          ) : (
-            <p className="wrap-break-word">{displayName}</p>
-          )
-        }
+        value={<p className="wrap-break-word">{displayName}</p>}
         action={
           <button
             type="button"
             // 行の見出しと合わせて、何を変えるボタンかを読み上げで伝える
-            aria-label={
-              displayName === null ? "表示名を入れる" : "表示名を変更"
-            }
+            aria-label="表示名を変更"
             onClick={() => {
-              setName(displayName ?? "");
+              setName(displayName);
               setNameError(undefined);
               setError(null);
               setSaved(false);
@@ -93,7 +85,7 @@ export function DisplayNameSetting({ displayName }: Props) {
             }}
             className={SETTING_ACTION}
           >
-            {displayName === null ? "入れる" : "変更"}
+            変更
           </button>
         }
       >

@@ -143,7 +143,7 @@ class ForgotPasswordTest extends TestCase
             $this->postJson('/api/forgot-password', ['email' => "user{$i}@example.com"])->assertNoContent();
         }
 
-        $this->postJson('/api/register', ['email' => 'new@example.com', 'password' => 'password1!'])
+        $this->postJson('/api/register', ['email' => 'new@example.com', 'password' => 'password1!', 'display_name' => 'たろう'])
             ->assertCreated();
     }
 

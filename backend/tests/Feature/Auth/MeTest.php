@@ -13,7 +13,7 @@ class MeTest extends TestCase
 
     public function test_本人の情報だけを返す(): void
     {
-        $user = User::factory()->unverified()->create(['email' => 'user@example.com']);
+        $user = User::factory()->unverified()->create(['email' => 'user@example.com', 'display_name' => 'たろう']);
         $token = app(AuthService::class)->issueToken($user);
 
         $this->withToken($token)
@@ -24,8 +24,8 @@ class MeTest extends TestCase
                     'id' => $user->id,
                     'email' => 'user@example.com',
                     'email_verified_at' => null,
-                    // D-119：共同編集の表示名は、入れるまで null
-                    'display_name' => null,
+                    // D-127：表示名は会員登録で入れるので、メール認証の前から返る
+                    'display_name' => 'たろう',
                     'pending_email' => null,
                 ],
             ]);

@@ -4,8 +4,8 @@ export type User = {
   id: number;
   email: string;
   email_verified_at: string | null;
-  // D-119：共同編集のメンバーに見せる表示名。入れるまでは null
-  display_name: string | null;
+  // D-119：共同編集のメンバーに見せる表示名。会員登録で必ず入れる（D-127）
+  display_name: string;
   pending_email: string | null;
 };
 
@@ -211,11 +211,11 @@ export type InviteLink = {
 
 // API-58 共同編集の所有者とメンバー（D-119）。見せるのは表示名だけで、メールアドレスは返らない
 export type ListMembers = {
-  owner: { display_name: string | null; is_me: boolean };
+  owner: { display_name: string; is_me: boolean };
   members: {
     // メンバーを外すとき（API-59）に使う番号
     id: number;
-    display_name: string | null;
+    display_name: string;
     joined_at: string;
     is_me: boolean;
   }[];
@@ -224,7 +224,7 @@ export type ListMembers = {
 // API-61 招待リンクを開いた人に見せる内容（D-119）。member_count は所有者を除くメンバーの数
 export type Invitation = {
   list: { id: number; title: string };
-  owner_display_name: string | null;
+  owner_display_name: string;
   member_count: number;
   status: "joinable" | "member" | "owner" | "full";
 };

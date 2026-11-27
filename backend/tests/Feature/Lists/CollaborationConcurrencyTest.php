@@ -35,7 +35,7 @@ class CollaborationConcurrencyTest extends TestCase
         $actions = [];
         foreach ($joinerIds as $userId) {
             $actions[] = static function () use ($userId, $token) {
-                app(CollaborationService::class)->join(User::findOrFail($userId), $token, null);
+                app(CollaborationService::class)->join(User::findOrFail($userId), $token);
 
                 return 'joined';
             };
@@ -53,7 +53,6 @@ class CollaborationConcurrencyTest extends TestCase
         $list = $this->createList();
         PackingListItem::factory()->for($list)->create();
         $listId = $list->id;
-        $ownerId = $list->user_id;
 
         $results = $this->runTogether([
             static function () use ($listId) {
@@ -61,8 +60,8 @@ class CollaborationConcurrencyTest extends TestCase
 
                 return 'published';
             },
-            static function () use ($listId, $ownerId) {
-                app(CollaborationService::class)->createInviteLink(User::findOrFail($ownerId), PackingList::findOrFail($listId), null);
+            static function () use ($listId) {
+                app(CollaborationService::class)->createInviteLink(PackingList::findOrFail($listId));
 
                 return 'invited';
             },
@@ -89,7 +88,7 @@ class CollaborationConcurrencyTest extends TestCase
 
     private function createInvite(PackingList $list): string
     {
-        return app(CollaborationService::class)->createInviteLink($list->user, $list, null)->invite_token;
+        return app(CollaborationService::class)->createInviteLink($list)->invite_token;
     }
 
     /**

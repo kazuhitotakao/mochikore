@@ -27,6 +27,8 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            // D-127：表示名は会員登録で必ず入れるので、どの利用者にもある
+            'display_name' => fake()->firstName(),
         ];
     }
 

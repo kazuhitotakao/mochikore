@@ -2,19 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
 import type { Invitation, InvitationJoinResult } from "@/types/api";
-import { DisplayNameField } from "./DisplayNameField";
-import { MAX_PEOPLE, validateDisplayName } from "./validation";
+import { MAX_PEOPLE } from "./validation";
 
 type Props = {
   token: string;
   invitation: Invitation;
-  // 本人の表示名。まだなければ、参加するときに入れてもらう（V-27）
-  displayName: string | null;
+  // 本人の表示名。会員登録で入れてあるので、ここでは入れ直さない（D-127）
+  displayName: string;
 };
 
 /**
@@ -24,35 +23,22 @@ type Props = {
 export function JoinInvitation({ token, invitation, displayName }: Props) {
   const router = useRouter();
   const redirectIfAuthError = useAuthErrorRedirect();
-  const nameId = useId();
-  const [name, setName] = useState("");
-  const [nameError, setNameError] = useState<string | undefined>();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 開いた後にほかの人が参加して、10人になったとき
   const [full, setFull] = useState(invitation.status === "full");
-  const needsDisplayName = displayName === null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (sending) return;
     setError(null);
-    if (needsDisplayName) {
-      // C-04：送る前に確かめる。最終的な判定は Laravel が行う（V-27）
-      const invalid = validateDisplayName(name);
-      setNameError(invalid);
-      if (invalid) return;
-    }
 
     setSending(true);
     try {
-      // API-62：前後空白の削除は Laravel が行うので、入力のまま送る（D-92）
+      // API-62：本文は送らない（表示名は会員登録で入れてある、D-127）
       const result = await clientApi<InvitationJoinResult>(
         `/invites/${token}/join`,
-        {
-          method: "POST",
-          body: needsDisplayName ? { display_name: name } : undefined,
-        },
+        { method: "POST" },
       );
       // 参加できたら、リストの内容（SC-07）へ移る。ブラウザの戻るで、この画面には戻さない
       router.replace(`/lists/${result.list.id}`);
@@ -76,13 +62,6 @@ export function JoinInvitation({ token, invitation, displayName }: Props) {
         case "joined_list_limit_reached":
           setError(failure.message);
           break;
-        case "validation_error":
-          if (failure.errors.display_name?.[0]) {
-            setNameError(failure.errors.display_name[0]);
-            break;
-          }
-          setError(NETWORK_ERROR_MESSAGE);
-          break;
         default:
           setError(NETWORK_ERROR_MESSAGE);
       }
@@ -98,7 +77,7 @@ export function JoinInvitation({ token, invitation, displayName }: Props) {
         </p>
         <p className="text-sm text-muted wrap-break-word">
           {/* 「さん」で終わる表示名でも読みやすいよう、敬称は付けない */}
-          所有者：{invitation.owner_display_name ?? "（表示名なし）"}
+          所有者：{invitation.owner_display_name}
           ・いま{invitation.member_count + 1}人が使っています
         </p>
       </section>
@@ -112,23 +91,10 @@ export function JoinInvitation({ token, invitation, displayName }: Props) {
           <p>
             参加すると、このリストの持ち物をメンバーと一緒に追加・チェックできます。変更は全員のリストに反映されます。
           </p>
-          {needsDisplayName ? (
-            <DisplayNameField
-              id={nameId}
-              value={name}
-              error={nameError}
-              disabled={sending}
-              onChange={(value) => {
-                setName(value);
-                setNameError(undefined);
-              }}
-            />
-          ) : (
-            <p className="text-sm text-muted wrap-break-word">
-              メンバーには「{displayName}
-              」と表示されます。メールアドレスは見えません。
-            </p>
-          )}
+          <p className="text-sm text-muted wrap-break-word">
+            メンバーには「{displayName}
+            」と表示されます。メールアドレスは見えません。
+          </p>
         </>
       )}
 

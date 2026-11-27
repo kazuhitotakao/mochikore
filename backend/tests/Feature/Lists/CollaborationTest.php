@@ -8,7 +8,6 @@ use App\Models\PackingListItem;
 use App\Models\PackingListMember;
 use App\Models\SavedItem;
 use App\Models\User;
-use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * 共同編集の招待リンク・メンバー・権限（F-34、API-56〜62、D-119・D-43・D-50・D-97、V-27、C-03）。
@@ -122,24 +121,26 @@ class CollaborationTest extends ListApiTestCase
         $this->assertNotSame($second, $this->invite());
     }
 
-    public function test_表示名がない所有者は、表示名を入れて招待リンクを作る(): void
+    public function test_招待リンクを作る・参加するときは表示名を受け取らない(): void
     {
-        $this->owner->forceFill(['display_name' => null])->save();
-
+        // D-127：表示名は会員登録で入れてあるので、送られても保存せず、C-03 の定義していない項目として断る
         $this->actingAsUser($this->owner)
-            ->postJson("/api/lists/{$this->list->id}/invite-link")
+            ->postJson("/api/lists/{$this->list->id}/invite-link", ['display_name' => 'べつの名前'])
             ->assertUnprocessable()
             ->assertExactJson([
                 'message' => '入力内容を確認してください。',
                 'code' => 'validation_error',
-                'errors' => ['display_name' => ['表示名を入力してください。']],
+                'errors' => ['display_name' => ['この項目は送信できません。']],
             ]);
         $this->assertNull($this->list->fresh()->invite_token);
-
-        // V-27・C-01：前後の空白は標準どおり削ってから保存する
-        $this->postJson("/api/lists/{$this->list->id}/invite-link", ['display_name' => '  おかあさん　'])->assertOk();
         $this->assertSame('おかあさん', $this->owner->fresh()->display_name);
-        $this->assertNotNull($this->list->fresh()->invite_token);
+
+        $token = $this->invite();
+        $this->actingAsUser($this->member)->postJson("/api/invites/{$token}/join", ['display_name' => 'べつの名前'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.display_name.0', 'この項目は送信できません。');
+        $this->assertSame(0, $this->list->members()->count());
+        $this->assertSame('たろう', $this->member->fresh()->display_name);
     }
 
     public function test_公開中・リンクで共有中・運営が非公開にしたリストは招待リンクを作れない(): void
@@ -242,50 +243,6 @@ class CollaborationTest extends ListApiTestCase
         $this->actingAsUser($this->owner)->getJson("/api/invites/{$token}")->assertJsonPath('data.status', 'owner');
         $this->postJson("/api/invites/{$token}/join")->assertOk();
         $this->assertSame(1, $this->list->members()->count());
-    }
-
-    public function test_表示名がない人は、表示名を入れて参加する(): void
-    {
-        $token = $this->invite();
-        $this->member->forceFill(['display_name' => null])->save();
-
-        $this->actingAsUser($this->member)->postJson("/api/invites/{$token}/join")
-            ->assertUnprocessable()
-            ->assertJsonPath('errors.display_name.0', '表示名を入力してください。');
-        $this->assertSame(0, $this->list->members()->count());
-
-        $this->postJson("/api/invites/{$token}/join", ['display_name' => 'たろう'])->assertOk();
-        $this->assertSame('たろう', $this->member->fresh()->display_name);
-        $this->assertSame(1, $this->list->members()->count());
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    #[DataProvider('invalidDisplayNames')]
-    public function test_表示名が正しくなければ422で参加しない(array $body, string $message): void
-    {
-        $token = $this->invite();
-
-        $this->actingAsUser($this->member)->postJson("/api/invites/{$token}/join", $body)
-            ->assertUnprocessable()
-            ->assertJsonPath('code', 'validation_error')
-            ->assertJsonPath('errors.display_name.0', $message);
-        $this->assertSame(0, $this->list->members()->count());
-        $this->assertSame('たろう', $this->member->fresh()->display_name);
-    }
-
-    /**
-     * @return array<string, array{array<string, mixed>, string}>
-     */
-    public static function invalidDisplayNames(): array
-    {
-        return [
-            '21文字' => [['display_name' => str_repeat('あ', 21)], '表示名は20文字以内で入力してください。'],
-            '途中の改行' => [['display_name' => "たろ\nう"], '表示名は改行せずに入力してください。'],
-            '数値' => [['display_name' => 123], '表示名を文字で入力してください。'],
-            '配列' => [['display_name' => ['たろう']], '表示名を文字で入力してください。'],
-        ];
     }
 
     public function test_10人のリストには参加できず、参加は100件まで(): void

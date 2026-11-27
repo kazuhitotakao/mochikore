@@ -6,7 +6,8 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 /**
- * API-57・59・60 招待リンクを止める・メンバーを外す・自分で抜ける（F-34、D-119）。本文は受け取らない。
+ * API-56・57・59・60・62 招待リンクを作る・止める・メンバーを外す・自分で抜ける・参加する（F-34、D-119）。
+ * 本文は受け取らない（表示名は会員登録で入れてある、D-127）。
  */
 class NoBodyRequest extends FormRequest
 {

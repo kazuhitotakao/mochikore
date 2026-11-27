@@ -43,7 +43,7 @@ Codex用のルートの `AGENTS.md` も同じ内容。片方を直したら、�
 | 通報 | `list_reports` / `ListReport` |
 | 共同編集のメンバー | `packing_list_members` / `PackingListMember`。所有者は `packing_lists.user_id` で持ち、この表には入れない（D-119） |
 | 招待リンク | `packing_lists.invite_token`。共同編集に誘うリンク。見せるだけの限定公開のリンク（`share_token`、D-114）とは別 |
-| 表示名 | `users.display_name`。共同編集のメンバーにだけ見せる。公開リストには出さない（D-32） |
+| 表示名 | `users.display_name`。会員登録で必ず入れる（D-127）。共同編集のメンバーにだけ見せる。公開リストには出さない（D-32） |
 | まとめ表示 | `combined_views` / `CombinedView`、並べるリストは `combined_view_lists`。複数のリストを1つの画面に並べる本人だけのもの。持ち物は写さず、共同編集のメンバーにも見せない（D-124） |
 | チェックの動き | `packing_list_groups.check_mode`。`normal`＝通常（チェックしたら隠す）、`repeat`＝繰り返し利用（隠さず、チェック済みをグループの下に並べ、前回チェックした日 `packing_list_items.last_checked_at` を出す。チェックは自動では外れず、利用者が外す、D-122） |
 

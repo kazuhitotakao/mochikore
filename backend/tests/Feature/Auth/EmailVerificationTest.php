@@ -30,6 +30,7 @@ class EmailVerificationTest extends TestCase
         $token = $this->postJson('/api/register', [
             'email' => 'new@example.com',
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ])->assertCreated()->json('data.token');
 
         $user = User::where('email', 'new@example.com')->sole();
@@ -211,6 +212,7 @@ class EmailVerificationTest extends TestCase
         $token = $this->postJson('/api/register', [
             'email' => 'new@example.com',
             'password' => 'password1!',
+            'display_name' => 'たろう',
         ])->json('data.token');
         $user = User::where('email', 'new@example.com')->sole();
 
