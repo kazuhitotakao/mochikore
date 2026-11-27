@@ -109,6 +109,9 @@ class StorePackingListTest extends ListApiTestCase
             'カテゴリーが数字の文字列' => [['category_id' => '1'], 'category_id', '有効なカテゴリーを選択してください。'],
             'カテゴリーが小数' => [['category_id' => 1.5], 'category_id', '有効なカテゴリーを選択してください。'],
             'カテゴリーがtrue' => [['category_id' => true], 'category_id', '有効なカテゴリーを選択してください。'],
+            'カテゴリーが配列' => [['category_id' => [1]], 'category_id', '有効なカテゴリーを選択してください。'],
+            // C-02：整数として扱うのは 9007199254740991 まで
+            'カテゴリーが安全な整数の範囲外' => [['category_id' => 9007199254740992], 'category_id', '有効なカテゴリーを選択してください。'],
             'カテゴリーが0' => [['category_id' => 0], 'category_id', '有効なカテゴリーを選択してください。'],
             'カテゴリーが負数' => [['category_id' => -1], 'category_id', '有効なカテゴリーを選択してください。'],
             '存在しないカテゴリー' => [['category_id' => 999999], 'category_id', '有効なカテゴリーを選択してください。'],

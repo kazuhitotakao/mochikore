@@ -7,6 +7,7 @@ use App\Models\PackingListGroup;
 use App\Models\PackingListItem;
 use App\Models\User;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -232,6 +233,38 @@ class UpdateGroupingTest extends ListApiTestCase
 
         $this->assertSame(1, $this->list->groups()->count());
         $this->assertSame(6, $this->list->fresh()->grouping_revision);
+    }
+
+    public function test_保存の途中で失敗したら、全部を元に戻す(): void
+    {
+        // C-05・12_手動テスト 34-02：一部だけ保存しない
+        $pharmacy = PackingListGroup::factory()->for($this->list)->create(['name' => '薬局', 'sort_order' => 0]);
+        $this->items['C']->forceFill(['group_id' => $pharmacy->id])->save();
+        $before = $this->list->fresh()->updated_at->toJSON();
+
+        // 最後の revision の更新で失敗させる。そこまでに、グループの削除・作成と持ち物の移動は済んでいる
+        $groupsAtFailure = null;
+        Event::listen('eloquent.updating: '.PackingList::class, function () use (&$groupsAtFailure) {
+            $groupsAtFailure = $this->list->groups()->pluck('name')->all();
+            throw new \RuntimeException('test grouping failure');
+        });
+        try {
+            $this->save([
+                'base_revision' => 5,
+                'groups' => [['key' => 'g', 'id' => null, 'name' => 'スーパー']],
+                'assignments' => $this->assignments(['A' => 'g']),
+            ])->assertServerError()->assertJsonPath('code', 'server_error');
+        } finally {
+            Event::forget('eloquent.updating: '.PackingList::class);
+        }
+
+        $this->assertSame(['スーパー'], $groupsAtFailure);
+        $this->assertSame(['薬局'], $this->list->groups()->pluck('name')->all());
+        $this->assertNull($this->items['A']->fresh()->group_id);
+        $this->assertSame($pharmacy->id, $this->items['C']->fresh()->group_id);
+        $list = $this->list->fresh();
+        $this->assertSame(5, $list->grouping_revision);
+        $this->assertSame($before, $list->updated_at->toJSON());
     }
 
     /**
