@@ -6,11 +6,18 @@ import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
+import {
+  SHARE_FAILED_MESSAGE,
+  openShareSheet,
+  useCanShare,
+} from "./shareSheet";
 
 const MODERATED_MESSAGE = "このリストは運営により非公開になっています。";
 
 type Props = {
   listId: number;
+  // D-129：「送る」でリンクと一緒に送る文に入れる
+  listTitle: string;
   // 作ってあるリンク（なければ null）。作る・止めるの結果は画面の状態として親が持つ
   shareToken: string | null;
   onShareTokenChange: (token: string | null) => void;
@@ -22,10 +29,12 @@ type Props = {
 /**
  * SC-07-4「リンクで共有」（F-29、D-114）。開いたときだけ置き、閉じたら親が外す。
  * リンクがなければ作る前の確認、あればリンクと「コピー」「リンクを止める」を出す。
+ * スマホでは「送る」も出し、LINE などへそのまま送れるようにする（D-129）。
  * Esc・外枠を押すと閉じる。送信中は閉じない（02_画面配置 共通5）。
  */
 export function ShareLinkDialog({
   listId,
+  listTitle,
   shareToken,
   onShareTokenChange,
   onModerated,
@@ -36,12 +45,16 @@ export function ShareLinkDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const urlRef = useRef<HTMLInputElement>(null);
   const copyButtonRef = useRef<HTMLButtonElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const urlId = useId();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const canShare = useCanShare();
+  // 共有画面を開いている間は、もう一度開かない
+  const [sharing, setSharing] = useState(false);
   // 作る・止めるでボタンが入れ替わった後に、カーソルを次に使うボタンへ移す
   const moveFocus = useRef(false);
 
@@ -58,8 +71,13 @@ export function ShareLinkDialog({
   useEffect(() => {
     if (!moveFocus.current) return;
     moveFocus.current = false;
-    (shareToken ? copyButtonRef : createButtonRef).current?.focus();
-  }, [shareToken]);
+    (shareToken
+      ? canShare
+        ? sendButtonRef
+        : copyButtonRef
+      : createButtonRef
+    ).current?.focus();
+  }, [shareToken, canShare]);
 
   // D-114：リンクの形は /shared/{token}。開いている画面と同じサイトのURLにする
   const url = shareToken
@@ -117,6 +135,17 @@ export function ShareLinkDialog({
       urlRef.current?.select();
       setCopied("リンクを選びました。コピーして送ってください。");
     }
+  }
+
+  async function shareToApps() {
+    if (!url || sharing) return;
+    setError(null);
+    setCopied(null);
+    setSharing(true);
+    const result = await openShareSheet(`「${listTitle}」のリストです。`, url);
+    setSharing(false);
+    // 共有画面を閉じた（送らなかった）ときは何も出さない
+    if (result === "failed") setError(SHARE_FAILED_MESSAGE);
   }
 
   return (
@@ -212,10 +241,22 @@ export function ShareLinkDialog({
                 type="button"
                 onClick={() => void copy()}
                 disabled={sending}
-                className="btn-primary"
+                // D-129：「送る」を出すときは「送る」を主なボタンにし、「コピー」は枠のボタンで残す
+                className={canShare ? "btn-outline" : "btn-primary"}
               >
                 コピー
               </button>
+              {canShare && (
+                <button
+                  ref={sendButtonRef}
+                  type="button"
+                  onClick={() => void shareToApps()}
+                  disabled={sending || sharing}
+                  className="btn-primary"
+                >
+                  送る
+                </button>
+              )}
             </div>
           </div>
         )}

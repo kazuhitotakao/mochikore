@@ -27,6 +27,8 @@ import { PublishConfirmDialog } from "./VisibilitySwitch";
 
 type Props = {
   listId: number;
+  // D-129：「送る」でリンクと一緒に送る文に入れる。共同編集で変わったときも今の名前にする
+  listTitle: string;
   // D-94：チェック済みを表示しているか。SC-06・SC-09 へ移るときに表示を引き継ぐのに使う
   showChecked: boolean;
   onChecksReset: () => void;
@@ -76,6 +78,7 @@ type MenuItemKey = "public" | "reset-checks" | "delete-checked";
 // SC-07-4「…」メニュー
 export function ListMenu({
   listId,
+  listTitle,
   showChecked,
   onChecksReset,
   checkedItemIds,
@@ -508,6 +511,7 @@ export function ListMenu({
       {collaborating && (
         <CollaborationDialog
           listId={listId}
+          listTitle={listTitle}
           isOwner={isOwner}
           invite={invite}
           onInviteChange={onInviteChange}
@@ -523,6 +527,7 @@ export function ListMenu({
       {sharing && (
         <ShareLinkDialog
           listId={listId}
+          listTitle={listTitle}
           shareToken={shareToken}
           onShareTokenChange={onShareTokenChange}
           onModerated={onModerated}
