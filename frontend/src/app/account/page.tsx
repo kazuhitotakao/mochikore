@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
 import { Icon } from "@/components/Icon";
+import { AvatarSetting } from "@/features/auth/AvatarSetting";
 import { CompactDisplaySetting } from "@/features/auth/CompactDisplaySetting";
 import { DeleteAccountDialog } from "@/features/auth/DeleteAccountDialog";
 import { DisplayNameSetting } from "@/features/auth/DisplayNameSetting";
 import { LogoutButton } from "@/features/auth/LogoutButton";
 import { PendingEmailStatus } from "@/features/auth/PendingEmailStatus";
-import { requireUser } from "@/features/auth/requireUser";
+import { readAsUser, requireUser } from "@/features/auth/requireUser";
 import { SETTING_ACTION, SettingRow } from "@/features/auth/SettingRow";
 import { fromPath, pathWithFrom, withFrom } from "@/lib/backPath";
+import type { MyAvatar } from "@/types/api";
 
 // SC-12 アカウント設定
 export default async function AccountPage(props: PageProps<"/account">) {
@@ -18,6 +20,10 @@ export default async function AccountPage(props: PageProps<"/account">) {
   // ログインし直した後・SC-14・SC-16・SC-17から戻った後も、「←」の戻り先を保つ
   const currentPath = pathWithFrom("/account", back);
   const user = await requireUser(currentPath);
+  // D-128：写真はメール認証が済んでから読める。未認証の人に読みに行くと SC-04 へ移ってしまうので、読まない
+  const avatar = user.email_verified_at
+    ? (await readAsUser<MyAvatar>("/me/avatar", currentPath)).avatar
+    : undefined;
 
   return (
     <main className="flex flex-col gap-5 py-8">
@@ -61,6 +67,9 @@ export default async function AccountPage(props: PageProps<"/account">) {
         {user.email_verified_at && (
           <DisplayNameSetting displayName={user.display_name} />
         )}
+
+        {/* SC-12-12・D-128：写真。表示名と同じく、メール認証済みの人にだけ出す（API-70 もメール認証が要る） */}
+        {avatar !== undefined && <AvatarSetting avatar={avatar} />}
 
         {/* SC-12-5・F-13：ログイン中の専用の変更機能は作らず、再設定メールで変える。
             説明の文は置かない（「変更」で開く再設定メールの画面（SC-14）で分かるため、利用者の指示） */}

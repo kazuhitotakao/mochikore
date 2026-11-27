@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -84,5 +85,23 @@ class User extends Authenticatable implements MustVerifyEmail
     public function combinedViews(): HasMany
     {
         return $this->hasMany(CombinedView::class);
+    }
+
+    /**
+     * 本人の写真（D-128）。載せていなければ null。
+     *
+     * @return HasOne<UserAvatar, $this>
+     */
+    public function avatar(): HasOne
+    {
+        return $this->hasOne(UserAvatar::class);
+    }
+
+    /**
+     * 画面にそのまま出せる写真（data URL）。載せていなければ null。
+     */
+    public function avatarDataUrl(): ?string
+    {
+        return $this->avatar?->dataUrl();
     }
 }

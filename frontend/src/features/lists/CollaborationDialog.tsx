@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { Avatar } from "@/components/Avatar";
 import { useBackdropDismiss } from "@/components/useBackdropDismiss";
 import { useAuthErrorRedirect } from "@/features/auth/useAuthErrorRedirect";
 import { clientApi } from "@/lib/api/client";
@@ -225,6 +226,8 @@ export function CollaborationDialog({
           {members !== null && (
             <ul className="flex flex-col divide-y divide-line-soft">
               <li className="flex min-h-11 items-center gap-2 py-1">
+                {/* D-128：写真（なければ人型）。名前を隣に出すので読ませない */}
+                <Avatar src={members.owner.avatar} size="sm" />
                 <span className="min-w-0 flex-1 wrap-break-word">
                   {members.owner.display_name}
                   {members.owner.is_me && "（あなた）"}
@@ -236,6 +239,7 @@ export function CollaborationDialog({
                   key={member.id}
                   className="flex min-h-11 flex-wrap items-center gap-2 py-1"
                 >
+                  <Avatar src={member.avatar} size="sm" />
                   <span
                     // 確かめている間は、名前と確認が1行に並びきらなければ、名前を細く折り返さずに確認を次の行へ送る
                     className={`min-w-0 wrap-break-word ${confirmingId === member.id ? "flex-auto" : "flex-1"}`}
