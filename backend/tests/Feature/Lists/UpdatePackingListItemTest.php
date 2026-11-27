@@ -69,6 +69,34 @@ class UpdatePackingListItemTest extends ListApiTestCase
         $this->assertTrue($this->item->fresh()->is_checked);
     }
 
+    public function test_公開中のリストを全部チェックしても公開のままで、追加した持ち物は未チェックで末尾に入る(): void
+    {
+        // D-95・12_手動テスト 05-09：公開の条件は、チェック済みかどうかに関係なく全件で判定する
+        $this->list->forceFill(['is_public' => true])->save();
+        $towel = PackingListItem::factory()->for($this->list)->create(['name' => 'タオル', 'sort_order' => 3]);
+
+        // 1件ずつ（API-11）とまとめて（API-37）の両方で、全部をチェック済みにする
+        $this->actingAsUser($this->user)
+            ->patchJson("/api/items/{$this->item->id}", ['is_checked' => true])
+            ->assertOk();
+        $this->patchJson("/api/lists/{$this->list->id}/items/checks", ['item_ids' => [$towel->id], 'is_checked' => true])
+            ->assertOk();
+
+        $this->assertTrue($this->list->fresh()->is_public);
+        $this->getJson("/api/public/lists/{$this->list->id}")->assertOk()->assertJsonCount(2, 'data.items');
+
+        $this->postJson("/api/lists/{$this->list->id}/items", ['name' => '歯ブラシ'])->assertCreated();
+
+        $items = $this->getJson("/api/lists/{$this->list->id}")
+            ->assertOk()
+            ->assertJsonPath('data.is_public', true)
+            ->json('data.items');
+        $this->assertSame(
+            [['靴下', true], ['タオル', true], ['歯ブラシ', false]],
+            array_map(fn (array $item) => [$item['name'], $item['is_checked']], $items),
+        );
+    }
+
     public function test_同じ名前のほかの持ち物には影響しない(): void
     {
         // D-29
