@@ -190,17 +190,21 @@ export function OwnListCard({
               ? { transform: `translateX(${swipe.offset}px)` }
               : undefined
           }
-          className={`relative flex items-start card hover:border-line-strong ${swipe.swiping ? "" : "transition-transform duration-200"}`}
+          className={`relative card hover:border-line-strong ${swipe.swiping ? "" : "transition-transform duration-200"}`}
         >
+          {/* D-73：更新日をカードの右下に置くため、リンクを右端まで広げ、「…」は右上に重ねる。
+              「…」の下に入る名前と説明文は右を空け、今までと同じ幅で折り返す */}
           <Link
             href={`/lists/${list.id}`}
             prefetch={false}
             data-list-link
-            className={`flex min-w-0 flex-1 flex-col gap-1 py-3 pl-4 ${CARD_RADIUS} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand`}
+            className={`flex flex-col gap-1 px-4 py-3 ${CARD_RADIUS} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand`}
           >
-            <span className="font-medium wrap-break-word">{list.title}</span>
+            <span className="pr-8 font-medium wrap-break-word">
+              {list.title}
+            </span>
             {list.description && (
-              <span className="truncate text-sm text-muted">
+              <span className="truncate pr-8 text-sm text-muted">
                 {list.description}
               </span>
             )}
@@ -213,12 +217,15 @@ export function OwnListCard({
               {(!list.is_owner || list.member_count > 0) && (
                 <CollaborativeBadge />
               )}
-              <span>更新 {formatDate(list.updated_at)}</span>
+              {/* D-73：印と同じ行に入らないときは、次の行の右端に回る */}
+              <span className="ml-auto">
+                更新 {formatDate(list.updated_at)}
+              </span>
             </span>
           </Link>
 
           {/* SC-05-6（D-120）：持ち物の行と同じく、カードの右上に「…」を置く */}
-          <div ref={menuContainer} className="relative shrink-0 p-0.5">
+          <div ref={menuContainer} className="absolute top-0 right-0 p-0.5">
             <button
               type="button"
               aria-label={`${list.title}の操作`}
