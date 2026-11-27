@@ -173,6 +173,21 @@ function byListOrder(a: PackingListItem, b: PackingListItem): number {
   return a.sort_order - b.sort_order || a.id - b.id;
 }
 
+// D-130：チェックした人は API-07 だけが返す。ほかの応答（API-11・25・37・45・64）で持ち物を置き換えるときは、
+// チェックが変わっていなければ前の値を残す。変わったのは自分の操作なので、消す（自分の分は出さない）
+function keepChecker(
+  saved: PackingListItem,
+  before: PackingListItem | undefined,
+): PackingListItem {
+  return {
+    ...saved,
+    checked_by:
+      before && before.is_checked === saved.is_checked
+        ? (before.checked_by ?? null)
+        : null,
+  };
+}
+
 // 今もある番号だけを残す。1つも減らないときは同じものを返し、描画し直さない
 function keepExisting(
   selected: ReadonlySet<number>,
@@ -669,7 +684,9 @@ export function ListDetail({
     }
 
     setItems((current) =>
-      current.map((existing) => (existing.id === item.id ? item : existing)),
+      current.map((existing) =>
+        existing.id === item.id ? keepChecker(item, existing) : existing,
+      ),
     );
   }
 
@@ -717,7 +734,7 @@ export function ListDetail({
       current.map((group) => ({ ...group, is_checked: false })),
     );
     setItems((current) =>
-      current.map((item) => ({ ...item, is_checked: false })),
+      current.map((item) => ({ ...item, is_checked: false, checked_by: null })),
     );
   }
 
@@ -740,10 +757,12 @@ export function ListDetail({
   // API-25：戻した持ち物だけを候補から外し、番号の位置に入れる（D-28・D-31）
   function handleRestored(item: PackingListItem) {
     clearEmptyGroupCheck(item.group_id);
+    const deleted = deletedItems.find((entry) => entry.item.id === item.id);
     setItems((current) =>
-      [...current.filter((existing) => existing.id !== item.id), item].sort(
-        byListOrder,
-      ),
+      [
+        ...current.filter((existing) => existing.id !== item.id),
+        keepChecker(item, deleted?.item),
+      ].sort(byListOrder),
     );
     setDeletedItems((current) =>
       current.filter((deleted) => deleted.item.id !== item.id),
@@ -1031,7 +1050,9 @@ export function ListDetail({
       setItems((current) =>
         current
           .filter((item) => item.id !== baseId)
-          .map((item) => (item.id === result.item.id ? result.item : item)),
+          .map((item) =>
+            item.id === result.item.id ? keepChecker(result.item, item) : item,
+          ),
       );
       // D-123（利用者の指示）：間違って重ねたときに戻せるよう、ほかの通知と同じ5秒だけ「元に戻す」を出す
       setNotice({
@@ -1083,7 +1104,11 @@ export function ListDetail({
         [
           ...current
             .filter((item) => item.id !== result.restored.id)
-            .map((item) => (item.id === result.item.id ? result.item : item)),
+            .map((item) =>
+              item.id === result.item.id
+                ? keepChecker(result.item, item)
+                : item,
+            ),
           result.restored,
         ].sort(byListOrder),
       );
@@ -1217,6 +1242,7 @@ export function ListDetail({
               ...item,
               is_checked: latest.is_checked,
               last_checked_at: latest.last_checked_at,
+              checked_by: keepChecker(latest, item).checked_by,
             }
           : item;
       }),

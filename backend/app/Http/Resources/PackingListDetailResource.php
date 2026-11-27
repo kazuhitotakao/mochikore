@@ -10,6 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * API-07 自分のリストの内容。リスト本体に grouping_revision・groups・items を加える（D-67）。
  * category・groups・items を表示順で、members_count も読み込んでから使う。
+ * メンバーがいるときは user と members.user も読み込む（D-130）。
  */
 class PackingListDetailResource extends JsonResource
 {
@@ -22,6 +23,12 @@ class PackingListDetailResource extends JsonResource
     {
         $isOwner = $this->user_id === $request->user()->id;
         $hasInvite = $isOwner && $this->hasValidInvite();
+        // D-130：メンバーがいる共同編集のリストで、今の所有者・メンバーがチェックした持ち物だけ表示名を返す。
+        // 個人用のリスト・抜けた人・外された人のチェックには返さない。利用者のIDは返さない（D-119）
+        $checkers = $this->members_count > 0
+            ? collect([$this->user])->merge($this->members->pluck('user'))->pluck('display_name', 'id')
+            : collect();
+        $userId = $request->user()->id;
 
         return [
             ...(new PackingListResource($this->resource))->toArray($request),
@@ -48,6 +55,10 @@ class PackingListDetailResource extends JsonResource
                 'sort_order' => $item->sort_order,
                 'is_checked' => $item->is_checked,
                 'last_checked_at' => $item->last_checked_at,
+                // D-130：チェックした人。自分かどうか（is_me）で、画面は自分の分を出さない
+                'checked_by' => $item->is_checked && $item->checked_by !== null && $checkers->has($item->checked_by)
+                    ? ['display_name' => $checkers->get($item->checked_by), 'is_me' => $item->checked_by === $userId]
+                    : null,
             ]),
         ];
     }

@@ -58,9 +58,9 @@ class ShowPackingListTest extends ListApiTestCase
                         ['id' => $later->id, 'name' => '服', 'sort_order' => 1, 'is_checked' => false, 'check_mode' => 'normal'],
                     ],
                     'items' => [
-                        ['id' => $a->id, 'name' => 'A', 'group_id' => null, 'sort_order' => 1, 'is_checked' => true, 'last_checked_at' => null],
-                        ['id' => $b->id, 'name' => 'B', 'group_id' => $later->id, 'sort_order' => 2, 'is_checked' => false, 'last_checked_at' => null],
-                        ['id' => $c->id, 'name' => 'C', 'group_id' => null, 'sort_order' => 2, 'is_checked' => false, 'last_checked_at' => null],
+                        ['id' => $a->id, 'name' => 'A', 'group_id' => null, 'sort_order' => 1, 'is_checked' => true, 'last_checked_at' => null, 'checked_by' => null],
+                        ['id' => $b->id, 'name' => 'B', 'group_id' => $later->id, 'sort_order' => 2, 'is_checked' => false, 'last_checked_at' => null, 'checked_by' => null],
+                        ['id' => $c->id, 'name' => 'C', 'group_id' => null, 'sort_order' => 2, 'is_checked' => false, 'last_checked_at' => null, 'checked_by' => null],
                     ],
                 ],
             ]);

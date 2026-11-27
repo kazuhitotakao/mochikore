@@ -31,7 +31,8 @@ class GroupCheckService
         DB::transaction(function () use ($list) {
             // D-106：持ち物と空グループを別々のタイミングで解除しない。
             $locked = PackingList::whereKey($list->id)->lockForUpdate()->firstOrFail();
-            $locked->items()->where('is_checked', true)->update(['is_checked' => false]);
+            // D-130：外したら、チェックを付けた人も消す
+            $locked->items()->where('is_checked', true)->update(['is_checked' => false, 'checked_by' => null]);
             $locked->groups()->where('is_checked', true)->update(['is_checked' => false]);
         });
     }

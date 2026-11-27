@@ -58,6 +58,11 @@ class PackingListController extends Controller
             'items' => fn ($query) => $query->orderBy('sort_order')->orderBy('id'),
         ])->loadCount('members');
 
+        // D-130：共同編集のリストだけ、チェックした人の表示名を出すために所有者とメンバーを読む
+        if ($list->members_count > 0) {
+            $list->load(['user', 'members.user']);
+        }
+
         return new PackingListDetailResource($list);
     }
 

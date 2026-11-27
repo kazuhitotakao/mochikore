@@ -49,11 +49,11 @@ class PackingListItemService
      *
      * @param  array{name?: string, is_checked?: bool}  $attributes
      */
-    public function update(PackingListItem $item, array $attributes): PackingListItem
+    public function update(User $user, PackingListItem $item, array $attributes): PackingListItem
     {
-        return DB::transaction(function () use ($item, $attributes) {
+        return DB::transaction(function () use ($user, $item, $attributes) {
             if (array_key_exists('is_checked', $attributes)) {
-                $this->recordCheck($item, $attributes['is_checked']);
+                $this->recordCheck($user, $item, $attributes['is_checked']);
             }
             $item->fill($attributes);
             $renamed = $item->isDirty('name');
@@ -73,13 +73,16 @@ class PackingListItemService
      * 外しても日時は残す（チェックはこれからの予定、日時は過去の記録として分けて持つ）。
      * ただし付けてから1分以内に外したら、押し間違いとして付ける前の日時へ戻す。
      * 経過はサーバーの時刻で数え、共同編集でほかのメンバーが外したときも同じにする。
+     * D-130：付けた人も覚え、外したら消す（チェック中だけ、共同編集のメンバーに表示名を出す）。
      */
-    private function recordCheck(PackingListItem $item, bool $checked): void
+    private function recordCheck(User $user, PackingListItem $item, bool $checked): void
     {
         // 同じ状態の送り直しでは、日時を進めない
         if ($checked === $item->is_checked) {
             return;
         }
+
+        $item->checked_by = $checked ? $user->id : null;
 
         if ($checked) {
             $item->previous_checked_at = $item->last_checked_at;
@@ -269,9 +272,9 @@ class PackingListItemService
      * @param  list<int>  $itemIds
      * @return Collection<int, PackingListItem>
      */
-    public function setChecks(PackingList $list, array $itemIds, bool $checked): Collection
+    public function setChecks(User $user, PackingList $list, array $itemIds, bool $checked): Collection
     {
-        return DB::transaction(function () use ($list, $itemIds, $checked) {
+        return DB::transaction(function () use ($user, $list, $itemIds, $checked) {
             // V-19：同じリストの削除していない持ち物だけ。1件でも違えば、何も変えずに全体を拒否する
             if ($list->items()->whereKey($itemIds)->count() !== count($itemIds)) {
                 throw ValidationException::withMessages([
@@ -286,11 +289,13 @@ class PackingListItemService
                     'previous_checked_at' => DB::raw('last_checked_at'),
                     'last_checked_at' => now(),
                     'is_checked' => true,
+                    // D-130：今回付けた持ち物だけ、付けた人にする（付いていた持ち物は前の人のまま）
+                    'checked_by' => $user->id,
                 ]);
             } else {
                 // D-122：グループ単位でまとめて外すときは、付けてからの時間に関係なく日時を残す
                 // （1分以内の押し間違いとして戻すのは、1件ずつ外したときだけ）
-                $list->items()->whereKey($itemIds)->update(['is_checked' => false]);
+                $list->items()->whereKey($itemIds)->update(['is_checked' => false, 'checked_by' => null]);
             }
 
             return $list->items()->whereKey($itemIds)->orderBy('sort_order')->orderBy('id')->get();

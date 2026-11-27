@@ -20,7 +20,7 @@ class BulkCheckItemsController extends Controller
         Gate::authorize('editContents', $list);
 
         return PackingListItemResource::collection(
-            $service->setChecks($list, $request->validated('item_ids'), $request->validated('is_checked')),
+            $service->setChecks($request->user(), $list, $request->validated('item_ids'), $request->validated('is_checked')),
         );
     }
 }
