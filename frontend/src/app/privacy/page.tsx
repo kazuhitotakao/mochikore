@@ -26,7 +26,7 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
           プライバシーポリシー・お問い合わせ
         </h1>
         <p className="text-sm text-muted">
-          最終更新日：<time dateTime="2026-11-13">2026年11月13日</time>
+          最終更新日：<time dateTime="2026-11-28">2026年11月28日</time>
         </p>
         <p>もちこれでお預かりする情報と、その使い道・削除方法を案内します。</p>
       </header>
@@ -198,6 +198,16 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
             <p>サーバーの運用とデータの保存</p>
           </li>
           <li className="flex flex-col gap-1 py-4">
+            <h3 className="font-bold">Cloudflare</h3>
+            <p>データの控え（暗号化したもの）の保存</p>
+          </li>
+          <li className="flex flex-col gap-1 py-4">
+            <h3 className="font-bold">Pusher</h3>
+            <p>
+              共同編集で、ほかのメンバーへ変更があったことを知らせる合図の配信（リストの中身は送りません）
+            </p>
+          </li>
+          <li className="flex flex-col gap-1 py-4">
             <h3 className="font-bold">Brevo</h3>
             <p>登録確認・パスワード再設定などのメール送信</p>
           </li>
@@ -239,6 +249,12 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
           </ul>
           <p className="text-sm text-muted">
             ほかの人が自分用にコピーしたリストは残ります。メンバーとして参加していたリストからは外れ、足した持ち物はそのリストに残ります。
+          </p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <h3 className="font-bold">データの控え</h3>
+          <p>
+            障害に備えて、毎日1回、保存しているデータ全体の控えを暗号化して保管し、障害からの復旧にだけ使います。退会・削除した情報も、控えからは6日を過ぎると自動で削除されます。削除の処理が1日ほど遅れる場合があります。
           </p>
         </div>
         <div className="flex flex-col gap-3">
