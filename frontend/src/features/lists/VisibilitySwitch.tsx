@@ -69,8 +69,8 @@ export function ModeratedNotice({ id }: { id: string }) {
   return (
     <p id={id} className="text-sm text-muted">
       このリストは運営により非公開になっています。 お問い合わせ：
-      <a href="mailto:simasyam@gmail.com" className="text-link tap-target">
-        simasyam@gmail.com
+      <a href="mailto:simasyamu@gmail.com" className="text-link tap-target">
+        simasyamu@gmail.com
       </a>
     </p>
   );
