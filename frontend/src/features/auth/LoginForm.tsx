@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FieldError } from "@/components/FieldError";
 import { clientApi } from "@/lib/api/client";
 import { ApiError, NETWORK_ERROR_MESSAGE } from "@/lib/api/errors";
@@ -23,6 +23,21 @@ export function LoginForm({ next }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const fieldErrors = useFieldErrors(FIELDS);
   const [formError, setFormError] = useState<string | null>(null);
+  // SC-02-4・D-131：回数制限（429）の残り秒数。1秒ごとに減らし、0になったら案内を消す
+  const [waitSeconds, setWaitSeconds] = useState(0);
+  // 残り秒数は待ち終わる時刻から数え直す。画面を離れてタイマーが止まっても、戻ったときに正しい秒数を出すため
+  const waitUntil = useRef(0);
+  const waiting = waitSeconds > 0;
+
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => {
+      setWaitSeconds(
+        Math.max(0, Math.ceil((waitUntil.current - Date.now()) / 1000)),
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [waiting]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,6 +45,7 @@ export function LoginForm({ next }: Props) {
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
     setFormError(null);
+    setWaitSeconds(0);
 
     // V-03：会員登録と同じ条件で、送信前に画面でも全項目を確かめる。最終的な判定は Laravel が行う
     const errors = {
@@ -62,6 +78,14 @@ export function LoginForm({ next }: Props) {
 
       if (fieldErrors.hasAny(serverErrors)) {
         fieldErrors.show(serverErrors);
+      } else if (
+        error instanceof ApiError &&
+        error.code === "too_many_requests"
+      ) {
+        // D-131：ボタンは押せるままにする（回数はメールアドレスとIPの組で数えるので、別のアドレスなら待たずに試せる）
+        const seconds = Math.max(1, error.retryAfter ?? 60);
+        waitUntil.current = Date.now() + seconds * 1000;
+        setWaitSeconds(seconds);
       } else {
         // C-04：項目に結びつかないエラーはフォームの上に出す
         setFormError(loginErrorMessage(error));
@@ -75,6 +99,11 @@ export function LoginForm({ next }: Props) {
       {formError && (
         <p role="alert" className="text-danger">
           {formError}
+        </p>
+      )}
+      {waiting && (
+        <p role="alert" className="text-danger">
+          あと{waitSeconds}秒で再度お試しいただけます
         </p>
       )}
 
@@ -124,8 +153,6 @@ function loginErrorMessage(error: unknown): string {
   switch (error.code) {
     case "invalid_credentials":
       return "メールアドレスまたはパスワードが正しくありません。";
-    case "too_many_requests":
-      return `あと${error.retryAfter ?? 60}秒で再度お試しいただけます`;
     case "validation_error":
       return error.message;
     default:
