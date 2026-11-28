@@ -79,6 +79,12 @@ export function useSwipeToDelete({
     function handlePointerDown(event: globalThis.PointerEvent) {
       const element = container.current;
       if (element && !element.contains(event.target as Node)) {
+        // 04-13：閉じて戻ってくる行（左端のチェック欄・名前）に、この指のクリックが当たることがある。
+        // 閉じるだけにして、チェック・名前の編集にしない
+        suppressClick.current = true;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, SUPPRESS_CLICK_MS);
         onOpenChange(false);
       }
     }
