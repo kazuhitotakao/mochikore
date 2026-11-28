@@ -382,12 +382,10 @@ export function GroupingEditor({
   const onHistoryBack = useEffectEvent(() => {
     if (!historyGuard.current) return;
     historyGuard.current = false;
-    if (leaveAfterPop.current) {
-      backToList();
-      return;
-    }
-    if (!dirty && !busy) {
-      backToList();
+    if (leaveAfterPop.current || (!dirty && !busy)) {
+      // Next.js も同じ popstate で、戻った先（この画面）を描き直す。再読み込み・URL を直接開いたときは
+      // この受け取りが Next.js より先に動き、SC-07 への移動が描き直しに取り消されるので、次の順番に回す
+      window.setTimeout(backToList, 0);
       return;
     }
     // 保存が終わるまで（失敗したときも）この画面に残るよう、履歴を足し直す
