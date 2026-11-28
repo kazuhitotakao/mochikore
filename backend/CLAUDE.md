@@ -52,7 +52,8 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 配信は `App\Services\ListChangeNotifier` から行う（`app/Events` は作らない）。キューは使わず、保存の後にその場で送る。失敗しても保存は成功のままにし、例外は `report()` する。
 - リストの中身・リストそのもの・メンバーを変えるルートを足したら、`routes/api.php` で `NotifyListChange` を付ける。メンバーがいるリストだけに配信し、操作した本人（`X-Socket-ID`）は配信先から外す。読むだけのルートと、元のリストを変えない複製には付けない。
 - チャンネルの認可は API-63（`/api/realtime/auth`）だけ。Laravel 標準の `/broadcasting/auth`（`Broadcast::routes()`・`withBroadcasting()`）は置かない。聞けるのは所有者とメンバーだけで、それ以外は 404。
-- テストは配信先が `null`（`phpunit.xml`）。配信の呼び出しは `ListChangeNotifier` を差し替えて確かめ、実際の Reverb へは送らない。
+- 配信先（`BROADCAST_CONNECTION`）は、開発が `reverb`、公開先が同じ方式の外部サービスの `pusher`（D-119）。`ListChangeNotifier` は既定の接続へ送るので、接続ごとにコードを分けない。
+- テストは配信先が `null`（`phpunit.xml`）。配信の呼び出しは `ListChangeNotifier` を差し替えて確かめ、実際の Reverb・Pusher へは送らない。
 
 ## Eloquent
 

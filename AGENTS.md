@@ -90,7 +90,7 @@ frontend（Next.js 16）と backend（Laravel 13 + MySQL 8.4）を1つのリポ�
 - ルート `.env` の `MOCHIKORE_HOST_WORKSPACE` はMac側のプロジェクトの絶対パスにする。マウント元にコンテナ内の `/workspace` を使わない。
 - `up`・`stop` は `frontend backend reverb db phpmyadmin` を対象にし、接続中の workspace 自身を作り直したり止めたりしない。workspaceの再構築はVS Codeの Rebuild Containerで行う。
 - npm・artisan・composer・Pint・Laravelのテストは各フォルダで直接実行し、`docker compose exec frontend/backend` を付けない。MySQLの管理コマンドは `/workspace` から `docker compose exec db` で実行する。開発サーバーはComposeが起動済みなので `npm run dev` や `php artisan serve` を重ねて起動しない。
-- `reverb` は共同編集の配信（Laravel Reverb、D-119）。Laravelと同じコードで動き、変更を自動では読み直さないので、配信のコードや `backend/.env` の `REVERB_` を変えたら `/workspace` で `docker compose restart reverb` する。`php artisan reverb:start` を重ねて起動しない。
+- `reverb` は開発で使う共同編集の配信（Laravel Reverb、D-119。公開先は Pusher）。Laravelと同じコードで動き、変更を自動では読み直さないので、配信のコードや `backend/.env` の `REVERB_` を変えたら `/workspace` で `docker compose restart reverb` する。`php artisan reverb:start` を重ねて起動しない。
 
 ## 確認コマンド
 

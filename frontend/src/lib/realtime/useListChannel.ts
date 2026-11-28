@@ -51,7 +51,7 @@ async function connect(config: RealtimeConfig): Promise<SharedConnection> {
 
   const promise = import("pusher-js").then(({ default: PusherClass }) => {
     const pusher = new PusherClass(config.key, {
-      // Pusher のサービスではなく、自分たちの配信サーバーへつなぐ
+      // つなぐ先は config.ts が決めたホストにする（開発は Reverb、公開先は Pusher のサービス、D-119）
       cluster: "",
       wsHost: config.host,
       wsPort: config.port,
