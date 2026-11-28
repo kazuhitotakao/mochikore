@@ -15,10 +15,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Events\TokenAuthenticated;
 use Laravel\Sanctum\Sanctum;
+use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
+use Symfony\Component\Mailer\Transport\Dsn;
+use Symfony\Component\Mailer\Transport\TransportInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -50,6 +55,12 @@ class AppServiceProvider extends ServiceProvider
         // D-119・F-35：共同編集のリストごとのチャンネルは、所有者とメンバーにだけ聞かせる。
         // Laravel 標準の /broadcasting/auth は置かず、メール認証済みの人だけが通る API-63 から認可する
         ListChangeNotifier::registerChannel();
+
+        // D-15：公開先（Railway の Hobby）は SMTP で外へ送れないので、Brevo へは HTTPS の API で送る。
+        // HTTP の送り手が登録されていればそれを使う（テストで外へ送らずに中身を確かめるため）
+        Mail::extend('brevo', fn (): TransportInterface => (new BrevoTransportFactory(
+            client: $this->app->bound(HttpClientInterface::class) ? $this->app->make(HttpClientInterface::class) : null,
+        ))->create(new Dsn('brevo+api', 'default', config('services.brevo.key'))));
 
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
