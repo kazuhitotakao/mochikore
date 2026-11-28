@@ -42,7 +42,8 @@ export function ShowCheckedSwitch({
       // 押せる範囲は44px以上（D-73）。横に広げず、文字とスイッチの幅だけにする
       className={`flex min-h-11 items-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50 ${align === "end" ? "self-end" : "self-start"} ${small ? "gap-2 text-sm" : "gap-3"} ${className}`}
     >
-      <span>チェック済みを表示（{count}件）</span>
+      {/* D-132：チェックを付けた空のグループだけを隠しているときは、持ち物が0件なので件数を出さない */}
+      <span>チェック済みを表示{count > 0 && `（${count}件）`}</span>
       <SwitchIndicator on={on} size={size} />
     </button>
   );
