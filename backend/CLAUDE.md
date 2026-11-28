@@ -55,6 +55,10 @@ Laravel Boost などの新しいパッケージは、確認してから入れる
 - 配信先（`BROADCAST_CONNECTION`）は、開発が `reverb`、公開先が同じ方式の外部サービスの `pusher`（D-119）。`ListChangeNotifier` は既定の接続へ送るので、接続ごとにコードを分けない。
 - テストは配信先が `null`（`phpunit.xml`）。配信の呼び出しは `ListChangeNotifier` を差し替えて確かめ、実際の Reverb・Pusher へは送らない。
 
+## メール
+
+- 送り方（`MAIL_MAILER`）は、開発が `log`、テストが `array`、公開先が `brevo`（Brevo の HTTPS の API、`BREVO_API_KEY`）。公開先の Railway（Hobby）は SMTP で外へ送れないので、`smtp` にしない（D-15）。
+
 ## Eloquent
 
 - Model の設定は `#[Fillable]` など、生成時と同じ書き方にする。

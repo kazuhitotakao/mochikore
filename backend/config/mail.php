@@ -68,6 +68,12 @@ return [
             'transport' => 'resend',
         ],
 
+        // D-15：公開先（Railway の Hobby）は SMTP で外へ送れないので、Brevo へは HTTPS の API で送る
+        // （送り方の登録は AppServiceProvider）
+        'brevo' => [
+            'transport' => 'brevo',
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
