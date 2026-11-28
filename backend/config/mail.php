@@ -17,7 +17,7 @@ return [
     'default' => env('MAIL_MAILER', 'log'),
 
     // D-47：通報のたびには送らず、1日1回この管理者へまとめて通知する
-    'reports_to' => 'simasyam@gmail.com',
+    'reports_to' => 'simasyamu@gmail.com',
 
     /*
     |--------------------------------------------------------------------------

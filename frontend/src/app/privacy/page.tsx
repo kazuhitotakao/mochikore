@@ -261,10 +261,10 @@ export default async function PrivacyPage(props: PageProps<"/privacy">) {
         </h2>
         <p>もちこれへのお問い合わせは、メールで受け付けています。</p>
         <a
-          href="mailto:simasyam@gmail.com"
+          href="mailto:simasyamu@gmail.com"
           className="self-start break-all font-medium text-link tap-target"
         >
-          simasyam@gmail.com
+          simasyamu@gmail.com
         </a>
       </section>
 

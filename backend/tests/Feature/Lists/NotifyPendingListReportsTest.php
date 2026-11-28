@@ -39,7 +39,7 @@ class NotifyPendingListReportsTest extends ListApiTestCase
             $this->assertStringNotContainsString($first->title, $body);
             $message = new Message(new Email);
             $configure($message);
-            $this->assertSame('simasyam@gmail.com', $message->getSymfonyMessage()->getTo()[0]->getAddress());
+            $this->assertSame('simasyamu@gmail.com', $message->getSymfonyMessage()->getTo()[0]->getAddress());
             $this->assertSame('【もちこれ】未確認の通報があります', $message->getSymfonyMessage()->getSubject());
 
             return true;
